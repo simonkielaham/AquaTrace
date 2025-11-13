@@ -48,22 +48,22 @@ export default function SidebarNav({
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <Link href="/" passHref legacyBehavior>
+            <Link href="/" passHref>
               <SidebarMenuButton asChild isActive={pathname === "/"}>
-                <a href="/">
+                <span>
                   <LayoutDashboard />
                   Dashboard
-                </a>
+                </span>
               </SidebarMenuButton>
             </Link>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <Link href="/asset-management" passHref legacyBehavior>
+            <Link href="/asset-management" passHref>
               <SidebarMenuButton asChild isActive={pathname === "/asset-management"}>
-                <a href="/asset-management">
+                <span>
                   <PlusCircle />
                   Asset Management
-                </a>
+                </span>
               </SidebarMenuButton>
             </Link>
           </SidebarMenuItem>
@@ -93,7 +93,7 @@ export default function SidebarNav({
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton href="#">
+            <SidebarMenuButton>
               <Settings />
               Settings
             </SidebarMenuButton>
