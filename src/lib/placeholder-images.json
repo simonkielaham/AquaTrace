@@ -1,3 +1,22 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "pond",
+      "description": "A calm stormwater management pond with reeds.",
+      "imageUrl": "https://images.unsplash.com/photo-1601877539666-41255b197828?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8cG9uZCUyMHdhdGVyfGVufDB8fHx8MTc2MzAwNzQwMHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "pond water"
+    },
+    {
+      "id": "basin",
+      "description": "A large, grassy water retention basin.",
+      "imageUrl": "https://images.unsplash.com/photo-1668379399907-411e6aa74eb9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxncmFzc3klMjBmaWVsZHxlbnwwfHx8fDE3NjMwMDczOTl8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "grassy field"
+    },
+    {
+      "id": "creek",
+      "description": "A small creek flowing through a natural area.",
+      "imageUrl": "https://images.unsplash.com/photo-1656740978676-985d07451c68?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxjcmVlayUyMGZvcmVzdHxlbnwwfHx8fDE3NjMwMDQ2Mjd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "creek forest"
+    }
+  ]
 }
