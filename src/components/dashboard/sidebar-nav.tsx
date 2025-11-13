@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   MapPin,
   Settings,
+  PlusCircle,
 } from "lucide-react";
 import {
   SidebarHeader,
@@ -44,9 +45,15 @@ export default function SidebarNav({
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton href="#" isActive>
+            <SidebarMenuButton href="/" isActive={!'/asset-management'.startsWith(selectedAssetId)}>
               <LayoutDashboard />
               Dashboard
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton href="/asset-management">
+              <PlusCircle />
+              Asset Management
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
