@@ -44,7 +44,7 @@ export default function DeploymentList({ deployments }: DeploymentListProps) {
   }, [deployments]);
 
   return (
-    <Card className="col-span-1 lg:col-span-2 shadow-sm">
+    <Card className="col-span-1 lg:col-span-2 shadow-sm flex flex-col">
       <CardHeader className="flex flex-row items-center">
         <div className="grid gap-2">
           <CardTitle className="font-headline">Deployments</CardTitle>
@@ -59,8 +59,8 @@ export default function DeploymentList({ deployments }: DeploymentListProps) {
           </span>
         </Button>
       </CardHeader>
-      <CardContent>
-        <ScrollArea className="h-[280px]">
+      <CardContent className="flex-grow">
+        <ScrollArea className="h-full">
           <Table>
             <TableHeader>
               <TableRow>
