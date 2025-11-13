@@ -42,7 +42,7 @@ export default function DashboardLayout() {
             onSelectAsset={setSelectedAssetId}
           />
         </Sidebar>
-        <SidebarInset className="flex flex-col">
+        <div className="flex flex-col">
           <PageHeader />
           <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -55,7 +55,7 @@ export default function DashboardLayout() {
               <AnalysisResults results={assetAnalysisResults} />
             </div>
           </main>
-        </SidebarInset>
+        </div>
       </div>
     </SidebarProvider>
   );
