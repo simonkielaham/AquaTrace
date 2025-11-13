@@ -43,7 +43,7 @@ type AssetFormValues = z.infer<typeof assetFormSchema>;
 
 export default function AssetManagementPage() {
   const { toast } = useToast();
-  const [selectedAssetId, setSelectedAssetId] = React.useState("asset-management");
+  const [selectedAssetId, setSelectedAssetId] = React.useState("");
 
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),

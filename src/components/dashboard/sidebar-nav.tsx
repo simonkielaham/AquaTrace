@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   MapPin,
@@ -34,6 +35,8 @@ export default function SidebarNav({
   selectedAssetId,
   onSelectAsset,
 }: SidebarNavProps) {
+  const pathname = usePathname();
+
   return (
     <>
       <SidebarHeader>
@@ -45,16 +48,24 @@ export default function SidebarNav({
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton href="/" isActive={!'/asset-management'.startsWith(selectedAssetId)}>
-              <LayoutDashboard />
-              Dashboard
-            </SidebarMenuButton>
+            <Link href="/" passHref legacyBehavior>
+              <SidebarMenuButton asChild isActive={pathname === "/"}>
+                <a href="/">
+                  <LayoutDashboard />
+                  Dashboard
+                </a>
+              </SidebarMenuButton>
+            </Link>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton href="/asset-management">
-              <PlusCircle />
-              Asset Management
-            </SidebarMenuButton>
+            <Link href="/asset-management" passHref legacyBehavior>
+              <SidebarMenuButton asChild isActive={pathname === "/asset-management"}>
+                <a href="/asset-management">
+                  <PlusCircle />
+                  Asset Management
+                </a>
+              </SidebarMenuButton>
+            </Link>
           </SidebarMenuItem>
         </SidebarMenu>
         <SidebarMenu>
@@ -65,7 +76,7 @@ export default function SidebarNav({
             <SidebarMenuItem key={asset.id}>
               <SidebarMenuButton
                 onClick={() => onSelectAsset(asset.id)}
-                isActive={asset.id === selectedAssetId}
+                isActive={asset.id === selectedAssetId && pathname==='/'}
               >
                 <MapPin />
                 {asset.name}
