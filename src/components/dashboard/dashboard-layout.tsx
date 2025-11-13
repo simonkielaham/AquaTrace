@@ -44,7 +44,7 @@ export default function DashboardLayout() {
         </Sidebar>
         <SidebarInset className="flex flex-col">
           <PageHeader />
-          <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+          <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <AssetOverview asset={selectedAsset} />
               <PerformanceChart
@@ -54,7 +54,7 @@ export default function DashboardLayout() {
               <DeploymentList deployments={assetDeployments} />
               <AnalysisResults results={assetAnalysisResults} />
             </div>
-          </div>
+          </main>
         </SidebarInset>
       </div>
     </SidebarProvider>
