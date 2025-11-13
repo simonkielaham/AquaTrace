@@ -1,4 +1,7 @@
+"use client";
+
 import type { Deployment } from "@/lib/placeholder-data";
+import * as React from "react";
 import {
   Card,
   CardContent,
@@ -22,7 +25,24 @@ type DeploymentListProps = {
   deployments: Deployment[];
 };
 
+type FormattedDeployment = Omit<Deployment, 'startDate' | 'endDate'> & {
+  startDate: string;
+  endDate: string;
+};
+
 export default function DeploymentList({ deployments }: DeploymentListProps) {
+  const [formattedDeployments, setFormattedDeployments] = React.useState<FormattedDeployment[]>([]);
+
+  React.useEffect(() => {
+    setFormattedDeployments(
+      deployments.map(d => ({
+        ...d,
+        startDate: new Date(d.startDate).toLocaleDateString(),
+        endDate: d.endDate ? new Date(d.endDate).toLocaleDateString() : "Present",
+      }))
+    )
+  }, [deployments]);
+
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm">
       <CardHeader className="flex flex-row items-center">
@@ -50,16 +70,13 @@ export default function DeploymentList({ deployments }: DeploymentListProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {deployments.map((deployment) => (
+              {formattedDeployments.map((deployment) => (
                 <TableRow key={deployment.id}>
                   <TableCell className="font-medium">
                     {deployment.sensorId}
                   </TableCell>
                   <TableCell>
-                    {new Date(deployment.startDate).toLocaleDateString()} -{" "}
-                    {deployment.endDate
-                      ? new Date(deployment.endDate).toLocaleDateString()
-                      : "Present"}
+                    {deployment.startDate} - {deployment.endDate}
                   </TableCell>
                   <TableCell className="text-right flex items-center justify-end gap-1 text-muted-foreground">
                     <File className="h-3 w-3" />
