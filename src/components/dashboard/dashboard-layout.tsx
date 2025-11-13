@@ -1,11 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarInset,
-} from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar } from "@/components/ui/sidebar";
 import SidebarNav from "@/components/dashboard/sidebar-nav";
 import PageHeader from "@/components/dashboard/page-header";
 import AssetOverview from "@/components/dashboard/asset-overview";
@@ -34,7 +30,7 @@ export default function DashboardLayout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen">
+      <div className="flex min-h-screen">
         <Sidebar>
           <SidebarNav
             assets={assets}
@@ -42,7 +38,7 @@ export default function DashboardLayout() {
             onSelectAsset={setSelectedAssetId}
           />
         </Sidebar>
-        <div className="flex flex-col">
+        <div className="flex flex-1 flex-col">
           <PageHeader />
           <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
