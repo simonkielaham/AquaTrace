@@ -1,4 +1,7 @@
+"use client";
+
 import type { AnalysisResult } from "@/lib/placeholder-data";
+import * as React from "react";
 import {
   Card,
   CardContent,
@@ -16,6 +19,10 @@ import { cn } from "@/lib/utils";
 
 type AnalysisResultsProps = {
   results: AnalysisResult[];
+};
+
+type FormattedResult = Omit<AnalysisResult, "timestamp"> & {
+  timestamp: string;
 };
 
 const iconMap = {
@@ -40,6 +47,17 @@ const severityTextClass = {
 };
 
 export default function AnalysisResults({ results }: AnalysisResultsProps) {
+  const [formattedResults, setFormattedResults] = React.useState<FormattedResult[]>([]);
+
+  React.useEffect(() => {
+    setFormattedResults(
+      results.map((r) => ({
+        ...r,
+        timestamp: new Date(r.timestamp).toLocaleString(),
+      }))
+    );
+  }, [results]);
+
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm">
       <CardHeader>
@@ -47,7 +65,7 @@ export default function AnalysisResults({ results }: AnalysisResultsProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {results.map((result) => (
+          {formattedResults.map((result) => (
             <div key={result.id} className="flex items-start space-x-4">
               <div className="flex-shrink-0 mt-1">{iconMap[result.severity]}</div>
               <div className="flex-1">
@@ -66,7 +84,7 @@ export default function AnalysisResults({ results }: AnalysisResultsProps) {
                   {result.description}
                 </p>
                 <p className="text-xs text-muted-foreground/80 pt-1">
-                  {new Date(result.timestamp).toLocaleString()}
+                  {result.timestamp}
                 </p>
               </div>
             </div>
