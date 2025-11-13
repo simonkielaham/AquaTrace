@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Upload, File } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
 
 type DeploymentListProps = {
   deployments: Deployment[];
@@ -31,6 +32,7 @@ type FormattedDeployment = Omit<Deployment, 'startDate' | 'endDate'> & {
 };
 
 export default function DeploymentList({ deployments }: DeploymentListProps) {
+  const { toast } = useToast();
   const [formattedDeployments, setFormattedDeployments] = React.useState<FormattedDeployment[]>([]);
 
   React.useEffect(() => {
@@ -52,7 +54,16 @@ export default function DeploymentList({ deployments }: DeploymentListProps) {
             Manage sensor deployments and datafiles for this asset.
           </CardDescription>
         </div>
-        <Button size="sm" className="ml-auto gap-1">
+        <Button
+          size="sm"
+          className="ml-auto gap-1"
+          onClick={() => {
+            toast({
+              title: "File Upload",
+              description: "Please select a CSV file to upload.",
+            });
+          }}
+        >
           <Upload className="h-3.5 w-3.5" />
           <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
             Upload CSV
@@ -60,33 +71,35 @@ export default function DeploymentList({ deployments }: DeploymentListProps) {
         </Button>
       </CardHeader>
       <CardContent className="flex-grow">
-        <ScrollArea className="h-full">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Sensor ID</TableHead>
-                <TableHead>Period</TableHead>
-                <TableHead className="text-right">Files</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {formattedDeployments.map((deployment) => (
-                <TableRow key={deployment.id}>
-                  <TableCell className="font-medium">
-                    {deployment.sensorId}
-                  </TableCell>
-                  <TableCell>
-                    {deployment.startDate} - {deployment.endDate}
-                  </TableCell>
-                  <TableCell className="text-right flex items-center justify-end gap-1 text-muted-foreground">
-                    <File className="h-3 w-3" />
-                    {deployment.fileCount}
-                  </TableCell>
+        <div className="h-full">
+          <ScrollArea className="h-full">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Sensor ID</TableHead>
+                  <TableHead>Period</TableHead>
+                  <TableHead className="text-right">Files</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </ScrollArea>
+              </TableHeader>
+              <TableBody>
+                {formattedDeployments.map((deployment) => (
+                  <TableRow key={deployment.id}>
+                    <TableCell className="font-medium">
+                      {deployment.sensorId}
+                    </TableCell>
+                    <TableCell>
+                      {deployment.startDate} - {deployment.endDate}
+                    </TableCell>
+                    <TableCell className="text-right flex items-center justify-end gap-1 text-muted-foreground">
+                      <File className="h-3 w-3" />
+                      {deployment.fileCount}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   );

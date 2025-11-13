@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -17,6 +19,7 @@ import {
 import Logo from "@/components/icons/logo";
 import type { Asset } from "@/lib/placeholder-data";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 type SidebarNavProps = {
   assets: Asset[];
@@ -36,6 +39,14 @@ export default function SidebarNav({
   onSelectAsset,
 }: SidebarNavProps) {
   const pathname = usePathname();
+  const { toast } = useToast();
+
+  const handleNotImplemented = () => {
+    toast({
+      title: "Feature not implemented",
+      description: "This functionality is not yet available.",
+    });
+  };
 
   return (
     <>
@@ -93,7 +104,7 @@ export default function SidebarNav({
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton>
+            <SidebarMenuButton onClick={handleNotImplemented}>
               <Settings />
               Settings
             </SidebarMenuButton>
