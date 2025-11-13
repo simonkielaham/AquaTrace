@@ -22,16 +22,6 @@ import {
 
 export default function DashboardLayout() {
   const [selectedAssetId, setSelectedAssetId] = React.useState(assets[0].id);
-  const [isMobile, setIsMobile] = React.useState(false);
-
-  React.useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId) as Asset;
   const assetDeployments = deployments.filter(
@@ -52,9 +42,9 @@ export default function DashboardLayout() {
             onSelectAsset={setSelectedAssetId}
           />
         </Sidebar>
-        <SidebarInset>
+        <SidebarInset className="flex flex-col">
           <PageHeader />
-          <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+          <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <AssetOverview asset={selectedAsset} />
               <PerformanceChart
@@ -64,7 +54,7 @@ export default function DashboardLayout() {
               <DeploymentList deployments={assetDeployments} />
               <AnalysisResults results={assetAnalysisResults} />
             </div>
-          </main>
+          </div>
         </SidebarInset>
       </div>
     </SidebarProvider>
