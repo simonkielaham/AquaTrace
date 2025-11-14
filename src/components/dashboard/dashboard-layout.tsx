@@ -10,7 +10,6 @@ import PerformanceChart from "@/components/dashboard/performance-chart";
 import DeploymentList from "@/components/dashboard/deployment-list";
 import AnalysisResults from "@/components/dashboard/analysis-results";
 import {
-  deployments,
   analysisResults,
   performanceData,
   type Asset,
@@ -21,11 +20,11 @@ import { useRouter } from "next/navigation";
 
 export default function DashboardLayout() {
   const router = useRouter();
-  const { assets, selectedAssetId, setSelectedAssetId } = useAssets();
+  const { assets, selectedAssetId, setSelectedAssetId, deployments } = useAssets();
 
-  const selectedAsset = assets.find((a) => a.id === selectedAssetId) as Asset;
+  const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   
-  // Handle case where selected asset is not found (e.g. after a refresh)
+  // Handle case where selected asset is not found or none is selected
   React.useEffect(() => {
     if (!selectedAsset && assets.length > 0) {
       setSelectedAssetId(assets[0].id);
@@ -35,7 +34,7 @@ export default function DashboardLayout() {
   if (!selectedAsset) {
     return (
        <div className="flex h-screen w-full items-center justify-center">
-         <p>Loading assets...</p>
+         <p>No assets found. Create one in Asset Management.</p>
        </div>
     )
   }

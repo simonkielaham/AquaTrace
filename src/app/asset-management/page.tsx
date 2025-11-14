@@ -67,7 +67,7 @@ const detectColumns = (headers: string[]) => {
 export default function AssetManagementPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { assets, addAsset, setSelectedAssetId } = useAssets();
+  const { assets, addAsset, setSelectedAssetId, addDeployment } = useAssets();
 
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
   const [csvData, setCsvData] = React.useState<string[][]>([]);
@@ -119,6 +119,16 @@ export default function AssetManagementPage() {
       designElevations: data.designElevations,
       status: "ok", // Default status
       imageId: ["pond", "basin", "creek"][Math.floor(Math.random() * 3)], // Random image
+    });
+
+    // Create a new deployment for the asset
+    addDeployment({
+      id: `dep-${Date.now()}`,
+      assetId: newId,
+      sensorId: `SN-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+      startDate: new Date().toISOString(),
+      endDate: null,
+      fileCount: 1, // We are adding one file
     });
     
     console.log("Saved Data:", { ...data, csvData, fileName });
