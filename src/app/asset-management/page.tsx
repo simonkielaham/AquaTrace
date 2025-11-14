@@ -445,7 +445,7 @@ export default function AssetManagementPage() {
                                       render={({ field }) => (
                                         <FormItem>
                                           <FormLabel>Water Level Column</FormLabel>
-                                          <Select onValue-change={field.onChange} value={field.value}>
+                                          <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
                                               <SelectTrigger>
                                                 <SelectValue placeholder="Select a column" />

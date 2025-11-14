@@ -17,15 +17,11 @@ const performanceDataFilePath = path.join(dataDir, 'performance-data.json');
 const uploadsDir = path.join(dataDir, 'uploads');
 
 
-// Define the schema for the form data
+// Define the schema for the form data, excluding the complex array
 const assetFormSchema = z.object({
   name: z.string().min(2),
   location: z.string().min(2),
   permanentPoolElevation: z.coerce.number().min(0),
-  designElevations: z.array(z.object({
-    year: z.coerce.number().min(1),
-    elevation: z.coerce.number().min(0),
-  })).min(1),
   datetimeColumn: z.string().min(1),
   waterLevelColumn: z.string().min(1),
   sensorElevation: z.coerce.number().min(0),
@@ -55,7 +51,24 @@ async function writeJsonFile<T>(filePath: string, data: T): Promise<void> {
 
 
 export async function createAsset(prevState: any, formData: FormData) {
-  const validatedFields = assetFormSchema.safeParse(Object.fromEntries(formData.entries()));
+    
+  // Manually parse designElevations
+  const designElevations: { year: number; elevation: number }[] = [];
+  const formObject = Object.fromEntries(formData.entries());
+  
+  for (const key in formObject) {
+    const match = key.match(/^designElevations\.(\d+)\.(year|elevation)$/);
+    if (match) {
+      const index = parseInt(match[1], 10);
+      const field = match[2];
+      if (!designElevations[index]) {
+        designElevations[index] = { year: 0, elevation: 0 };
+      }
+      (designElevations[index] as any)[field] = parseFloat(formObject[key] as string);
+    }
+  }
+
+  const validatedFields = assetFormSchema.safeParse(formObject);
   
   if (!validatedFields.success) {
     return {
@@ -94,7 +107,7 @@ export async function createAsset(prevState: any, formData: FormData) {
       name: data.name,
       location: data.location,
       permanentPoolElevation: data.permanentPoolElevation,
-      designElevations: data.designElevations,
+      designElevations: designElevations,
       status: 'ok', // Default status
       imageId: ['pond', 'basin', 'creek'][Math.floor(Math.random() * 3)],
     };
