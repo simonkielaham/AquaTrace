@@ -63,6 +63,7 @@ const assetFormSchema = z.object({
   designElevations: z.array(designElevationSchema).min(1, "At least one design elevation is required."),
   datetimeColumn: z.string().min(1, "Datetime column is required."),
   waterLevelColumn: z.string().min(1, "Water level column is required."),
+  sensorElevation: z.coerce.number().min(0, "Sensor elevation is required."),
   startRow: z.coerce.number().min(1, "Start row must be at least 1."),
 });
 
@@ -160,6 +161,7 @@ export default function AssetManagementPage() {
       location: "",
       permanentPoolElevation: 0,
       designElevations: [{ year: 2, elevation: 0 }],
+      sensorElevation: 0,
       startRow: 2,
     },
   });
@@ -211,6 +213,7 @@ export default function AssetManagementPage() {
       endDate: null,
       fileName: fileName || "unknown.csv",
       fileCount: 1, 
+      sensorElevation: data.sensorElevation,
     });
     
     // Process and store performance data
@@ -218,10 +221,12 @@ export default function AssetManagementPage() {
       .slice(data.startRow - 2) // Adjust for 1-based startRow and header
       .map(row => {
           const timeValue = (row as any)[data.datetimeColumn];
-          const waterLevelValue = (row as any)[data.waterLevelColumn];
+          const waterLevelValue = parseFloat((row as any)[data.waterLevelColumn]);
+          const waterElevation = waterLevelValue + data.sensorElevation;
           return {
             time: new Date(timeValue).toISOString(),
-            waterLevel: parseFloat(waterLevelValue),
+            waterLevel: waterLevelValue,
+            waterElevation: waterElevation,
             // Assuming no precipitation data in the uploaded file for now
             precipitation: 0 
           };
@@ -407,7 +412,7 @@ export default function AssetManagementPage() {
                                   <div className="space-y-4">
                                     <div className="flex items-center gap-2 text-sm font-medium">
                                         <TableIcon className="h-5 w-5" />
-                                        <span>Column Mapping</span>
+                                        <span>Column Mapping & Settings</span>
                                     </div>
                                     <FormField
                                       control={form.control}
@@ -453,6 +458,19 @@ export default function AssetManagementPage() {
                                         </FormItem>
                                       )}
                                     />
+                                     <FormField
+                                        control={form.control}
+                                        name="sensorElevation"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Sensor Elevation (meters)</FormLabel>
+                                            <FormControl>
+                                              <Input type="number" step="0.01" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
                                     <FormField
                                         control={form.control}
                                         name="startRow"

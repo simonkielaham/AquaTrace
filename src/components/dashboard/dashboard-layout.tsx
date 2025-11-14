@@ -69,7 +69,7 @@ export default function DashboardLayout() {
               <AssetOverview asset={selectedAsset} />
               <PerformanceChart
                 data={assetPerformanceData}
-                poolElevation={selectedAsset.permanentPoolElevation}
+                asset={selectedAsset}
               />
               <DeploymentList deployments={assetDeployments} />
               <AnalysisResults results={assetAnalysisResults} />

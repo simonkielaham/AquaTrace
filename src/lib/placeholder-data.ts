@@ -21,11 +21,13 @@ export type Deployment = {
   endDate: string | null;
   fileName: string;
   fileCount: number;
+  sensorElevation: number;
 };
 
 export type DataPoint = {
   time: string; // ISO string
   waterLevel: number; // in meters
+  waterElevation: number; // in meters
   precipitation: number; // in mm, using number to allow 0
 };
 
