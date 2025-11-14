@@ -11,7 +11,6 @@ import DeploymentList from "@/components/dashboard/deployment-list";
 import AnalysisResults from "@/components/dashboard/analysis-results";
 import {
   analysisResults,
-  performanceData as initialPerformanceData,
   type Asset,
 } from "@/lib/placeholder-data";
 import { useAssets } from "@/context/asset-context";
@@ -26,15 +25,23 @@ export default function DashboardLayout() {
   
   // Handle case where selected asset is not found or none is selected
   React.useEffect(() => {
-    if (!selectedAsset && assets.length > 0) {
+    if (assets.length > 0 && !assets.find(a => a.id === selectedAssetId)) {
       setSelectedAssetId(assets[0].id);
     }
-  }, [selectedAsset, assets, setSelectedAssetId]);
+  }, [selectedAssetId, assets, setSelectedAssetId]);
+
+  if (assets.length === 0) {
+    return (
+       <div className="flex h-screen w-full items-center justify-center">
+         <p>No assets found. Create one in Asset Management.</p>
+       </div>
+    )
+  }
 
   if (!selectedAsset) {
     return (
        <div className="flex h-screen w-full items-center justify-center">
-         <p>No assets found. Create one in Asset Management.</p>
+         <p>Loading asset data...</p>
        </div>
     )
   }
@@ -46,8 +53,7 @@ export default function DashboardLayout() {
     (r) => r.assetId === selectedAssetId
   );
   
-  // Use newly uploaded data if available, otherwise fall back to initial placeholder data
-  const assetPerformanceData = performanceData[selectedAssetId] || initialPerformanceData[selectedAssetId] || [];
+  const assetPerformanceData = performanceData[selectedAssetId] || [];
 
   return (
     <SidebarProvider>

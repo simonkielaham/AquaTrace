@@ -1,24 +1,22 @@
 
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { 
-  assets as initialAssets, 
-  deployments as initialDeployments, 
   Asset, 
   Deployment,
-  DataPoint
+  DataPoint,
+  assets as initialAssets,
+  deployments as initialDeployments,
+  performanceData as initialPerformanceData,
 } from '@/lib/placeholder-data';
 
 interface AssetContextType {
   assets: Asset[];
-  addAsset: (asset: Asset) => void;
   selectedAssetId: string;
   setSelectedAssetId: (id: string) => void;
   deployments: Deployment[];
-  addDeployment: (deployment: Deployment) => void;
   performanceData: { [assetId: string]: DataPoint[] };
-  addPerformanceData: (assetId: string, data: DataPoint[]) => void;
 }
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
@@ -26,26 +24,27 @@ const AssetContext = createContext<AssetContextType | undefined>(undefined);
 export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [deployments, setDeployments] = useState<Deployment[]>(initialDeployments);
-  const [selectedAssetId, setSelectedAssetId] = useState<string>(initialAssets.length > 0 ? initialAssets[0].id : '');
-  const [performanceData, setPerformanceData] = useState<{ [assetId: string]: DataPoint[] }>({});
+  const [performanceData, setPerformanceData] = useState<{ [assetId: string]: DataPoint[] }>(initialPerformanceData);
+  const [selectedAssetId, setSelectedAssetId] = useState<string>('');
 
-  const addAsset = (asset: Asset) => {
-    setAssets(prevAssets => [...prevAssets, asset]);
-  };
+  useEffect(() => {
+    // Set the initial selected asset ID once assets are loaded
+    if (assets.length > 0 && !selectedAssetId) {
+      setSelectedAssetId(assets[0].id);
+    }
+  }, [assets, selectedAssetId]);
 
-  const addDeployment = (deployment: Deployment) => {
-    setDeployments(prevDeployments => [...prevDeployments, deployment]);
-  };
-  
-  const addPerformanceData = (assetId: string, data: DataPoint[]) => {
-    setPerformanceData(prevData => ({
-      ...prevData,
-      [assetId]: data,
-    }));
+
+  const value = {
+    assets,
+    selectedAssetId,
+    setSelectedAssetId,
+    deployments,
+    performanceData,
   };
 
   return (
-    <AssetContext.Provider value={{ assets, addAsset, selectedAssetId, setSelectedAssetId, deployments, addDeployment, performanceData, addPerformanceData }}>
+    <AssetContext.Provider value={value}>
       {children}
     </AssetContext.Provider>
   );

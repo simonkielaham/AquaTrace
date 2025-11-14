@@ -49,7 +49,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { DataPoint } from "@/lib/placeholder-data";
+import { createAsset } from "@/app/actions";
+
 
 const designElevationSchema = z.object({
   year: z.coerce.number().min(1, "Year is required"),
@@ -70,7 +71,6 @@ const assetFormSchema = z.object({
 type AssetFormValues = z.infer<typeof assetFormSchema>;
 
 const detectColumns = (headers: string[]) => {
-  const lowerCaseHeaders = headers.map(h => h.toLowerCase());
   const datetimeKeywords = ["date", "time", "timestamp"];
   const waterLevelKeywords = ["water", "level", "elevation", "stage"];
 
@@ -148,11 +148,11 @@ function AssetListTable() {
 export default function AssetManagementPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { assets, addAsset, setSelectedAssetId, addDeployment, addPerformanceData } = useAssets();
+  const { assets, setSelectedAssetId } = useAssets();
 
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
-  const [csvData, setCsvData] = React.useState<(string | number)[][]>([]);
-  const [fileName, setFileName] = React.useState<string | null>(null);
+  const [file, setFile] = React.useState<File | null>(null);
+  const [fileContent, setFileContent] = React.useState<string | null>(null);
 
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),
@@ -170,79 +170,82 @@ export default function AssetManagementPage() {
     control: form.control,
     name: "designElevations",
   });
-
+  
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setFileName(file.name);
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          const headers = results.meta.fields || [];
-          setCsvHeaders(headers);
-          setCsvData(results.data as any[]);
-
-          const { datetimeColumn, waterLevelColumn } = detectColumns(headers);
-          form.setValue("datetimeColumn", datetimeColumn);
-          form.setValue("waterLevelColumn", waterLevelColumn);
-          form.setValue("startRow", 2);
-        },
-      });
+    const selectedFile = event.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        setFileContent(text);
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          preview: 1, // Only parse the first row for headers
+          complete: (results) => {
+            const headers = results.meta.fields || [];
+            setCsvHeaders(headers);
+            const { datetimeColumn, waterLevelColumn } = detectColumns(headers);
+            form.setValue("datetimeColumn", datetimeColumn);
+            form.setValue("waterLevelColumn", waterLevelColumn);
+            form.setValue("startRow", 2);
+          },
+        });
+      };
+      reader.readAsText(selectedFile);
     }
   };
+  
+  const formRef = React.useRef<HTMLFormElement>(null);
 
-  function onSubmit(data: AssetFormValues) {
-    const newId = `asset-${Date.now()}`;
-    addAsset({
-      id: newId,
-      name: data.name,
-      location: data.location,
-      permanentPoolElevation: data.permanentPoolElevation,
-      designElevations: data.designElevations,
-      status: "ok", // Default status
-      imageId: ["pond", "basin", "creek"][Math.floor(Math.random() * 3)], // Random image
-    });
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!formRef.current) return;
 
-    // Create a new deployment for the asset
-    addDeployment({
-      id: `dep-${Date.now()}`,
-      assetId: newId,
-      sensorId: `SN-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-      startDate: new Date().toISOString(),
-      endDate: null,
-      fileName: fileName || "unknown.csv",
-      fileCount: 1, 
-      sensorElevation: data.sensorElevation,
-    });
-    
-    // Process and store performance data
-    const processedData = csvData
-      .slice(data.startRow - 2) // Adjust for 1-based startRow and header
-      .map(row => {
-          const timeValue = (row as any)[data.datetimeColumn];
-          const waterLevelValue = parseFloat((row as any)[data.waterLevelColumn]);
-          const waterElevation = waterLevelValue + data.sensorElevation;
-          return {
-            time: new Date(timeValue).toISOString(),
-            waterLevel: waterLevelValue,
-            waterElevation: waterElevation,
-            // Assuming no precipitation data in the uploaded file for now
-            precipitation: 0 
-          };
-      }).filter(dp => !isNaN(dp.waterLevel) && dp.time);
-      
-    addPerformanceData(newId, processedData);
-    
+    // Manually trigger validation
+    const isValid = await form.trigger();
+    if (!isValid) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Please check the form for errors.",
+        });
+        return;
+    }
+
+    const formData = new FormData(formRef.current);
+    if (file) {
+      formData.append('csvFile', file);
+    }
+    if (fileContent) {
+        formData.append('csvContent', fileContent);
+    }
+
     toast({
-      title: "Asset Created",
-      description: `${data.name} has been successfully created.`,
+        title: 'Creating Asset...',
+        description: 'Please wait while we save your data.',
     });
-    
-    // Select the new asset and navigate to dashboard
-    setSelectedAssetId(newId);
-    router.push('/');
-  }
+
+    try {
+      // The server action will handle redirection on success
+      const result = await createAsset(null, formData);
+
+      if (result?.message) {
+          toast({
+              variant: "destructive",
+              title: "Error Creating Asset",
+              description: result.message,
+          });
+      }
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "An Unexpected Error Occurred",
+            description: "Could not create the asset. Please try again.",
+        });
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -278,7 +281,7 @@ export default function AssetManagementPage() {
                     <AccordionContent>
                        <CardContent>
                         <Form {...form}>
-                          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                          <form ref={formRef} onSubmit={handleSubmit} className="space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                               <div className="space-y-8">
                                 <FormField
@@ -395,8 +398,8 @@ export default function AssetManagementPage() {
                                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                                       <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
                                       <p className="mb-2 text-sm text-muted-foreground">
-                                        {fileName ? (
-                                          <span className="font-semibold">{fileName}</span>
+                                        {file ? (
+                                          <span className="font-semibold">{file.name}</span>
                                         ) : (
                                           <>
                                             <span className="font-semibold">Click to upload</span> or drag and drop
@@ -442,7 +445,7 @@ export default function AssetManagementPage() {
                                       render={({ field }) => (
                                         <FormItem>
                                           <FormLabel>Water Level Column</FormLabel>
-                                          <Select onValueChange={field.onChange} value={field.value}>
+                                          <Select onValue-change={field.onChange} value={field.value}>
                                             <FormControl>
                                               <SelectTrigger>
                                                 <SelectValue placeholder="Select a column" />
@@ -490,7 +493,7 @@ export default function AssetManagementPage() {
                               </div>
                             </div>
 
-                            <Button type="submit" disabled={csvData.length === 0}>Create Asset</Button>
+                            <Button type="submit" disabled={!file}>Create Asset</Button>
                           </form>
                         </Form>
                        </CardContent>
