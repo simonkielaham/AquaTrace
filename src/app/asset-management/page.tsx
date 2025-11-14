@@ -49,6 +49,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { DataPoint } from "@/lib/placeholder-data";
 
 const designElevationSchema = z.object({
   year: z.coerce.number().min(1, "Year is required"),
@@ -146,10 +147,10 @@ function AssetListTable() {
 export default function AssetManagementPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { assets, addAsset, setSelectedAssetId, addDeployment } = useAssets();
+  const { assets, addAsset, setSelectedAssetId, addDeployment, addPerformanceData } = useAssets();
 
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
-  const [csvData, setCsvData] = React.useState<string[][]>([]);
+  const [csvData, setCsvData] = React.useState<(string | number)[][]>([]);
   const [fileName, setFileName] = React.useState<string | null>(null);
 
   const form = useForm<AssetFormValues>({
@@ -173,11 +174,12 @@ export default function AssetManagementPage() {
     if (file) {
       setFileName(file.name);
       Papa.parse(file, {
-        preview: 10,
+        header: true,
+        skipEmptyLines: true,
         complete: (results) => {
-          const headers = results.data[0] as string[];
+          const headers = results.meta.fields || [];
           setCsvHeaders(headers);
-          setCsvData(results.data as string[][]);
+          setCsvData(results.data as any[]);
 
           const { datetimeColumn, waterLevelColumn } = detectColumns(headers);
           form.setValue("datetimeColumn", datetimeColumn);
@@ -208,10 +210,25 @@ export default function AssetManagementPage() {
       startDate: new Date().toISOString(),
       endDate: null,
       fileName: fileName || "unknown.csv",
-      fileCount: 1, // We are adding one file
+      fileCount: 1, 
     });
     
-    console.log("Saved Data:", { ...data, csvData, fileName });
+    // Process and store performance data
+    const processedData = csvData
+      .slice(data.startRow - 2) // Adjust for 1-based startRow and header
+      .map(row => {
+          const timeValue = (row as any)[data.datetimeColumn];
+          const waterLevelValue = (row as any)[data.waterLevelColumn];
+          return {
+            time: new Date(timeValue).toISOString(),
+            waterLevel: parseFloat(waterLevelValue),
+            // Assuming no precipitation data in the uploaded file for now
+            precipitation: 0 
+          };
+      }).filter(dp => !isNaN(dp.waterLevel) && dp.time);
+      
+    addPerformanceData(newId, processedData);
+    
     toast({
       title: "Asset Created",
       description: `${data.name} has been successfully created.`,
@@ -455,7 +472,7 @@ export default function AssetManagementPage() {
                               </div>
                             </div>
 
-                            <Button type="submit" disabled={csvHeaders.length === 0}>Create Asset</Button>
+                            <Button type="submit" disabled={csvData.length === 0}>Create Asset</Button>
                           </form>
                         </Form>
                        </CardContent>

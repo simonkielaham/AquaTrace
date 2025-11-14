@@ -6,7 +6,8 @@ import {
   assets as initialAssets, 
   deployments as initialDeployments, 
   Asset, 
-  Deployment 
+  Deployment,
+  DataPoint
 } from '@/lib/placeholder-data';
 
 interface AssetContextType {
@@ -16,6 +17,8 @@ interface AssetContextType {
   setSelectedAssetId: (id: string) => void;
   deployments: Deployment[];
   addDeployment: (deployment: Deployment) => void;
+  performanceData: { [assetId: string]: DataPoint[] };
+  addPerformanceData: (assetId: string, data: DataPoint[]) => void;
 }
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
@@ -24,6 +27,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [deployments, setDeployments] = useState<Deployment[]>(initialDeployments);
   const [selectedAssetId, setSelectedAssetId] = useState<string>(initialAssets.length > 0 ? initialAssets[0].id : '');
+  const [performanceData, setPerformanceData] = useState<{ [assetId: string]: DataPoint[] }>({});
 
   const addAsset = (asset: Asset) => {
     setAssets(prevAssets => [...prevAssets, asset]);
@@ -32,9 +36,16 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const addDeployment = (deployment: Deployment) => {
     setDeployments(prevDeployments => [...prevDeployments, deployment]);
   };
+  
+  const addPerformanceData = (assetId: string, data: DataPoint[]) => {
+    setPerformanceData(prevData => ({
+      ...prevData,
+      [assetId]: data,
+    }));
+  };
 
   return (
-    <AssetContext.Provider value={{ assets, addAsset, selectedAssetId, setSelectedAssetId, deployments, addDeployment }}>
+    <AssetContext.Provider value={{ assets, addAsset, selectedAssetId, setSelectedAssetId, deployments, addDeployment, performanceData, addPerformanceData }}>
       {children}
     </AssetContext.Provider>
   );

@@ -11,7 +11,7 @@ import DeploymentList from "@/components/dashboard/deployment-list";
 import AnalysisResults from "@/components/dashboard/analysis-results";
 import {
   analysisResults,
-  performanceData,
+  performanceData as initialPerformanceData,
   type Asset,
 } from "@/lib/placeholder-data";
 import { useAssets } from "@/context/asset-context";
@@ -20,7 +20,7 @@ import { useRouter } from "next/navigation";
 
 export default function DashboardLayout() {
   const router = useRouter();
-  const { assets, selectedAssetId, setSelectedAssetId, deployments } = useAssets();
+  const { assets, selectedAssetId, setSelectedAssetId, deployments, performanceData } = useAssets();
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   
@@ -45,7 +45,9 @@ export default function DashboardLayout() {
   const assetAnalysisResults = analysisResults.filter(
     (r) => r.assetId === selectedAssetId
   );
-  const assetPerformanceData = performanceData[selectedAssetId] || [];
+  
+  // Use newly uploaded data if available, otherwise fall back to initial placeholder data
+  const assetPerformanceData = performanceData[selectedAssetId] || initialPerformanceData[selectedAssetId] || [];
 
   return (
     <SidebarProvider>
