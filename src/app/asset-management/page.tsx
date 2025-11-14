@@ -5,6 +5,7 @@ import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
+import Papa from "papaparse";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,10 +17,17 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { PlusCircle, Trash2 } from "lucide-react";
+import { PlusCircle, Trash2, UploadCloud, File, TableIcon } from "lucide-react";
 import { SidebarProvider, Sidebar } from "@/components/ui/sidebar";
 import SidebarNav from "@/components/dashboard/sidebar-nav";
 import PageHeader from "@/components/dashboard/page-header";
@@ -36,14 +44,32 @@ const assetFormSchema = z.object({
   location: z.string().min(2, "Location is required."),
   permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
   designElevations: z.array(designElevationSchema).min(1, "At least one design elevation is required."),
-  datafile: z.any().refine((file) => file?.length == 1, "Datafile is required."),
+  datetimeColumn: z.string().min(1, "Datetime column is required."),
+  waterLevelColumn: z.string().min(1, "Water level column is required."),
+  startRow: z.coerce.number().min(1, "Start row must be at least 1."),
 });
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
 
+const detectColumns = (headers: string[]) => {
+  const lowerCaseHeaders = headers.map(h => h.toLowerCase());
+  const datetimeKeywords = ["date", "time", "timestamp"];
+  const waterLevelKeywords = ["water", "level", "elevation", "stage"];
+
+  const datetimeColumn = headers.find(h => datetimeKeywords.some(k => h.toLowerCase().includes(k))) || "";
+  const waterLevelColumn = headers.find(h => waterLevelKeywords.some(k => h.toLowerCase().includes(k))) || "";
+  
+  return { datetimeColumn, waterLevelColumn };
+};
+
+
 export default function AssetManagementPage() {
   const { toast } = useToast();
   const [selectedAssetId, setSelectedAssetId] = React.useState("");
+
+  const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
+  const [csvData, setCsvData] = React.useState<string[][]>([]);
+  const [fileName, setFileName] = React.useState<string | null>(null);
 
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),
@@ -52,6 +78,7 @@ export default function AssetManagementPage() {
       location: "",
       permanentPoolElevation: 0,
       designElevations: [{ year: 2, elevation: 0 }],
+      startRow: 2,
     },
   });
 
@@ -59,20 +86,43 @@ export default function AssetManagementPage() {
     control: form.control,
     name: "designElevations",
   });
-  
-  const fileRef = form.register("datafile");
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setFileName(file.name);
+      Papa.parse(file, {
+        preview: 10,
+        complete: (results) => {
+          const headers = results.data[0] as string[];
+          setCsvHeaders(headers);
+          setCsvData(results.data as string[][]);
+
+          const { datetimeColumn, waterLevelColumn } = detectColumns(headers);
+          form.setValue("datetimeColumn", datetimeColumn);
+          form.setValue("waterLevelColumn", waterLevelColumn);
+          form.setValue("startRow", 2);
+        },
+      });
+    }
+  };
 
   function onSubmit(data: AssetFormValues) {
-    console.log(data);
+    console.log({ ...data, csvData, fileName });
     toast({
       title: "Asset Submitted",
-      description: (
-        <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
+      description: "Asset created with the provided data and file configuration.",
     });
-    form.reset();
+    form.reset({
+      name: "",
+      location: "",
+      permanentPoolElevation: 0,
+      designElevations: [{ year: 2, elevation: 0 }],
+      startRow: 2,
+    });
+    setCsvHeaders([]);
+    setCsvData([]);
+    setFileName(null);
   }
 
   return (
@@ -202,25 +252,101 @@ export default function AssetManagementPage() {
                     </div>
                     
                     <Separator />
+                    
+                    <div>
+                      <FormLabel>Water Level Datafile</FormLabel>
+                      <FormDescription className="mb-4">
+                        Upload a CSV file containing time series data. Map the columns and specify the data start row.
+                      </FormDescription>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="flex items-center justify-center w-full">
+                          <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                              <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
+                              <p className="mb-2 text-sm text-muted-foreground">
+                                {fileName ? (
+                                  <span className="font-semibold">{fileName}</span>
+                                ) : (
+                                  <>
+                                    <span className="font-semibold">Click to upload</span> or drag and drop
+                                  </>
+                                )}
+                              </p>
+                              <p className="text-xs text-muted-foreground">CSV (MAX. 5MB)</p>
+                            </div>
+                            <Input id="dropzone-file" type="file" className="hidden" onChange={handleFileChange} accept=".csv" />
+                          </label>
+                        </div>
+                        {csvHeaders.length > 0 && (
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                                <TableIcon className="h-5 w-5" />
+                                <span>Column Mapping</span>
+                            </div>
+                            <FormField
+                              control={form.control}
+                              name="datetimeColumn"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Datetime Column</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select a column" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {csvHeaders.map(header => (
+                                        <SelectItem key={header} value={header}>{header}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="waterLevelColumn"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Water Level Column</FormLabel>
+                                   <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select a column" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {csvHeaders.map(header => (
+                                        <SelectItem key={header} value={header}>{header}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                             <FormField
+                                control={form.control}
+                                name="startRow"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Data Start Row</FormLabel>
+                                    <FormControl>
+                                      <Input type="number" min="1" {...field} />
+                                    </FormControl>
+                                    <FormDescription>The first row containing data (not headers).</FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
-                    <FormField
-                      control={form.control}
-                      name="datafile"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Water Level Datafile</FormLabel>
-                          <FormControl>
-                            <Input type="file" accept=".csv" {...fileRef} />
-                          </FormControl>
-                          <FormDescription>
-                            Upload a CSV file containing time series data for water level and precipitation.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <Button type="submit">Create Asset</Button>
+                    <Button type="submit" disabled={csvHeaders.length === 0}>Create Asset</Button>
                   </form>
                 </Form>
               </CardContent>
