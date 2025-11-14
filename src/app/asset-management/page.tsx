@@ -28,7 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { PlusCircle, Trash2, UploadCloud, TableIcon, ChevronDown, FilePenLine, XCircle } from "lucide-react";
+import { PlusCircle, Trash2, UploadCloud, TableIcon, ChevronDown, FilePenLine } from "lucide-react";
 import { SidebarProvider, Sidebar } from "@/components/ui/sidebar";
 import SidebarNav from "@/components/dashboard/sidebar-nav";
 import PageHeader from "@/components/dashboard/page-header";
@@ -207,6 +207,7 @@ export default function AssetManagementPage() {
       sensorId: `SN-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
       startDate: new Date().toISOString(),
       endDate: null,
+      fileName: fileName || "unknown.csv",
       fileCount: 1, // We are adding one file
     });
     
@@ -238,7 +239,7 @@ export default function AssetManagementPage() {
           <PageHeader />
           <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <div className="space-y-6">
-              <Accordion type="single" collapsible className="w-full">
+              <Accordion type="single" collapsible className="w-full" defaultValue="item-1">
                 <AccordionItem value="item-1">
                   <Card>
                     <AccordionTrigger className="w-full p-6 [&[data-state=open]>svg]:rotate-180">
@@ -471,5 +472,3 @@ export default function AssetManagementPage() {
     </SidebarProvider>
   );
 }
-
-    

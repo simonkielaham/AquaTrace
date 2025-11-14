@@ -19,6 +19,7 @@ export type Deployment = {
   sensorId: string;
   startDate: string;
   endDate: string | null;
+  fileName: string;
   fileCount: number;
 };
 

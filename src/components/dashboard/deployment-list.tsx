@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Deployment } from "@/lib/placeholder-data";
@@ -17,10 +18,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Upload, File } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/hooks/use-toast";
+import { FileText } from "lucide-react";
 
 type DeploymentListProps = {
   deployments: Deployment[];
@@ -32,7 +31,6 @@ type FormattedDeployment = Omit<Deployment, 'startDate' | 'endDate'> & {
 };
 
 export default function DeploymentList({ deployments }: DeploymentListProps) {
-  const { toast } = useToast();
   const [formattedDeployments, setFormattedDeployments] = React.useState<FormattedDeployment[]>([]);
 
   React.useEffect(() => {
@@ -47,28 +45,13 @@ export default function DeploymentList({ deployments }: DeploymentListProps) {
 
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm flex flex-col">
-      <CardHeader className="flex flex-row items-center">
+      <CardHeader>
         <div className="grid gap-2">
           <CardTitle className="font-headline">Deployments</CardTitle>
           <CardDescription>
-            Manage sensor deployments and datafiles for this asset.
+            Sensor deployments and associated datafiles for this asset.
           </CardDescription>
         </div>
-        <Button
-          size="sm"
-          className="ml-auto gap-1"
-          onClick={() => {
-            toast({
-              title: "File Upload",
-              description: "Please select a CSV file to upload.",
-            });
-          }}
-        >
-          <Upload className="h-3.5 w-3.5" />
-          <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-            Upload CSV
-          </span>
-        </Button>
       </CardHeader>
       <CardContent className="flex-grow">
         <div className="h-full">
@@ -78,7 +61,7 @@ export default function DeploymentList({ deployments }: DeploymentListProps) {
                 <TableRow>
                   <TableHead>Sensor ID</TableHead>
                   <TableHead>Period</TableHead>
-                  <TableHead className="text-right">Files</TableHead>
+                  <TableHead>Datafile</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -90,9 +73,9 @@ export default function DeploymentList({ deployments }: DeploymentListProps) {
                     <TableCell>
                       {deployment.startDate} - {deployment.endDate}
                     </TableCell>
-                    <TableCell className="text-right flex items-center justify-end gap-1 text-muted-foreground">
-                      <File className="h-3 w-3" />
-                      {deployment.fileCount}
+                    <TableCell className="flex items-center gap-2 text-muted-foreground">
+                       <FileText className="h-4 w-4" />
+                      <span className="font-mono text-xs">{deployment.fileName}</span>
                     </TableCell>
                   </TableRow>
                 ))}
