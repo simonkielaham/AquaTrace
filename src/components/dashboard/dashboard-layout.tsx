@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -9,17 +10,36 @@ import PerformanceChart from "@/components/dashboard/performance-chart";
 import DeploymentList from "@/components/dashboard/deployment-list";
 import AnalysisResults from "@/components/dashboard/analysis-results";
 import {
-  assets,
   deployments,
   analysisResults,
   performanceData,
   type Asset,
 } from "@/lib/placeholder-data";
+import { useAssets } from "@/context/asset-context";
+import { useRouter } from "next/navigation";
+
 
 export default function DashboardLayout() {
-  const [selectedAssetId, setSelectedAssetId] = React.useState(assets[0].id);
+  const router = useRouter();
+  const { assets, selectedAssetId, setSelectedAssetId } = useAssets();
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId) as Asset;
+  
+  // Handle case where selected asset is not found (e.g. after a refresh)
+  React.useEffect(() => {
+    if (!selectedAsset && assets.length > 0) {
+      setSelectedAssetId(assets[0].id);
+    }
+  }, [selectedAsset, assets, setSelectedAssetId]);
+
+  if (!selectedAsset) {
+    return (
+       <div className="flex h-screen w-full items-center justify-center">
+         <p>Loading assets...</p>
+       </div>
+    )
+  }
+
   const assetDeployments = deployments.filter(
     (d) => d.assetId === selectedAssetId
   );
@@ -35,7 +55,10 @@ export default function DashboardLayout() {
           <SidebarNav
             assets={assets}
             selectedAssetId={selectedAssetId}
-            onSelectAsset={setSelectedAssetId}
+            onSelectAsset={(id) => {
+              setSelectedAssetId(id);
+              router.push('/');
+            }}
           />
         </Sidebar>
         <div className="flex-1 flex flex-col">

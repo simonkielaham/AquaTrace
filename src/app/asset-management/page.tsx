@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
 import Papa from "papaparse";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,12 +28,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { PlusCircle, Trash2, UploadCloud, File, TableIcon } from "lucide-react";
+import { PlusCircle, Trash2, UploadCloud, TableIcon } from "lucide-react";
 import { SidebarProvider, Sidebar } from "@/components/ui/sidebar";
 import SidebarNav from "@/components/dashboard/sidebar-nav";
 import PageHeader from "@/components/dashboard/page-header";
-import { assets } from "@/lib/placeholder-data";
 import { useToast } from "@/hooks/use-toast";
+import { useAssets } from "@/context/asset-context";
 
 const designElevationSchema = z.object({
   year: z.coerce.number().min(1, "Year is required"),
@@ -65,7 +66,8 @@ const detectColumns = (headers: string[]) => {
 
 export default function AssetManagementPage() {
   const { toast } = useToast();
-  const [selectedAssetId, setSelectedAssetId] = React.useState("");
+  const router = useRouter();
+  const { assets, addAsset, setSelectedAssetId } = useAssets();
 
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
   const [csvData, setCsvData] = React.useState<string[][]>([]);
@@ -108,21 +110,26 @@ export default function AssetManagementPage() {
   };
 
   function onSubmit(data: AssetFormValues) {
-    console.log({ ...data, csvData, fileName });
+    const newId = `asset-${Date.now()}`;
+    addAsset({
+      id: newId,
+      name: data.name,
+      location: data.location,
+      permanentPoolElevation: data.permanentPoolElevation,
+      designElevations: data.designElevations,
+      status: "ok", // Default status
+      imageId: ["pond", "basin", "creek"][Math.floor(Math.random() * 3)], // Random image
+    });
+    
+    console.log("Saved Data:", { ...data, csvData, fileName });
     toast({
-      title: "Asset Submitted",
-      description: "Asset created with the provided data and file configuration.",
+      title: "Asset Created",
+      description: `${data.name} has been successfully created.`,
     });
-    form.reset({
-      name: "",
-      location: "",
-      permanentPoolElevation: 0,
-      designElevations: [{ year: 2, elevation: 0 }],
-      startRow: 2,
-    });
-    setCsvHeaders([]);
-    setCsvData([]);
-    setFileName(null);
+    
+    // Select the new asset and navigate to dashboard
+    setSelectedAssetId(newId);
+    router.push('/');
   }
 
   return (
@@ -131,8 +138,11 @@ export default function AssetManagementPage() {
         <Sidebar>
           <SidebarNav
             assets={assets}
-            selectedAssetId={selectedAssetId}
-            onSelectAsset={setSelectedAssetId}
+            selectedAssetId={""} // No asset is "selected" on this page
+            onSelectAsset={(id) => {
+              setSelectedAssetId(id);
+              router.push('/');
+            }}
           />
         </Sidebar>
         <div className="flex flex-1 flex-col">
