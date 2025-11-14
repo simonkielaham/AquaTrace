@@ -17,11 +17,15 @@ const performanceDataFilePath = path.join(dataDir, 'performance-data.json');
 const uploadsDir = path.join(dataDir, 'uploads');
 
 
-// Define the schema for the form data, excluding the complex array
+// Define the schema for the form data
 const assetFormSchema = z.object({
   name: z.string().min(2),
   location: z.string().min(2),
   permanentPoolElevation: z.coerce.number().min(0),
+  designElevations: z.array(z.object({
+    year: z.coerce.number(),
+    elevation: z.coerce.number()
+  })),
   datetimeColumn: z.string().min(1),
   waterLevelColumn: z.string().min(1),
   sensorElevation: z.coerce.number().min(0),
@@ -50,34 +54,18 @@ async function writeJsonFile<T>(filePath: string, data: T): Promise<void> {
 }
 
 
-export async function createAsset(prevState: any, formData: FormData) {
-    
-  // Manually parse designElevations
-  const designElevations: { year: number; elevation: number }[] = [];
-  const formObject = Object.fromEntries(formData.entries());
-  
-  for (const key in formObject) {
-    const match = key.match(/^designElevations\.(\d+)\.(year|elevation)$/);
-    if (match) {
-      const index = parseInt(match[1], 10);
-      const field = match[2];
-      if (!designElevations[index]) {
-        designElevations[index] = { year: 0, elevation: 0 };
-      }
-      (designElevations[index] as any)[field] = parseFloat(formObject[key] as string);
-    }
-  }
-
-  const validatedFields = assetFormSchema.safeParse(formObject);
+export async function createAsset(data: any, formData: FormData) {
+  const validatedFields = assetFormSchema.safeParse(data);
   
   if (!validatedFields.success) {
+    console.error('Validation Errors:', validatedFields.error.flatten().fieldErrors);
     return {
       errors: validatedFields.error.flatten().fieldErrors,
       message: 'Validation failed. Please check the fields.',
     };
   }
   
-  const data = validatedFields.data;
+  const validatedData = validatedFields.data;
   const file = formData.get('csvFile') as File | null;
   const fileContent = formData.get('csvContent') as string | null;
 
@@ -92,7 +80,7 @@ export async function createAsset(prevState: any, formData: FormData) {
     // 1. Save the uploaded CSV file
     const uniqueFileName = `${Date.now()}-${file.name}`;
     const filePath = path.join(uploadsDir, uniqueFileName);
-    const csvBuffer = Buffer.from(await file.arrayBuffer());
+    const csvBuffer = Buffer.from(fileContent);
     await fs.writeFile(filePath, csvBuffer);
 
     // 2. Read existing data
@@ -104,10 +92,10 @@ export async function createAsset(prevState: any, formData: FormData) {
     const newAssetId = `asset-${Date.now()}`;
     const newAsset: Asset = {
       id: newAssetId,
-      name: data.name,
-      location: data.location,
-      permanentPoolElevation: data.permanentPoolElevation,
-      designElevations: designElevations,
+      name: validatedData.name,
+      location: validatedData.location,
+      permanentPoolElevation: validatedData.permanentPoolElevation,
+      designElevations: validatedData.designElevations,
       status: 'ok', // Default status
       imageId: ['pond', 'basin', 'creek'][Math.floor(Math.random() * 3)],
     };
@@ -120,17 +108,17 @@ export async function createAsset(prevState: any, formData: FormData) {
       endDate: null,
       fileName: file.name,
       fileCount: 1,
-      sensorElevation: data.sensorElevation,
+      sensorElevation: validatedData.sensorElevation,
     };
     
     // 4. Process CSV and create performance data
     const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
     const processedData = (parsedCsv.data as any[])
-      .slice(data.startRow - 1) // PapaParse result is 0-indexed, form is 1-indexed
+      .slice(validatedData.startRow - 1)
       .map(row => {
-        const timeValue = row[data.datetimeColumn];
-        const waterLevelValue = parseFloat(row[data.waterLevelColumn]);
-        const waterElevation = waterLevelValue + data.sensorElevation;
+        const timeValue = row[validatedData.datetimeColumn];
+        const waterLevelValue = parseFloat(row[validatedData.waterLevelColumn]);
+        const waterElevation = waterLevelValue + validatedData.sensorElevation;
         return {
           time: new Date(timeValue).toISOString(),
           waterLevel: waterLevelValue,

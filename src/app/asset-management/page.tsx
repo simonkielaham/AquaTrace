@@ -197,31 +197,20 @@ export default function AssetManagementPage() {
     }
   };
   
-  const formRef = React.useRef<HTMLFormElement>(null);
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!formRef.current) return;
-
-    // Manually trigger validation
-    const isValid = await form.trigger();
-    if (!isValid) {
+  const handleSubmit = async (data: AssetFormValues) => {
+    if (!file || !fileContent) {
         toast({
             variant: "destructive",
-            title: "Validation Error",
-            description: "Please check the form for errors.",
+            title: "File Missing",
+            description: "Please upload a CSV file.",
         });
         return;
     }
 
-    const formData = new FormData(formRef.current);
-    if (file) {
-      formData.append('csvFile', file);
-    }
-    if (fileContent) {
-        formData.append('csvContent', fileContent);
-    }
-
+    const formData = new FormData();
+    formData.append('csvFile', file);
+    formData.append('csvContent', fileContent);
+    
     toast({
         title: 'Creating Asset...',
         description: 'Please wait while we save your data.',
@@ -229,7 +218,7 @@ export default function AssetManagementPage() {
 
     try {
       // The server action will handle redirection on success
-      const result = await createAsset(null, formData);
+      const result = await createAsset(data, formData);
 
       if (result?.message) {
           toast({
@@ -281,7 +270,7 @@ export default function AssetManagementPage() {
                     <AccordionContent>
                        <CardContent>
                         <Form {...form}>
-                          <form ref={formRef} onSubmit={handleSubmit} className="space-y-8">
+                          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                               <div className="space-y-8">
                                 <FormField
