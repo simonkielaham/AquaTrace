@@ -98,6 +98,7 @@ export default function PerformanceChart({
                   dy: 40
                 }}
                 stroke="hsl(var(--chart-1))"
+                domain={['auto', 'auto']}
               />
               <YAxis
                 yAxisId="right"
