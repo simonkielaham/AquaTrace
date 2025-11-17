@@ -18,6 +18,14 @@ export type DataFile = {
   rowCount: number;
 };
 
+export type StagedFile = {
+  filename: string;
+  path: string;
+  size: number;
+  type: string;
+  uploadDate: string;
+}
+
 export type DataPoint = {
   timestamp: Date;
   waterLevel: number;

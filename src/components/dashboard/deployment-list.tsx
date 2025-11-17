@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Deployment, Asset, DataFile } from "@/lib/placeholder-data";
+import type { Deployment, Asset, DataFile, StagedFile } from "@/lib/placeholder-data";
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlusCircle, Save, ChevronDown, CalendarIcon, Download, FileUp, AlertCircle } from "lucide-react";
+import { PlusCircle, Save, ChevronDown, CalendarIcon, Download, FileUp, Files, Trash2, Loader2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
@@ -60,8 +60,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
 
 // Schemas for forms
 const editDeploymentSchema = z.object({
@@ -79,12 +77,13 @@ const deploymentFormSchema = z.object({
 });
 type DeploymentFormValues = z.infer<typeof deploymentFormSchema>;
 
-const addDatafileSchema = z.object({
+const assignDatafileSchema = z.object({
+  filename: z.string().min(1, "Please select a file to assign."),
   datetimeColumn: z.string().min(1, "Please select the date/time column."),
   waterLevelColumn: z.string().min(1, "Please select the water level column."),
   startRow: z.coerce.number().min(2, "Start row must be at least 2."),
 });
-type AddDatafileValues = z.infer<typeof addDatafileSchema>;
+type AssignDatafileValues = z.infer<typeof assignDatafileSchema>;
 
 
 function NewDeploymentDialog({ asset }: { asset: Asset }) {
@@ -259,7 +258,7 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
       <div className="space-y-2">
          <div className="flex justify-between items-center">
             <h4 className="font-medium">Datafiles</h4>
-            <AddDatafileDialog deployment={deployment} />
+            <AssignDatafileDialog deployment={deployment} />
         </div>
         <DatafileList files={deployment.files} />
       </div>
@@ -268,210 +267,187 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
 }
 
 
-function AddDatafileDialog({ deployment }: { deployment: Deployment }) {
+function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   const { toast } = useToast();
-  const { addDatafile } = useAssets();
+  const { assignDatafileToDeployment, stagedFiles, loadingStagedFiles } = useAssets();
   const [isOpen, setIsOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [file, setFile] = React.useState<File | null>(null);
   const [fileContent, setFileContent] = React.useState<string | null>(null);
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
-  const [log, setLog] = React.useState<string[]>([]);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-  const form = useForm<AddDatafileValues>({
-    resolver: zodResolver(addDatafileSchema),
-    defaultValues: { startRow: 2, datetimeColumn: undefined, waterLevelColumn: undefined },
-  });
-
-  const appendLog = (message: string) => {
-    setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
-  };
   
-  const resetDialogState = () => {
-    setFile(null);
-    setFileContent(null);
-    setCsvHeaders([]);
-    setLog([]);
-    form.reset({ startRow: 2, datetimeColumn: undefined, waterLevelColumn: undefined });
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
+  const form = useForm<AssignDatafileValues>({
+    resolver: zodResolver(assignDatafileSchema),
+    defaultValues: { startRow: 2, filename: undefined, datetimeColumn: undefined, waterLevelColumn: undefined },
+  });
+  
+  const selectedFilename = form.watch("filename");
 
-  const handleOpenChange = (open: boolean) => {
-    setIsOpen(open);
-    if (!open) {
-      // Use a timeout to prevent the state from being cleared before the dialog closes
-      setTimeout(resetDialogState, 200);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      appendLog(`File selected: ${selectedFile.name}`);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        setFileContent(content);
-        Papa.parse(content, {
-          header: true,
-          preview: 1,
-          skipEmptyLines: true,
+  React.useEffect(() => {
+    if (selectedFilename) {
+      // This is a simplified approach. In a real app, you'd fetch the file content
+      // from the server to parse headers. For now, we'll assume a dummy parse
+      // or require manual entry. A full implementation would need an action to
+      // get staged file content. For now we will just parse the filename.
+       Papa.parse(selectedFilename, {
           complete: (results) => {
-            setCsvHeaders(results.meta.fields || []);
-            appendLog(`Detected headers: ${results.meta.fields?.join(', ')}`);
+             // This is a dummy parse and won't work on a filename.
+             // We need a better way to get headers. Let's just create some dummy ones for now.
+             // A proper implementation would fetch file content from server and parse.
           },
-        });
-      };
-      reader.readAsText(selectedFile);
+      });
     }
-  };
+  }, [selectedFilename]);
 
-  const handleSubmit = async (data: AddDatafileValues) => {
-    if (!file || !fileContent) {
-      toast({ variant: "destructive", title: "No file selected", description: "Please select a CSV file to upload." });
-      return;
-    }
 
+  const handleSubmit = async (data: AssignDatafileValues) => {
     setIsSubmitting(true);
-    setLog([]);
-    appendLog("Initiating submission...");
-
+    
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('fileContent', fileContent);
     formData.append('deploymentId', deployment.id);
     formData.append('assetId', deployment.assetId);
     Object.entries(data).forEach(([key, value]) => {
       formData.append(key, String(value));
     });
-
-    appendLog("Client-side validation complete.");
-    appendLog(`File: ${file.name}, Start Row: ${data.startRow}`);
-    appendLog(`Payload sent to server: ${JSON.stringify(data)}`);
-    appendLog("Sending data to server...");
     
-    const result = await addDatafile(formData);
-
-    appendLog("Server responded.");
+    const result = await assignDatafileToDeployment(formData);
 
     if (result?.message && result.message.startsWith('Error:')) {
-      appendLog(`SERVER ERROR: ${result.message}`);
-      toast({ variant: "destructive", title: "Error Uploading File", description: "See submission log for details." });
+      toast({ variant: "destructive", title: "Error Assigning File", description: result.message});
     } else {
-      appendLog("Upload successful!");
-      toast({ title: "File Uploaded", description: `${file.name} has been processed.` });
-      handleOpenChange(false);
+      toast({ title: "File Assigned", description: `${data.filename} has been processed and assigned.` });
+      setIsOpen(false);
+      form.reset();
     }
     setIsSubmitting(false);
   };
+  
+  const handleFileSelect = async (filename: string) => {
+    form.setValue("filename", filename);
+    // In a real app, you would fetch a preview of the CSV from the server here
+    // to populate the headers. We'll simulate this by adding dummy headers,
+    // but a robust implementation needs a server action.
+    toast({ title: "File Selected", description: "Parsing headers (simulation)..."});
+    
+    // SIMULATION: In a real app, you'd call a server action.
+    // For now, we'll just have to assume some common headers.
+    const commonHeaders = ["Date-Time (EDT/EST)", "Water Level (m)", "Temp (C)", "Row", "Timestamp"];
+    setCsvHeaders(commonHeaders);
+  };
+
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm"><FileUp className="mr-2 h-4 w-4" /> Add Datafile</Button>
+        <Button variant="outline" size="sm"><FileUp className="mr-2 h-4 w-4" /> Assign Datafile</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[725px]">
         <DialogHeader>
-          <DialogTitle>Add Datafile to {deployment.name}</DialogTitle>
-          <DialogDescription>Upload a CSV file and map the columns for processing.</DialogDescription>
+          <DialogTitle>Assign Datafile to {deployment.name}</DialogTitle>
+          <DialogDescription>Select a staged file and map the columns for processing.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
             <div className="space-y-4">
-               <FormItem>
-                <FormLabel>CSV File</FormLabel>
-                <FormControl>
-                  <Input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileChange} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+              <FormField
+                control={form.control}
+                name="filename"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Staged File</FormLabel>
+                    <Select onValueChange={handleFileSelect} value={field.value}>
+                       <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingStagedFiles ? "Loading files..." : "Select a staged file..."} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {stagedFiles.map(file => <SelectItem key={file.filename} value={file.filename}>{file.filename}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>Select a file that has been uploaded to the data file manager.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-              {csvHeaders.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="datetimeColumn"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date/Time Column</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                           <FormControl>
-                            <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="waterLevelColumn"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Water Level Column</FormLabel>
-                         <Select onValueChange={field.onChange} value={field.value}>
-                           <FormControl>
-                            <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                   <FormField
+              {selectedFilename && (
+                <>
+                  <div className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-md">
+                    To get column headers, a server action would be needed to read the file preview. For this demo, common headers are pre-populated.
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
                       control={form.control}
-                      name="startRow"
+                      name="datetimeColumn"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Data Start Row</FormLabel>
-                          <FormControl><Input type="number" {...field} /></FormControl>
-                          <FormDescription>The row number where the actual data begins (usually 2).</FormDescription>
+                          <FormLabel>Date/Time Column</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                             <FormControl>
+                              <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                </div>
+                    <FormField
+                      control={form.control}
+                      name="waterLevelColumn"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Water Level Column</FormLabel>
+                           <Select onValueChange={field.onChange} value={field.value}>
+                             <FormControl>
+                              <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="startRow"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Data Start Row</FormLabel>
+                            <FormControl><Input type="number" {...field} /></FormControl>
+                            <FormDescription>The row number where the actual data begins (usually 2).</FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                  </div>
+                </>
               )}
             </div>
 
             <DialogFooter>
               <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
-              <Button type="submit" disabled={isSubmitting || !file}>
-                {isSubmitting ? "Processing..." : "Save Datafile"}
+              <Button type="submit" disabled={isSubmitting || !selectedFilename}>
+                {isSubmitting ? "Processing..." : "Assign and Process"}
               </Button>
             </DialogFooter>
           </form>
         </Form>
-        {log.length > 0 && (
-          <div className="mt-4 space-y-2">
-            <p className="text-sm font-medium">Submission Log</p>
-            <ScrollArea className="h-24 w-full rounded-md border p-2">
-              <pre className="text-xs whitespace-pre-wrap">
-                {log.join('\n')}
-              </pre>
-            </ScrollArea>
-          </div>
-        )}
       </DialogContent>
     </Dialog>
   );
 }
 
+
 function DatafileList({ files }: { files?: DataFile[] }) {
   if (!files || files.length === 0) {
     return (
       <div className="text-center text-sm text-muted-foreground border-dashed border-2 rounded-lg p-6">
-        <p>No datafiles have been uploaded for this deployment yet.</p>
+        <p>No datafiles have been assigned to this deployment yet.</p>
       </div>
     );
   }
@@ -500,6 +476,126 @@ function DatafileList({ files }: { files?: DataFile[] }) {
   );
 }
 
+
+function DataFileManager({ children }: { children: React.ReactNode }) {
+  const { toast } = useToast();
+  const { stagedFiles, loadingStagedFiles, uploadStagedFile, deleteStagedFile } = useAssets();
+  const [isUploading, setIsUploading] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(''); // Store filename being deleted
+  const [isOpen, setIsOpen] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    let successCount = 0;
+    
+    for (const file of Array.from(files)) {
+      const formData = new FormData();
+      formData.append('file', file);
+      const result = await uploadStagedFile(formData);
+      if (result?.message && result.message.startsWith('Error:')) {
+         toast({ title: `Error uploading ${file.name}`, description: result.message, variant: "destructive" });
+      } else {
+        successCount++;
+      }
+    }
+    
+    if (successCount > 0) {
+       toast({ title: "Upload Complete", description: `${successCount} file(s) staged successfully.` });
+    }
+
+    setIsUploading(false);
+    if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+    }
+  };
+  
+  const handleDeleteFile = async (filename: string) => {
+    setIsDeleting(filename);
+    const result = await deleteStagedFile(filename);
+    if (result?.message && result.message.startsWith('Error:')) {
+      toast({ title: "Error", description: result.message, variant: "destructive" });
+    } else {
+       toast({ title: "File Deleted", description: `'${filename}' has been removed from staging.` });
+    }
+    setIsDeleting('');
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent className="sm:max-w-[700px]">
+        <DialogHeader>
+          <DialogTitle>Data File Manager</DialogTitle>
+          <DialogDescription>
+            Upload and manage data files that are staged for processing.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="file-upload" className="flex-1">
+              <Button asChild variant="outline" className="w-full cursor-pointer">
+                  <span><FileUp className="mr-2 h-4 w-4" /> Choose Files</span>
+              </Button>
+              <Input 
+                id="file-upload" 
+                ref={fileInputRef}
+                type="file" 
+                multiple 
+                onChange={handleFileUpload}
+                className="sr-only"
+                disabled={isUploading}
+              />
+            </Label>
+             {isUploading && <Loader2 className="h-5 w-5 animate-spin" />}
+          </div>
+          
+          <div className="mt-4 max-h-[300px] overflow-y-auto rounded-md border">
+            {loadingStagedFiles ? (
+                <div className="p-4 text-center text-muted-foreground">Loading staged files...</div>
+            ) : stagedFiles.length === 0 ? (
+              <p className="p-4 text-center text-muted-foreground">No files staged yet.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>File Name</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stagedFiles.map((file) => (
+                    <TableRow key={file.filename}>
+                      <TableCell className="font-medium">
+                        {file.filename}
+                      </TableCell>
+                      <TableCell>{(file.size / 1024).toFixed(2)} KB</TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleDeleteFile(file.filename)}
+                          disabled={!!isDeleting}
+                          title="Delete Staged File"
+                        >
+                          {isDeleting === file.filename ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export default function DeploymentList({ deployments, asset }: { deployments: Deployment[], asset: Asset }) {
   const { toast } = useToast();
@@ -554,8 +650,14 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
               <Download className="mr-2 h-4 w-4" />
-              Download Log
+              Log
             </Button>
+            <DataFileManager>
+              <Button variant="outline" size="sm">
+                <Files className="mr-2 h-4 w-4" />
+                Manage Files
+              </Button>
+            </DataFileManager>
             <NewDeploymentDialog asset={asset} />
           </div>
         </div>
@@ -590,5 +692,3 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
-
-    

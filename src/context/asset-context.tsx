@@ -6,6 +6,7 @@ import {
   Asset, 
   Deployment,
   DataPoint,
+  StagedFile
 } from '@/lib/placeholder-data';
 import { 
   createAsset as createAssetAction, 
@@ -14,8 +15,11 @@ import {
   createDeployment as createDeploymentAction, 
   downloadLogs as downloadLogsAction,
   deleteAsset as deleteAssetAction,
-  addDatafile as addDatafileAction,
+  assignDatafileToDeployment as assignDatafileToDeploymentAction,
   getProcessedData as getProcessedDataAction,
+  uploadStagedFile as uploadStagedFileAction,
+  getStagedFiles as getStagedFilesAction,
+  deleteStagedFile as deleteStagedFileAction,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -32,25 +36,31 @@ interface AssetContextType {
   deleteAsset: (assetId: string) => Promise<any>;
   createDeployment: (assetId: string, data: any) => Promise<any>;
   downloadLogs: (assetId: string) => Promise<any>;
-  addDatafile: (formData: FormData) => Promise<any>;
+  assignDatafileToDeployment: (formData: FormData) => Promise<any>;
   getProcessedData: (assetId: string) => Promise<DataPoint[]>;
   loading: boolean;
+  stagedFiles: StagedFile[];
+  loadingStagedFiles: boolean;
+  uploadStagedFile: (formData: FormData) => Promise<any>;
+  deleteStagedFile: (filename: string) => Promise<any>;
 }
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
 
 const getErrorMessage = async (error: any): Promise<string> => {
-    // Check if the error is a Response object from a server crash
     if (error instanceof Response) {
         try {
             const text = await error.text();
-            // The text is likely a full HTML page for the Next.js error overlay
-            // We'll try to find the core error message inside it.
             const match = text.match(/<pre>.*(Error: .*?)<\/pre>/s);
             if (match && match[1]) {
-                return `Server Error: ${match[1].replace(/<[^>]+>/g, '')}`; // strip html tags
+                return `Server Error: ${match[1].replace(/<[^>]+>/g, '')}`;
             }
-            return `An unexpected response was received from the server. Raw response: ${text.substring(0, 500)}...`;
+             // Attempt to find a different error format if the first fails
+            const titleMatch = text.match(/<title>(.*?)<\/title>/s);
+            if (titleMatch && titleMatch[1]) {
+                 return `Server Error: ${titleMatch[1]}`;
+            }
+            return `An unexpected response was received from the server. Status: ${error.status}`;
         } catch (e) {
             return 'The server returned an unreadable error response.'
         }
@@ -75,10 +85,25 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [selectedAssetId, setSelectedAssetId] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
+  const [loadingStagedFiles, setLoadingStagedFiles] = useState(true);
+
+  const fetchStagedFiles = useCallback(async () => {
+    setLoadingStagedFiles(true);
+    try {
+      const files = await getStagedFilesAction();
+      setStagedFiles(files);
+    } catch (error) {
+      console.error("Failed to fetch staged files:", error);
+    } finally {
+      setLoadingStagedFiles(false);
+    }
+  }, []);
 
   useEffect(() => {
     setAssets(initialAssets);
     setDeployments(initialDeployments);
+    fetchStagedFiles();
     
     if (initialAssets.length > 0) {
       const storedAssetId = localStorage.getItem('selectedAssetId');
@@ -87,7 +112,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       setSelectedAssetId(targetAssetId);
     }
     setLoading(false);
-  }, []);
+  }, [fetchStagedFiles]);
 
 
   const handleSetSelectedAssetId = (id: string) => {
@@ -157,7 +182,6 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       setAssets(prev => prev.filter(a => a.id !== assetId));
       setDeployments(prev => prev.filter(d => d.assetId !== assetId));
 
-      // If the deleted asset was the selected one, select another one
       if (selectedAssetId === assetId) {
         const remainingAssets = assets.filter(a => a.id !== assetId);
         if (remainingAssets.length > 0) {
@@ -184,10 +208,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const addDatafile = useCallback(async (formData: FormData) => {
+  const assignDatafileToDeployment = useCallback(async (formData: FormData) => {
     try {
-      const result = await addDatafileAction(formData);
-      // If successful, update the deployments state
+      const result = await assignDatafileToDeploymentAction(formData);
       if (result.newFile) {
         const deploymentId = formData.get('deploymentId') as string;
         setDeployments(prev => prev.map(d => {
@@ -197,23 +220,46 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
           }
           return d;
         }));
+        await fetchStagedFiles(); // Refresh staged files list
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, []);
+  }, [fetchStagedFiles]);
+
+  const uploadStagedFile = useCallback(async (formData: FormData) => {
+    try {
+      const result = await uploadStagedFileAction(formData);
+      if (!result.message.startsWith('Error:')) {
+        await fetchStagedFiles();
+      }
+      return result;
+    } catch (error) {
+      const message = await getErrorMessage(error);
+      return { message: `Error: ${message}` };
+    }
+  }, [fetchStagedFiles]);
+
+  const deleteStagedFile = useCallback(async (filename: string) => {
+    try {
+      const result = await deleteStagedFileAction(filename);
+      if (!result.message.startsWith('Error:')) {
+        await fetchStagedFiles();
+      }
+      return result;
+    } catch (error) {
+      const message = await getErrorMessage(error);
+      return { message: `Error: ${message}` };
+    }
+  }, [fetchStagedFiles]);
 
   const getProcessedData = useCallback(async (assetId: string): Promise<DataPoint[]> => {
     try {
       return await getProcessedDataAction(assetId);
     } catch (error) {
       console.error("Error fetching processed data in context:", error);
-      const message = await getErrorMessage(error);
-      // Depending on how you want to handle errors, you could re-throw,
-      // or return an empty array and maybe show a toast.
-      // For now, returning an empty array to prevent chart crash.
       return [];
     }
   }, []);
@@ -230,9 +276,13 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     deleteAsset,
     createDeployment,
     downloadLogs,
-    addDatafile,
+    assignDatafileToDeployment,
     getProcessedData,
     loading,
+    stagedFiles,
+    loadingStagedFiles,
+    uploadStagedFile,
+    deleteStagedFile,
   };
 
   return (

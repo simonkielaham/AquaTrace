@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { Asset, Deployment, ActivityLog, DataFile, DataPoint } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 
 // Define paths to data files
@@ -13,6 +13,8 @@ const dataDir = path.join(process.cwd(), 'data');
 const assetsFilePath = path.join(dataDir, 'assets.json');
 const deploymentsFilePath = path.join(dataDir, 'deployments.json');
 const activityLogFilePath = path.join(dataDir, 'activity-log.json');
+const stagedDir = path.join(dataDir, 'staged');
+const processedDir = path.join(dataDir, 'processed');
 
 
 // Define the schema for the form data
@@ -93,18 +95,99 @@ async function writeLog(logEntry: Omit<ActivityLog, 'id' | 'timestamp'>) {
   }
 }
 
-export async function addDatafile(formData: FormData) {
+// == Staged File Management Actions ==
+
+export async function uploadStagedFile(formData: FormData) {
+  const file = formData.get('file') as File;
+  if (!file) {
+    return { message: "Error: No file provided." };
+  }
+
+  const logPayload = { filename: file.name, size: file.size, type: file.type };
+
+  try {
+    await fs.mkdir(stagedDir, { recursive: true });
+    const filePath = path.join(stagedDir, file.name);
+    
+    // Check if file already exists
+    try {
+      await fs.access(filePath);
+      const response = { message: `Error: File "${file.name}" already exists.` };
+      await writeLog({ action: 'uploadStagedFile', status: 'failure', payload: logPayload, response});
+      return response;
+    } catch {
+      // File does not exist, proceed
+    }
+    
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    await fs.writeFile(filePath, buffer);
+
+    revalidatePath('/');
+    const response = { message: "File staged successfully." };
+    await writeLog({ action: 'uploadStagedFile', status: 'success', payload: logPayload, response });
+    return response;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'uploadStagedFile', status: 'failure', payload: logPayload, response });
+    return response;
+  }
+}
+
+export async function getStagedFiles(): Promise<StagedFile[]> {
+    try {
+        await fs.mkdir(stagedDir, { recursive: true });
+        const filenames = await fs.readdir(stagedDir);
+        const files = await Promise.all(
+            filenames.map(async (name) => {
+                const filePath = path.join(stagedDir, name);
+                const stats = await fs.stat(filePath);
+                return {
+                    filename: name,
+                    path: filePath,
+                    size: stats.size,
+                    type: path.extname(name),
+                    uploadDate: stats.birthtime.toISOString()
+                };
+            })
+        );
+        return files.sort((a,b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
+    } catch (error) {
+        console.error("Failed to get staged files:", error);
+        return [];
+    }
+}
+
+export async function deleteStagedFile(filename: string) {
+  const logPayload = { filename };
+  try {
+    const filePath = path.join(stagedDir, filename);
+    await fs.unlink(filePath);
+    
+    revalidatePath('/');
+    const response = { message: `File ${filename} deleted successfully.` };
+    await writeLog({ action: 'deleteStagedFile', status: 'success', payload: logPayload, response });
+    return response;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'deleteStagedFile', status: 'failure', payload: logPayload, response });
+    return response;
+  }
+}
+
+export async function assignDatafileToDeployment(formData: FormData) {
   const deploymentId = formData.get('deploymentId') as string;
   const assetId = formData.get('assetId') as string;
-  const file = formData.get('file') as File;
-  const fileContent = formData.get('fileContent') as string;
+  const filename = formData.get('filename') as string;
   
   const rawData = {
     datetimeColumn: formData.get('datetimeColumn'),
     waterLevelColumn: formData.get('waterLevelColumn'),
     startRow: formData.get('startRow'),
   };
-  const logPayload = { assetId, deploymentId, fileName: file.name, ...rawData };
+  const logPayload = { assetId, deploymentId, filename, ...rawData };
 
   const addDatafileSchema = z.object({
     datetimeColumn: z.string(),
@@ -115,16 +198,18 @@ export async function addDatafile(formData: FormData) {
   const validatedFields = addDatafileSchema.safeParse(rawData);
   if (!validatedFields.success) {
      const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
-     await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
+     await writeLog({ action: 'assignDatafile', status: 'failure', payload: logPayload, response });
      return response;
   }
   const { datetimeColumn, waterLevelColumn, startRow } = validatedFields.data;
 
+  const stagedFilePath = path.join(stagedDir, filename);
+
   try {
+    // Read the staged file content
+    const fileContent = await fs.readFile(stagedFilePath, 'utf-8');
     const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
     
-    // The data starts at the user-specified row. Since papaparse with header:true already consumes the first row,
-    // and array is 0-indexed, we subtract 2 from the 1-based startRow.
     const sliceIndex = startRow >= 2 ? startRow - 2 : 0; 
     const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
     
@@ -150,17 +235,16 @@ export async function addDatafile(formData: FormData) {
 
     const newDataFile: DataFile = {
       id: `file-${Date.now()}`,
-      filename: file.name,
+      filename: filename,
       uploadDate: new Date().toISOString(),
       startDate: minDate.toISOString(),
       endDate: maxDate.toISOString(),
       rowCount: processedData.length
     };
     
-    // Save processed data to a new file in the data/processed directory
-    const processedDataDir = path.join(dataDir, 'processed');
-    await fs.mkdir(processedDataDir, { recursive: true });
-    const processedFilePath = path.join(processedDataDir, `${newDataFile.id}.json`);
+    // Save processed data to a new file in the processed directory
+    await fs.mkdir(processedDir, { recursive: true });
+    const processedFilePath = path.join(processedDir, `${newDataFile.id}.json`);
     await writeJsonFile(processedFilePath, processedData);
 
     // Update the deployments file with the new datafile metadata
@@ -168,22 +252,23 @@ export async function addDatafile(formData: FormData) {
     const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
     if (deploymentIndex === -1) throw new Error('Deployment not found');
 
-    // ** THIS IS THE DEFINITIVE FIX **
-    // This robustly updates the files array by creating a new array, which avoids all mutation issues.
     deployments[deploymentIndex].files = [...(deployments[deploymentIndex].files || []), newDataFile];
     
     await writeJsonFile(deploymentsFilePath, deployments);
+
+    // Delete the file from staging
+    await fs.unlink(stagedFilePath);
+
     revalidatePath('/');
     
-    const response = { message: 'Datafile added successfully', newFile: newDataFile };
-    await writeLog({ action: 'addDatafile', status: 'success', assetId, deploymentId, payload: logPayload, response });
+    const response = { message: 'Datafile assigned successfully', newFile: newDataFile };
+    await writeLog({ action: 'assignDatafile', status: 'success', payload: logPayload, response });
     return response;
 
   } catch(error) {
-    console.error("Full server error in addDatafile:", error);
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
-    await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
+    await writeLog({ action: 'assignDatafile', status: 'failure', payload: logPayload, response });
     return response;
   }
 }
@@ -198,8 +283,7 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
     for (const deployment of assetDeployments) {
       if (deployment.files) {
         for (const file of deployment.files) {
-          const filePath = path.join(dataDir, 'processed', `${file.id}.json`);
-          // It's possible the file doesn't exist yet, so we handle that case.
+          const filePath = path.join(processedDir, `${file.id}.json`);
           try {
             const fileData = await readJsonFile<DataPoint[]>(filePath);
             allData = [...allData, ...fileData];
@@ -212,10 +296,8 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
       }
     }
     
-    // De-duplicate data points based on timestamp
     const uniqueData = new Map<number, DataPoint>();
     allData.forEach(dp => {
-      // Re-hydrate the timestamp string into a Date object if necessary
       const timestamp = new Date(dp.timestamp);
       uniqueData.set(timestamp.getTime(), { ...dp, timestamp });
     });
@@ -226,7 +308,7 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
 
   } catch (error) {
     console.error("Failed to get processed data:", error);
-    return []; // Return empty array on error
+    return [];
   }
 }
 
@@ -468,17 +550,15 @@ export async function deleteAsset(assetId: string) {
     const deploymentsToDelete = deployments.filter(d => d.assetId === assetId);
 
     // Delete associated processed data files
-    const processedDataDir = path.join(dataDir, 'processed');
     for (const deployment of deploymentsToDelete) {
       if (deployment.files) {
         for (const file of deployment.files) {
-          const filePath = path.join(processedDataDir, `${file.id}.json`);
+          const filePath = path.join(processedDir, `${file.id}.json`);
           try {
             await fs.unlink(filePath);
           } catch (error) {
              if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
                 console.error(`Failed to delete processed file ${filePath}:`, error);
-                // Decide if you want to throw an error or just log it
              }
           }
         }
@@ -508,25 +588,3 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-    
-    
-
-    
-
-    
-
-
-
-    
-
-    
-
-    
-
-    
-
-
-
-    
-
-    
