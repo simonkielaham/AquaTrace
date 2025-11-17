@@ -44,6 +44,10 @@ const chartConfig = {
     label: "Precipitation (mm)",
     color: "hsl(var(--chart-2))",
   },
+  permanentPoolElevation: {
+    label: "Permanent Pool Elevation",
+    color: "hsl(var(--primary))",
+  },
 } satisfies ChartConfig;
 
 const elevationColors = [
@@ -138,9 +142,10 @@ export default function PerformanceChart({
                 stroke="hsl(var(--primary))"
                 strokeDasharray="3 3"
                 strokeWidth={1.5}
+                if-false="true"
               >
                 <ReferenceLine.Label
-                  value="Pool Elevation"
+                  value="Perm. Pool"
                   position="insideTopLeft"
                   fill="hsl(var(--primary))"
                   fontSize={10}
