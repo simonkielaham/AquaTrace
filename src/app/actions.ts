@@ -399,10 +399,13 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
           const filePath = path.join(processedDir, `${file.id}.json`);
           try {
             const fileData = await readJsonFile<{ timestamp: string, waterLevel: number }[]>(filePath);
-            const mappedData = fileData.map(d => ({
-                timestamp: new Date(d.timestamp).getTime(),
-                waterLevel: Number(d.waterLevel) + Number(deployment.sensorElevation)
-            }));
+            const mappedData = fileData.map(d => {
+                const waterLevel = parseFloat(d.waterLevel.toString()) + parseFloat(deployment.sensorElevation.toString());
+                return {
+                    timestamp: new Date(d.timestamp).getTime(),
+                    waterLevel: waterLevel
+                }
+            }).filter(d => d.timestamp && !isNaN(d.waterLevel));
             allData = [...allData, ...mappedData];
           } catch (e) {
              if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
@@ -706,5 +709,3 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-
-    
