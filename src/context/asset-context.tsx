@@ -5,8 +5,6 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { 
   Asset, 
   Deployment,
-  DataFile,
-  DataPoint,
 } from '@/lib/placeholder-data';
 import { 
   createAsset as createAssetAction, 
@@ -14,8 +12,7 @@ import {
   updateDeployment as updateDeploymentAction, 
   createDeployment as createDeploymentAction, 
   downloadLogs as downloadLogsAction,
-  addDatafile as addDatafileAction,
-  getProcessedData as getProcessedDataAction,
+  deleteAsset as deleteAssetAction,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -32,8 +29,6 @@ interface AssetContextType {
   deleteAsset: (assetId: string) => Promise<any>;
   createDeployment: (assetId: string, data: any) => Promise<any>;
   downloadLogs: (assetId: string) => Promise<any>;
-  addDatafile: (formData: FormData) => Promise<any>;
-  getProcessedData: (assetId: string) => Promise<DataPoint[]>;
   loading: boolean;
 }
 
@@ -42,9 +37,18 @@ const AssetContext = createContext<AssetContextType | undefined>(undefined);
 const getErrorMessage = async (error: any): Promise<string> => {
     // Check if the error is a Response object from a server crash
     if (error instanceof Response) {
-        const text = await error.text();
-        // The text is likely a full HTML page for the Next.js error overlay
-        return `An unexpected response was received from the server. Raw response: ${text.substring(0, 2000)}...`;
+        try {
+            const text = await error.text();
+            // The text is likely a full HTML page for the Next.js error overlay
+            // We'll try to find the core error message inside it.
+            const match = text.match(/<pre>.*(Error: .*?)<\/pre>/s);
+            if (match && match[1]) {
+                return `Server Error: ${match[1].replace(/<[^>]+>/g, '')}`; // strip html tags
+            }
+            return `An unexpected response was received from the server. Raw response: ${text.substring(0, 500)}...`;
+        } catch (e) {
+            return 'The server returned an unreadable error response.'
+        }
     }
     if (error instanceof Error) {
         return error.message;
@@ -85,37 +89,6 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('selectedAssetId', id);
     setSelectedAssetId(id);
   }
-  
-  const addDatafile = useCallback(async (formData: FormData) => {
-    try {
-      const result = await addDatafileAction(formData);
-      if (result && !result.errors && result.newFile) {
-        const deploymentId = formData.get('deploymentId') as string;
-        setDeployments(prev => prev.map(d => {
-          if (d.id === deploymentId) {
-            const updatedFiles = [...(d.files || []), result.newFile];
-            return { ...d, files: updatedFiles };
-          }
-          return d;
-        }));
-      }
-      return result;
-    } catch (error) {
-      const message = await getErrorMessage(error);
-      return { message: `Error: ${message}` };
-    }
-  }, []);
-
-  const getProcessedData = useCallback(async (assetId: string) => {
-    try {
-      const data = await getProcessedDataAction(assetId);
-      // The data from JSON is plain objects, we need to convert strings back to dates
-      return data.map(d => ({ ...d, timestamp: new Date(d.timestamp) }));
-    } catch (error) {
-      console.error("Failed to get processed data in context:", error);
-      return [];
-    }
-  }, []);
 
   const createAsset = useCallback(async (data: any) => {
     try {
@@ -170,9 +143,32 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const deleteAsset = useCallback(async (assetId: string) => {
-    console.warn("deleteAsset is currently disabled.");
-    return { message: "Asset deletion is temporarily disabled for safety."}
-  }, []);
+    try {
+      const result = await deleteAssetAction(assetId);
+      if (result && result.message.startsWith('Error:')) {
+        return result;
+      }
+      
+      setAssets(prev => prev.filter(a => a.id !== assetId));
+      setDeployments(prev => prev.filter(d => d.assetId !== assetId));
+
+      // If the deleted asset was the selected one, select another one
+      if (selectedAssetId === assetId) {
+        const remainingAssets = assets.filter(a => a.id !== assetId);
+        if (remainingAssets.length > 0) {
+          handleSetSelectedAssetId(remainingAssets[0].id);
+        } else {
+          handleSetSelectedAssetId('');
+        }
+      }
+      
+      return { message: 'Asset deleted successfully.' };
+
+    } catch (error) {
+      const message = await getErrorMessage(error);
+      return { message: `Error: ${message}` };
+    }
+  }, [assets, selectedAssetId]);
 
   const downloadLogs = useCallback(async (assetId: string) => {
     try {
@@ -195,8 +191,6 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     deleteAsset,
     createDeployment,
     downloadLogs,
-    addDatafile,
-    getProcessedData,
     loading,
   };
 

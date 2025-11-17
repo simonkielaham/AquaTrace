@@ -433,6 +433,65 @@ export async function createAsset(data: any) {
     return response;
   }
 }
+
+export async function deleteAsset(assetId: string) {
+  const logPayload = { assetId };
+
+  try {
+    const assets: Asset[] = await readJsonFile<Asset[]>(assetsFilePath);
+    const deployments: Deployment[] = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    
+    const assetIndex = assets.findIndex(a => a.id === assetId);
+    if (assetIndex === -1) {
+      const response = { message: 'Asset not found.' };
+      await writeLog({ action: 'deleteAsset', status: 'failure', assetId, payload: logPayload, response });
+      return response;
+    }
+
+    // Find deployments associated with the asset
+    const deploymentsToDelete = deployments.filter(d => d.assetId === assetId);
+
+    // Delete associated processed data files
+    const processedDataDir = path.join(dataDir, 'processed');
+    for (const deployment of deploymentsToDelete) {
+      if (deployment.files) {
+        for (const file of deployment.files) {
+          const filePath = path.join(processedDataDir, `${file.id}.json`);
+          try {
+            await fs.unlink(filePath);
+          } catch (error) {
+             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+                console.error(`Failed to delete processed file ${filePath}:`, error);
+                // Decide if you want to throw an error or just log it
+             }
+          }
+        }
+      }
+    }
+    
+    // Filter out the asset and its deployments
+    const updatedAssets = assets.filter(a => a.id !== assetId);
+    const updatedDeployments = deployments.filter(d => d.assetId !== assetId);
+    
+    // Write the updated data back to the files
+    await writeJsonFile(assetsFilePath, updatedAssets);
+    await writeJsonFile(deploymentsFilePath, updatedDeployments);
+
+    revalidatePath('/');
+    revalidatePath('/asset-management');
+
+    const response = { message: 'Asset and associated data deleted successfully.' };
+    await writeLog({ action: 'deleteAsset', status: 'success', assetId, payload: logPayload, response });
+    return response;
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'deleteAsset', status: 'failure', assetId, payload: logPayload, response });
+    console.error('Failed to delete asset:', error);
+    return response;
+  }
+}
     
     
 

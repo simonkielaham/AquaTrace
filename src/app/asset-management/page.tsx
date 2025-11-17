@@ -294,7 +294,7 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
     });
 
     const result = await deleteAsset(asset.id);
-    if (result.message.startsWith('Error:')) {
+    if (result?.message && result.message.startsWith('Error:')) {
       toast({
         variant: "destructive",
         title: "Error Deleting Asset",
@@ -314,7 +314,7 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon" title="Delete Asset (disabled)">
+        <Button variant="ghost" size="icon" title="Delete Asset">
           <Trash2 className="h-4 w-4 text-destructive" />
           <span className="sr-only">Delete</span>
         </Button>
@@ -325,13 +325,13 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
           <AlertDialogDescription>
             This action cannot be undone. This will permanently delete the asset{" "}
             <span className="font-semibold">{asset.name}</span> and all of its
-            associated deployment and performance data. (Note: This feature is currently disabled).
+            associated deployment and performance data.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
-            {isDeleting ? "Deleting..." : "Delete"}
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+            {isDeleting ? "Deleting..." : "Delete Permanently"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
