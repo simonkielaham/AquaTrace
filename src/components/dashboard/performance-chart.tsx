@@ -45,7 +45,7 @@ const chartConfig = {
     color: "hsl(var(--chart-2))",
   },
   permanentPoolElevation: {
-    label: "Permanent Pool Elevation",
+    label: "Permanent Pool",
     color: "hsl(var(--primary))",
   },
 } satisfies ChartConfig;
@@ -136,18 +136,24 @@ export default function PerformanceChart({
                 strokeWidth={2}
                 dot={false}
               />
+               <Line
+                dataKey="permanentPoolElevation"
+                stroke="none"
+                activeDot={false}
+                strokeWidth={0}
+                dot={false}
+              />
               <ReferenceLine
                 y={permanentPoolElevation}
                 yAxisId="left"
-                stroke="hsl(var(--primary))"
+                stroke={chartConfig.permanentPoolElevation.color}
                 strokeDasharray="3 3"
                 strokeWidth={1.5}
-                if-false="true"
               >
                 <ReferenceLine.Label
                   value="Perm. Pool"
                   position="insideTopLeft"
-                  fill="hsl(var(--primary))"
+                  fill={chartConfig.permanentPoolElevation.color}
                   fontSize={10}
                 />
               </ReferenceLine>
