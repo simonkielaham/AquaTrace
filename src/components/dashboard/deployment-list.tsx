@@ -258,6 +258,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
     setIsSubmitting(true);
     addLog("Client-side validation complete.");
     addLog(`File: ${file.name}, Start Row: ${data.startRow}`);
+    addLog(`Payload sent to server: ${JSON.stringify(data)}`);
     
     const formData = new FormData();
     formData.append('csvFile', file);
@@ -268,7 +269,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
     addLog("Server responded.");
 
     if (result?.message && result.message.startsWith('Error:')) {
-      addLog(`SERVER ERROR: ${result.message}`);
+      addLog(`SERVER RAW RESPONSE: ${result.message}`);
       toast({ 
         variant: "destructive", 
         title: "Error Adding Datafile", 

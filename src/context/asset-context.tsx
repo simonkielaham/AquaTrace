@@ -45,17 +45,10 @@ const getErrorMessage = async (error: any): Promise<string> => {
     }
     if (error instanceof Response) {
         try {
+            // For server crashes, Next.js often returns a full HTML error page.
+            // Returning the raw text gives us the most information.
             const text = await error.text();
-            // Try to extract a specific error message from Next.js's HTML error page
-            const match = text.match(/<p class="sc-fPXMVe kUaGwp">([^<]+)<\/p>/);
-            if (match && match[1]) {
-                return `Server Error: ${match[1]}`;
-            }
-            const genericMatch = text.match(/<div class="message">([^<]+)<\/div>/);
-            if (genericMatch && genericMatch[1]) {
-                return `Server Error: ${genericMatch[1]}`;
-            }
-            return `An unexpected response was received from the server.`;
+            return `An unexpected response was received from the server. Raw Response:\n${text}`;
         } catch (e) {
             return "An unexpected and unreadable response was received from the server.";
         }
