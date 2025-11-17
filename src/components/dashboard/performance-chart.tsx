@@ -46,12 +46,30 @@ export default function PerformanceChart({
   const [loading, setLoading] = React.useState(true);
 
   const yAxisDomain = React.useMemo(() => {
-    if (!asset) return ["auto", "auto"];
-    return [
-      asset.permanentPoolElevation - 2,
-      asset.permanentPoolElevation + 2,
-    ];
-  }, [asset]);
+    if (!chartData || chartData.length === 0) {
+      // Fallback domain if no data
+      return [
+        asset.permanentPoolElevation - 2,
+        asset.permanentPoolElevation + 2,
+      ];
+    }
+    
+    const waterLevels = chartData.map(d => d.waterLevel);
+    const min = Math.min(...waterLevels);
+    const max = Math.max(...waterLevels);
+    
+    const range = max - min;
+
+    if (range === 0) {
+        // Handle case where all data points are the same
+        return [min - 1, max + 1];
+    }
+    
+    const buffer = range * 0.1; // 10% buffer
+    
+    return [min - buffer, max + buffer];
+  }, [chartData, asset.permanentPoolElevation]);
+
 
   React.useEffect(() => {
     let isMounted = true;
@@ -118,7 +136,7 @@ export default function PerformanceChart({
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">
-          <AreaChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+          <AreaChart data={chartData} margin={{ top: 5, right: 30, left: -10, bottom: 5 }}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="timestamp"
@@ -154,6 +172,7 @@ export default function PerformanceChart({
               fillOpacity={0.4}
               stroke="var(--color-waterLevel)"
               stackId="a"
+              name="Water Elevation"
             />
             <ReferenceLine
               y={asset.permanentPoolElevation}
@@ -178,5 +197,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    
