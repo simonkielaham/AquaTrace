@@ -261,8 +261,10 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
     // Save processed data to its own file
     await writeJsonFile(path.join(processedDir, `${newDataFile.id}.json`), processedData);
 
-    if (!deployment.files) deployment.files = [];
-    deployment.files.push(newDataFile);
+    // Robustly update the files array
+    deployment.files = [...(deployment.files || []), newDataFile];
+
+    deployments[deploymentIndex] = deployment;
 
     await writeJsonFile(deploymentsFilePath, deployments);
 
@@ -277,10 +279,11 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
     return response;
 
   } catch (error) {
-    await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response: { message: (error as Error).message } });
+    const errorMessage = error instanceof Error ? error.message : "An unknown server error occurred.";
+    await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response: { message: errorMessage } });
     console.error('Failed to add datafile:', error);
     // Re-throw the error to let the client know something went wrong server-side.
-    throw error;
+    throw new Error(errorMessage);
   }
 }
 
@@ -443,5 +446,7 @@ export async function createAsset(data: any) {
     
 
 
+
+    
 
     
