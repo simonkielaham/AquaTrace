@@ -665,26 +665,26 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm flex flex-col">
       <CardHeader>
-        <div className="flex justify-between items-start">
-          <div className="grid gap-2">
-            <CardTitle className="font-headline">Deployments</CardTitle>
-            <CardDescription>
-              Manage sensor deployments and their associated datafiles.
-            </CardDescription>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
-              <Download className="mr-2 h-4 w-4" />
-              Log
-            </Button>
-            <DataFileManager>
-              <Button variant="outline" size="sm">
-                <Files className="mr-2 h-4 w-4" />
-                Manage Files
-              </Button>
-            </DataFileManager>
-            <NewDeploymentDialog asset={asset} />
-          </div>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="space-y-1.5">
+                <CardTitle className="font-headline">Deployments</CardTitle>
+                <CardDescription>
+                Manage sensor deployments and their associated datafiles.
+                </CardDescription>
+            </div>
+            <div className="flex-shrink-0 flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Log
+                </Button>
+                <DataFileManager>
+                    <Button variant="outline" size="sm">
+                        <Files className="mr-2 h-4 w-4" />
+                        Manage Files
+                    </Button>
+                </DataFileManager>
+                <NewDeploymentDialog asset={asset} />
+            </div>
         </div>
       </CardHeader>
       <CardContent className="flex-grow">
@@ -717,3 +717,5 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
+
+    
