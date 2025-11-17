@@ -97,9 +97,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
         if (Array.isArray(deployment.files)) {
           for (const file of deployment.files) {
             const result = await getProcessedData(file.id);
-            if (result.data) {
+            if (result.data && Array.isArray(result.data)) {
               allData[deployment.assetId].push(...result.data);
-            } else {
+            } else if (result.message) {
               console.error(`Failed to load data for file ${file.id}: ${result.message}`);
             }
           }
@@ -235,4 +235,3 @@ export const useAssets = () => {
   }
   return context;
 };
-
