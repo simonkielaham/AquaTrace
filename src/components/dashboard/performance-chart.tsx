@@ -276,6 +276,16 @@ export default function PerformanceChart({
                 isFront
               />
              ))}
+             {/* Add droplines for each survey point */}
+             {chartData.filter(d => d.elevation !== undefined).map(d => (
+                <ReferenceLine 
+                    key={`dropline-${d.timestamp}`}
+                    x={d.timestamp}
+                    stroke="hsl(var(--accent))"
+                    strokeDasharray="3 3"
+                    strokeWidth={1}
+                />
+             ))}
 
             <ChartLegend content={<ChartLegendContent />} />
           </AreaChart>
