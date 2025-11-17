@@ -117,11 +117,29 @@ export async function addSurveyPoint(assetId: string, data: any) {
 
   try {
     const surveyPoints = await readJsonFile<SurveyPoint[]>(surveyPointsFilePath);
+    const sensorDataPoints = await getProcessedData(assetId);
+    
+    let finalTimestamp = new Date(timestamp).getTime();
+
+    // If sensor data exists, find the nearest point in time
+    if (sensorDataPoints.length > 0) {
+      let nearestPoint = sensorDataPoints[0];
+      let smallestDiff = Math.abs(finalTimestamp - nearestPoint.timestamp);
+
+      for (const point of sensorDataPoints) {
+        const diff = Math.abs(finalTimestamp - point.timestamp);
+        if (diff < smallestDiff) {
+          smallestDiff = diff;
+          nearestPoint = point;
+        }
+      }
+      finalTimestamp = nearestPoint.timestamp;
+    }
     
     const newPoint: SurveyPoint = {
       id: `survey-${Date.now()}`,
       assetId,
-      timestamp: new Date(timestamp).getTime(),
+      timestamp: finalTimestamp,
       elevation,
     };
     
@@ -709,3 +727,4 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
+
