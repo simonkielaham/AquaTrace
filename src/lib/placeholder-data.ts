@@ -9,15 +9,20 @@ export type Asset = {
   imageId: string;
 };
 
+export type DataFile = {
+  id: string;
+  deploymentId: string;
+  fileName: string;
+  startDate: string;
+  endDate: string;
+}
+
 export type Deployment = {
   id:string;
   assetId: string;
   sensorId: string;
-  startDate: string;
-  endDate: string | null;
-  fileName: string;
-  fileCount: number;
   sensorElevation: number;
+  files: DataFile[];
 };
 
 export type DataPoint = {

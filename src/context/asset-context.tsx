@@ -59,7 +59,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
         const newDeployment = result.newDeployment;
         
         setAssets(prev => [...prev, newAsset]);
+        // Since a new asset always creates one new deployment, we just add it.
         setDeployments(prev => [...prev, newDeployment]);
+
         setPerformanceData(prev => ({
           ...prev,
           ...result.newPerformanceData

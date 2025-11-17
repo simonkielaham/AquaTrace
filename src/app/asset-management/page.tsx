@@ -61,6 +61,7 @@ const assetFormSchema = z.object({
   location: z.string().min(2, "Location is required."),
   permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
   designElevations: z.array(designElevationSchema).min(1, "At least one design elevation is required."),
+  sensorId: z.string().min(1, "Sensor ID is required."),
   datetimeColumn: z.string().min(1, "Datetime column is required."),
   waterLevelColumn: z.string().min(1, "Water level column is required."),
   sensorElevation: z.coerce.number().min(0, "Sensor elevation is required."),
@@ -161,6 +162,7 @@ export default function AssetManagementPage() {
       location: "",
       permanentPoolElevation: 0,
       designElevations: [{ year: 2, elevation: 0 }],
+      sensorId: "",
       sensorElevation: 0,
       startRow: 2,
     },
@@ -269,7 +271,7 @@ export default function AssetManagementPage() {
                           <div>
                             <CardTitle className="font-headline text-left">Add New Asset</CardTitle>
                             <CardDescription className="text-left mt-1">
-                              Fill in the details below to create a new stormwater management asset.
+                              Fill in the details below to create a new stormwater management asset and its initial deployment.
                             </CardDescription>
                           </div>
                           <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
@@ -385,9 +387,9 @@ export default function AssetManagementPage() {
                             <Separator />
                             
                             <div>
-                              <FormLabel>Water Level Datafile</FormLabel>
+                              <FormLabel>Sensor Deployment and Datafile</FormLabel>
                               <FormDescription className="mb-4">
-                                Upload a CSV file containing time series data. Map the columns and specify the data start row.
+                                Provide the sensor details and upload a CSV file containing time series data.
                               </FormDescription>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="flex items-center justify-center w-full">
@@ -408,57 +410,22 @@ export default function AssetManagementPage() {
                                     <Input id="dropzone-file" type="file" className="hidden" onChange={handleFileChange} accept=".csv" />
                                   </label>
                                 </div>
-                                {csvHeaders.length > 0 && (
+                                
                                   <div className="space-y-4">
-                                    <div className="flex items-center gap-2 text-sm font-medium">
-                                        <TableIcon className="h-5 w-5" />
-                                        <span>Column Mapping & Settings</span>
-                                    </div>
-                                    <FormField
-                                      control={form.control}
-                                      name="datetimeColumn"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Datetime Column</FormLabel>
-                                          <Select onValueChange={field.onChange} value={field.value}>
-                                            <FormControl>
-                                              <SelectTrigger>
-                                                <SelectValue placeholder="Select a column" />
-                                              </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                              {csvHeaders.map(header => (
-                                                <SelectItem key={header} value={header}>{header}</SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    <FormField
-                                      control={form.control}
-                                      name="waterLevelColumn"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <FormLabel>Water Level Column</FormLabel>
-                                          <Select onValueChange={field.onChange} value={field.value}>
-                                            <FormControl>
-                                              <SelectTrigger>
-                                                <SelectValue placeholder="Select a column" />
-                                              </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                              {csvHeaders.map(header => (
-                                                <SelectItem key={header} value={header}>{header}</SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
                                      <FormField
+                                        control={form.control}
+                                        name="sensorId"
+                                        render={({ field }) => (
+                                          <FormItem>
+                                            <FormLabel>Sensor ID</FormLabel>
+                                            <FormControl>
+                                              <Input placeholder="e.g., SN-12345" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                      <FormField
                                         control={form.control}
                                         name="sensorElevation"
                                         render={({ field }) => (
@@ -471,22 +438,74 @@ export default function AssetManagementPage() {
                                           </FormItem>
                                         )}
                                       />
-                                    <FormField
-                                        control={form.control}
-                                        name="startRow"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormLabel>Data Start Row</FormLabel>
-                                            <FormControl>
-                                              <Input type="number" min="1" {...field} />
-                                            </FormControl>
-                                            <FormDescription>The first row containing data (not headers).</FormDescription>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
+                                    {csvHeaders.length > 0 && (
+                                    <>
+                                        <div className="flex items-center gap-2 text-sm font-medium pt-4">
+                                            <TableIcon className="h-5 w-5" />
+                                            <span>Column Mapping & Settings</span>
+                                        </div>
+                                        <FormField
+                                          control={form.control}
+                                          name="datetimeColumn"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel>Datetime Column</FormLabel>
+                                              <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                  <SelectTrigger>
+                                                    <SelectValue placeholder="Select a column" />
+                                                  </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                  {csvHeaders.map(header => (
+                                                    <SelectItem key={header} value={header}>{header}</SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                        <FormField
+                                          control={form.control}
+                                          name="waterLevelColumn"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel>Water Level Column</FormLabel>
+                                              <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                  <SelectTrigger>
+                                                    <SelectValue placeholder="Select a column" />
+                                                  </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                  {csvHeaders.map(header => (
+                                                    <SelectItem key={header} value={header}>{header}</SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                              <FormMessage />
+                                            </FormItem>
+                                          )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="startRow"
+                                            render={({ field }) => (
+                                              <FormItem>
+                                                <FormLabel>Data Start Row</FormLabel>
+                                                <FormControl>
+                                                  <Input type="number" min="1" {...field} />
+                                                </FormControl>
+                                                <FormDescription>The first row containing data (not headers).</FormDescription>
+                                                <FormMessage />
+                                              </FormItem>
+                                            )}
+                                          />
+                                    </>
+                                    )}
                                   </div>
-                                )}
+                                
                               </div>
                             </div>
 

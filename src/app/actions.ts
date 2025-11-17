@@ -6,7 +6,7 @@ import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import Papa from 'papaparse';
-import { Asset, Deployment, DataPoint } from '@/lib/placeholder-data';
+import { Asset, Deployment, DataPoint, DataFile } from '@/lib/placeholder-data';
 
 // Define paths to data files
 const dataDir = path.join(process.cwd(), 'data');
@@ -25,6 +25,7 @@ const assetFormSchema = z.object({
     year: z.coerce.number(),
     elevation: z.coerce.number()
   })),
+  sensorId: z.string().min(1),
   datetimeColumn: z.string().min(1),
   waterLevelColumn: z.string().min(1),
   sensorElevation: z.coerce.number().min(0),
@@ -87,10 +88,45 @@ export async function createAsset(data: any, formData: FormData) {
 
     // 2. Read existing data
     const assets: Asset[] = await readJsonFile<Asset[]>(assetsFilePath);
-    const deployments: Deployment[] = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    let deployments: Deployment[] = await readJsonFile<Deployment[]>(deploymentsFilePath);
     const performanceData: { [key: string]: DataPoint[] } = await readJsonFile(performanceDataFilePath);
 
-    // 3. Create new asset and deployment records
+    // 3. Process CSV and create performance data
+    const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
+    const allRows = (parsedCsv.data as any[]);
+    const dataRows = allRows.slice(validatedData.startRow - 1);
+    
+    let minDate: Date | null = null;
+    let maxDate: Date | null = null;
+
+    const processedData = dataRows
+      .map(row => {
+        const timeValue = row[validatedData.datetimeColumn];
+        const waterLevelValue = parseFloat(row[validatedData.waterLevelColumn]);
+        
+        if (timeValue === undefined || isNaN(waterLevelValue)) {
+            return null;
+        }
+        
+        const date = new Date(timeValue);
+        if (isNaN(date.getTime())) {
+            return null;
+        }
+
+        if (!minDate || date < minDate) minDate = date;
+        if (!maxDate || date > maxDate) maxDate = date;
+        
+        const waterElevation = waterLevelValue + validatedData.sensorElevation;
+
+        return {
+          time: date.toISOString(),
+          waterLevel: waterLevelValue,
+          waterElevation: waterElevation,
+          precipitation: 0,
+        };
+      }).filter((dp): dp is DataPoint => dp !== null);
+      
+    // 4. Create or update asset, deployment, and file records
     const newAssetId = `asset-${Date.now()}`;
     const newAsset: Asset = {
       id: newAssetId,
@@ -102,49 +138,28 @@ export async function createAsset(data: any, formData: FormData) {
       imageId: ['pond', 'basin', 'creek'][Math.floor(Math.random() * 3)],
     };
 
-    const newDeployment: Deployment = {
-      id: `dep-${Date.now()}`,
-      assetId: newAssetId,
-      sensorId: `SN-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-      startDate: new Date().toISOString(),
-      endDate: null,
+    const newDeploymentId = `dep-${Date.now()}`;
+    const newDataFileId = `file-${Date.now()}`;
+
+    const newDataFile: DataFile = {
+      id: newDataFileId,
+      deploymentId: newDeploymentId,
       fileName: file.name,
-      fileCount: 1,
-      sensorElevation: validatedData.sensorElevation,
+      startDate: minDate?.toISOString() || new Date().toISOString(),
+      endDate: maxDate?.toISOString() || new Date().toISOString(),
     };
     
-    // 4. Process CSV and create performance data
-    const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
-    const processedData = (parsedCsv.data as any[])
-      .slice(validatedData.startRow - 1)
-      .map(row => {
-        const timeValue = row[validatedData.datetimeColumn];
-        const waterLevelValue = parseFloat(row[validatedData.waterLevelColumn]);
-        
-        if (timeValue === undefined || isNaN(waterLevelValue)) {
-            return null;
-        }
-
-        const waterElevation = waterLevelValue + validatedData.sensorElevation;
-        const date = new Date(timeValue);
-        
-        if (isNaN(date.getTime())) {
-            return null;
-        }
-
-        return {
-          time: date.toISOString(),
-          waterLevel: waterLevelValue,
-          waterElevation: waterElevation,
-          precipitation: 0,
-        };
-      }).filter((dp): dp is DataPoint => dp !== null);
-
+    const newDeployment: Deployment = {
+      id: newDeploymentId,
+      assetId: newAssetId,
+      sensorId: validatedData.sensorId,
+      sensorElevation: validatedData.sensorElevation,
+      files: [newDataFile],
+    };
 
     // 5. Append new data and write back to files
     assets.push(newAsset);
     deployments.push(newDeployment);
-    const newPerformanceData = { [newAssetId]: processedData };
     performanceData[newAssetId] = processedData;
 
     await writeJsonFile(assetsFilePath, assets);
@@ -160,7 +175,7 @@ export async function createAsset(data: any, formData: FormData) {
         message: 'Asset created successfully',
         newAsset,
         newDeployment,
-        newPerformanceData
+        newPerformanceData: { [newAssetId]: processedData }
     };
 
   } catch (error) {
