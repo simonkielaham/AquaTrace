@@ -45,6 +45,14 @@ export default function PerformanceChart({
   const [chartData, setChartData] = React.useState<DataPoint[]>([]);
   const [loading, setLoading] = React.useState(true);
 
+  const yAxisDomain = React.useMemo(() => {
+    if (!asset) return ["auto", "auto"];
+    return [
+      asset.permanentPoolElevation - 2,
+      asset.permanentPoolElevation + 2,
+    ];
+  }, [asset]);
+
   React.useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
@@ -131,6 +139,7 @@ export default function PerformanceChart({
               tickLine={false}
               axisLine={false}
               tickMargin={8}
+              domain={yAxisDomain}
             />
             <ChartTooltip
               cursor={false}
