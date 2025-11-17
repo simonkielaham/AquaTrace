@@ -9,28 +9,12 @@ export type Asset = {
   imageId: string;
 };
 
-export type DataFile = {
-  id: string;
-  deploymentId: string;
-  fileName: string;
-  startDate: string;
-  endDate: string;
-}
-
 export type Deployment = {
   id:string;
   assetId: string;
   sensorId: string;
   sensorElevation: number;
-  files: DataFile[];
   name?: string;
-};
-
-export type DataPoint = {
-  time: string; // ISO string
-  waterLevel: number; // in meters
-  waterElevation: number; // in meters
-  precipitation: number; // in mm, using number to allow 0
 };
 
 export type AnalysisResult = {

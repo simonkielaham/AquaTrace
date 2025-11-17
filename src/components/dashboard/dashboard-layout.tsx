@@ -6,20 +6,16 @@ import { SidebarProvider, Sidebar } from "@/components/ui/sidebar";
 import SidebarNav from "@/components/dashboard/sidebar-nav";
 import PageHeader from "@/components/dashboard/page-header";
 import AssetOverview from "@/components/dashboard/asset-overview";
-import PerformanceChart from "@/components/dashboard/performance-chart";
 import DeploymentList from "@/components/dashboard/deployment-list";
 import AnalysisResults from "@/components/dashboard/analysis-results";
 import {
   analysisResults,
-  type Asset,
 } from "@/lib/placeholder-data";
 import { useAssets } from "@/context/asset-context";
-import { useRouter } from "next/navigation";
 
 
 export default function DashboardLayout() {
-  const router = useRouter();
-  const { assets, selectedAssetId, setSelectedAssetId, deployments, performanceData, loading } = useAssets();
+  const { assets, selectedAssetId, setSelectedAssetId, deployments, loading } = useAssets();
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   
@@ -65,8 +61,6 @@ export default function DashboardLayout() {
   const assetAnalysisResults = analysisResults.filter(
     (r) => r.assetId === selectedAssetId
   );
-  
-  const assetPerformanceData = performanceData[selectedAssetId] || [];
 
   return (
     <SidebarProvider>
@@ -86,10 +80,6 @@ export default function DashboardLayout() {
           <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <AssetOverview asset={selectedAsset} />
-              <PerformanceChart
-                data={assetPerformanceData}
-                asset={selectedAsset}
-              />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <AnalysisResults results={assetAnalysisResults} />
             </div>

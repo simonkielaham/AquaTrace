@@ -5,16 +5,13 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import Papa from 'papaparse';
-import { Asset, Deployment, DataPoint, DataFile, ActivityLog } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog } from '@/lib/placeholder-data';
 
 // Define paths to data files
 const dataDir = path.join(process.cwd(), 'data');
 const assetsFilePath = path.join(dataDir, 'assets.json');
 const deploymentsFilePath = path.join(dataDir, 'deployments.json');
 const activityLogFilePath = path.join(dataDir, 'activity-log.json');
-const uploadsDir = path.join(dataDir, 'uploads');
-const processedDir = path.join(dataDir, 'processed');
 
 
 // Define the schema for the form data
@@ -49,12 +46,6 @@ const editDeploymentSchema = z.object({
   name: z.string().optional(),
   sensorId: z.string().min(1),
   sensorElevation: z.coerce.number(),
-});
-
-const addDatafileSchema = z.object({
-  datetimeColumn: z.string().min(1),
-  waterLevelColumn: z.string().min(1),
-  startRow: z.coerce.number().min(1),
 });
 
 
@@ -126,19 +117,6 @@ Response: ${JSON.stringify(log.response, null, 2)}
   }
 }
 
-export async function getProcessedData(fileId: string): Promise<{ data?: DataPoint[], message?: string }> {
-  const filePath = path.join(processedDir, `${fileId}.json`);
-  try {
-    const data = await readJsonFile<DataPoint[]>(filePath);
-    return { data };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "An unknown error occurred.";
-    console.error(`Failed to get processed data for ${fileId}:`, error);
-    return { message: `Error: ${message}` };
-  }
-}
-
-
 export async function createDeployment(assetId: string, data: any) {
   const logPayload = { assetId, data };
   const validatedFields = deploymentFormSchema.safeParse(data);
@@ -158,7 +136,6 @@ export async function createDeployment(assetId: string, data: any) {
       sensorId: validatedData.sensorId,
       sensorElevation: validatedData.sensorElevation,
       name: validatedData.name || `Deployment ${new Date().toLocaleDateString()}`,
-      files: [],
     };
 
     deployments.push(newDeployment);
@@ -179,111 +156,6 @@ export async function createDeployment(assetId: string, data: any) {
     await writeLog({ action: 'createDeployment', status: 'failure', assetId, payload: logPayload, response });
     console.error('Failed to create deployment:', error);
     return response;
-  }
-}
-
-export async function addDatafile(deploymentId: string, assetId: string, data: any, formData: FormData) {
-  const logPayload = { deploymentId, assetId, data: { ...data, csvFileName: (formData.get('csvFile') as File)?.name } };
-  
-  const validatedFields = addDatafileSchema.safeParse(data);
-  if (!validatedFields.success) {
-    const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
-    await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
-    return response;
-  }
-  const validatedData = validatedFields.data;
-
-  const file = formData.get('csvFile') as File | null;
-  const fileContent = formData.get('csvContent') as string | null;
-
-  if (!file || !fileContent) {
-    const response = { message: 'CSV file is required.' };
-    await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
-    return response;
-  }
-
-  try {
-    await fs.mkdir(uploadsDir, { recursive: true });
-    const uniqueFileName = `${Date.now()}-${file.name}`;
-    const filePath = path.join(uploadsDir, uniqueFileName);
-    await fs.writeFile(filePath, Buffer.from(fileContent));
-
-    let deployments: Deployment[] = await readJsonFile(deploymentsFilePath);
-    const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
-    if (deploymentIndex === -1) {
-      throw new Error("Deployment not found.");
-    }
-    const deployment = deployments[deploymentIndex];
-
-    const sliceIndex = Math.max(0, validatedData.startRow - 2);
-
-    const parsedCsv = Papa.parse(fileContent, {
-      header: true,
-      skipEmptyLines: true,
-    });
-    
-    const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
-    
-    let minDate: Date | null = null;
-    let maxDate: Date | null = null;
-
-    const processedData = dataRows.map(row => {
-        const timeValue = row[validatedData.datetimeColumn];
-        const waterLevelValue = parseFloat(row[validatedData.waterLevelColumn]);
-        if (!timeValue || isNaN(waterLevelValue)) return null;
-        
-        const date = new Date(timeValue);
-        if (isNaN(date.getTime())) return null;
-
-        if (!minDate || date < minDate) minDate = date;
-        if (!maxDate || date > maxDate) maxDate = date;
-        
-        return {
-          time: date.toISOString(),
-          waterLevel: waterLevelValue,
-          waterElevation: waterLevelValue + deployment.sensorElevation,
-          precipitation: 0,
-        };
-      }).filter((dp): dp is DataPoint => dp !== null);
-
-    if (processedData.length === 0) {
-      throw new Error('No valid data points found in the CSV file after processing. Check start row and column names.');
-    }
-
-    const newDataFile: DataFile = {
-      id: `file-${Date.now()}`,
-      deploymentId: deploymentId,
-      fileName: file.name,
-      startDate: minDate?.toISOString() || new Date().toISOString(),
-      endDate: maxDate?.toISOString() || new Date().toISOString(),
-    };
-    
-    // Save processed data to its own file
-    await writeJsonFile(path.join(processedDir, `${newDataFile.id}.json`), processedData);
-
-    // Robustly update the files array by creating a new array
-    deployment.files = [...(deployment.files || []), newDataFile];
-
-    deployments[deploymentIndex] = deployment;
-
-    await writeJsonFile(deploymentsFilePath, deployments);
-
-    revalidatePath('/');
-    
-    const response = {
-      message: 'Datafile added successfully',
-      updatedDeployment: deployment,
-      newDataFile: newDataFile, // send new file info back to client
-    };
-    await writeLog({ action: 'addDatafile', status: 'success', assetId, deploymentId, payload: logPayload, response: { message: response.message } });
-    return response;
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "An unknown server error occurred.";
-    await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response: { message: errorMessage } });
-    console.error('Failed to add datafile:', error);
-    // Re-throw the error to let the client know something went wrong server-side.
-    throw new Error(errorMessage);
   }
 }
 

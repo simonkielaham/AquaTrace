@@ -5,17 +5,13 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { 
   Asset, 
   Deployment,
-  DataFile,
-  DataPoint,
 } from '@/lib/placeholder-data';
 import { 
   createAsset as createAssetAction, 
   updateAsset as updateAssetAction, 
   updateDeployment as updateDeploymentAction, 
-  addDatafile as addDatafileAction, 
   createDeployment as createDeploymentAction, 
   downloadLogs as downloadLogsAction,
-  getProcessedData
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -26,11 +22,9 @@ interface AssetContextType {
   selectedAssetId: string;
   setSelectedAssetId: (id: string) => void;
   deployments: Deployment[];
-  performanceData: { [assetId: string]: DataPoint[] };
   createAsset: (data: any) => Promise<any>;
   updateAsset: (assetId: string, data: any) => Promise<any>;
   updateDeployment: (deploymentId: string, assetId: string, data: any) => Promise<any>;
-  addDatafile: (deploymentId: string, assetId: string, data: any, formData: FormData) => Promise<any>;
   deleteAsset: (assetId: string) => Promise<any>;
   createDeployment: (assetId: string, data: any) => Promise<any>;
   downloadLogs: (assetId: string) => Promise<any>;
@@ -41,10 +35,8 @@ const AssetContext = createContext<AssetContextType | undefined>(undefined);
 
 const getErrorMessage = async (error: any): Promise<string> => {
     if (error instanceof Error) {
-        // This will catch errors thrown from the server action
         return error.message;
     }
-    // This is a fallback for other types of errors
     return "An unknown error occurred.";
 };
 
@@ -52,7 +44,6 @@ const getErrorMessage = async (error: any): Promise<string> => {
 export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [deployments, setDeployments] = useState<Deployment[]>([]);
-  const [performanceData, setPerformanceData] = useState<{ [assetId: string]: DataPoint[] }>({});
   const [selectedAssetId, setSelectedAssetId] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
@@ -69,41 +60,6 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   }, []);
 
-  // Effect to load performance data when assets or deployments change
-  useEffect(() => {
-    const fetchAllData = async () => {
-      setLoading(true);
-      const allData: { [assetId: string]: DataPoint[] } = {};
-
-      for (const deployment of deployments) {
-        if (!allData[deployment.assetId]) {
-          allData[deployment.assetId] = [];
-        }
-        if (Array.isArray(deployment.files)) {
-          for (const file of deployment.files) {
-            const result = await getProcessedData(file.id);
-            if (result.data && Array.isArray(result.data)) {
-              allData[deployment.assetId].push(...result.data);
-            } else if (result.message) {
-              console.error(`Failed to load data for file ${file.id}: ${result.message}`);
-            }
-          }
-        }
-      }
-      
-      // Sort data for each asset
-      for (const assetId in allData) {
-        allData[assetId].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-      }
-      
-      setPerformanceData(allData);
-      setLoading(false);
-    };
-
-    if (deployments.length > 0) {
-      fetchAllData();
-    }
-  }, [deployments]);
 
   const handleSetSelectedAssetId = (id: string) => {
     localStorage.setItem('selectedAssetId', id);
@@ -162,21 +118,6 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const addDatafile = useCallback(async (deploymentId: string, assetId: string, data: any, formData: FormData) => {
-    try {
-      const result = await addDatafileAction(deploymentId, assetId, data, formData);
-      if (result && !result.errors && result.updatedDeployment) {
-        setDeployments(prev => prev.map(d => d.id === deploymentId ? result.updatedDeployment : d));
-      }
-      return result;
-    } catch (error: any) {
-      // The error object from a server action crash contains the error details
-      // in its `message` property. This will be the raw HTML of the Next.js error page.
-      const rawError = error.message || "An unknown error occurred on the server.";
-      return { message: `Error: ${rawError}` };
-    }
-  }, []);
-  
   const deleteAsset = useCallback(async (assetId: string) => {
     console.warn("deleteAsset is currently disabled.");
     return { message: "Asset deletion is temporarily disabled for safety."}
@@ -197,11 +138,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     selectedAssetId,
     setSelectedAssetId: handleSetSelectedAssetId,
     deployments,
-    performanceData,
     createAsset,
     updateAsset,
     updateDeployment,
-    addDatafile,
     deleteAsset,
     createDeployment,
     downloadLogs,

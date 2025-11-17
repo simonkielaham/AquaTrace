@@ -1,13 +1,11 @@
 
 "use client";
 
-import type { Deployment, DataFile, Asset } from "@/lib/placeholder-data";
+import type { Deployment, Asset } from "@/lib/placeholder-data";
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import Papa from "papaparse";
-import { format, getYear, getMonth } from "date-fns";
 
 import {
   Card,
@@ -16,16 +14,9 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, PlusCircle, UploadCloud, Save, ChevronDown, CalendarIcon, Download } from "lucide-react";
+import { PlusCircle, Save, ChevronDown, CalendarIcon, Download } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
@@ -55,8 +46,6 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 
 // Schemas for forms
 const editDeploymentSchema = z.object({
@@ -74,24 +63,6 @@ const deploymentFormSchema = z.object({
 });
 type DeploymentFormValues = z.infer<typeof deploymentFormSchema>;
 
-
-const addDatafileSchema = z.object({
-  datetimeColumn: z.string().min(1, "Datetime column is required."),
-  waterLevelColumn: z.string().min(1, "Water level column is required."),
-  startRow: z.coerce.number().min(1, "Start row must be at least 1."),
-});
-
-type AddDatafileValues = z.infer<typeof addDatafileSchema>;
-
-const detectColumns = (headers: string[]) => {
-  const datetimeKeywords = ["date", "time", "timestamp"];
-  const waterLevelKeywords = ["water", "level", "elevation", "stage"];
-
-  const datetimeColumn = headers.find(h => datetimeKeywords.some(k => h.toLowerCase().includes(k))) || "";
-  const waterLevelColumn = headers.find(h => waterLevelKeywords.some(k => h.toLowerCase().includes(k))) || "";
-  
-  return { datetimeColumn, waterLevelColumn };
-};
 
 function NewDeploymentDialog({ asset }: { asset: Asset }) {
   const { toast } = useToast();
@@ -185,216 +156,6 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
 }
 
 
-function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asset: Asset }) {
-  const { toast } = useToast();
-  const { addDatafile } = useAssets();
-  const [isOpen, setIsOpen] = React.useState(false);
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
-  const [file, setFile] = React.useState<File | null>(null);
-  const [fileContent, setFileContent] = React.useState<string | null>(null);
-  const [logMessages, setLogMessages] = React.useState<string[]>([]);
-
-  const form = useForm<AddDatafileValues>({
-    resolver: zodResolver(addDatafileSchema),
-    defaultValues: {
-      startRow: 2,
-      datetimeColumn: "",
-      waterLevelColumn: ""
-    },
-  });
-  
-  const resetDialogState = React.useCallback(() => {
-    form.reset({ startRow: 2, datetimeColumn: '', waterLevelColumn: '' });
-    setFile(null);
-    setFileContent(null);
-    setCsvHeaders([]);
-    setLogMessages([]);
-    const fileInput = document.getElementById(`dropzone-file-${deployment.id}`) as HTMLInputElement;
-    if (fileInput) {
-      fileInput.value = "";
-    }
-  }, [form, deployment.id]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string;
-        setFileContent(text);
-        Papa.parse(text, {
-          header: true,
-          skipEmptyLines: true,
-          preview: 1,
-          complete: (results) => {
-            const headers = results.meta.fields || [];
-            setCsvHeaders(headers);
-            const { datetimeColumn, waterLevelColumn } = detectColumns(headers);
-            form.setValue("datetimeColumn", datetimeColumn);
-            form.setValue("waterLevelColumn", waterLevelColumn);
-          },
-        });
-      };
-      reader.readAsText(selectedFile);
-    }
-  };
-
-  const handleSubmit = async (data: AddDatafileValues) => {
-    const addLog = (message: string) => {
-      setLogMessages(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
-    };
-    
-    setLogMessages([]); // Clear logs on new submission
-    addLog("Initiating submission...");
-
-    if (!file || !fileContent) {
-      addLog("ERROR: CSV file is missing.");
-      toast({ variant: "destructive", title: "File Missing", description: "Please select a CSV file to upload." });
-      return;
-    }
-    
-    setIsSubmitting(true);
-    addLog("Client-side validation complete.");
-    addLog(`File: ${file.name}, Start Row: ${data.startRow}`);
-    const payloadToServer = JSON.stringify(data);
-    addLog(`Payload sent to server: ${payloadToServer}`);
-    
-    const formData = new FormData();
-    formData.append('csvFile', file);
-    formData.append('csvContent', fileContent);
-    
-    addLog("Sending data to server...");
-    const result = await addDatafile(deployment.id, asset.id, data, formData);
-    addLog("Server responded.");
-
-    if (result?.message && result.message.startsWith('Error:')) {
-      const rawResponse = result.message.substring(7); // Remove "Error: "
-      addLog(`SERVER RAW RESPONSE: ${rawResponse}`);
-      toast({ 
-        variant: "destructive", 
-        title: "Error Adding Datafile", 
-        description: <pre className="mt-2 w-full max-w-[550px] whitespace-pre-wrap break-all rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
-      });
-    } else {
-      addLog("SUCCESS: Datafile added successfully.");
-      toast({ title: "Success", description: "New datafile added." });
-      setIsOpen(false);
-      resetDialogState();
-    }
-    
-    setIsSubmitting(false);
-  };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      setIsOpen(open);
-      if (!open) {
-        resetDialogState();
-      }
-    }}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add Datafile
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[625px]">
-        <DialogHeader>
-          <DialogTitle>Add Datafile to Deployment</DialogTitle>
-          <DialogDescription>
-            Upload a new CSV datafile. The data will be appended to the asset's performance history.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-            <div className="flex items-center justify-center w-full">
-              <label htmlFor={`dropzone-file-${deployment.id}`} className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted">
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
-                  <p className="mb-2 text-sm text-muted-foreground">
-                    {file ? <span className="font-semibold">{file.name}</span> : <><span className="font-semibold">Click to upload</span> or drag and drop</>}
-                  </p>
-                  <p className="text-xs text-muted-foreground">CSV (MAX. 5MB)</p>
-                </div>
-                <Input id={`dropzone-file-${deployment.id}`} type="file" className="hidden" onChange={handleFileChange} accept=".csv" />
-              </label>
-            </div>
-            {csvHeaders.length > 0 && (
-              <div className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="datetimeColumn"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Datetime Column</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select a column" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>{csvHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                    control={form.control}
-                    name="waterLevelColumn"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Water Level Column</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                            <SelectTrigger><SelectValue placeholder="Select a column" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>{csvHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-                <FormField
-                  control={form.control}
-                  name="startRow"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Data Start Row</FormLabel>
-                      <FormControl><Input type="number" min="1" {...field} /></FormControl>
-                      <FormDescription>The row number where your actual data begins (1-based).</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
-             
-            {logMessages.length > 0 && (
-              <div className="space-y-2">
-                <FormLabel>Live Log</FormLabel>
-                <ScrollArea className="h-28 w-full rounded-md border p-4 font-mono text-xs">
-                  {logMessages.map((msg, i) => (
-                    <div key={i}>{msg}</div>
-                  ))}
-                </ScrollArea>
-              </div>
-            )}
-             
-             <DialogFooter>
-              <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
-              <Button type="submit" disabled={isSubmitting || !file}>
-                {isSubmitting ? "Saving..." : "Save Datafile"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-
 function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, asset: Asset }) {
   const { toast } = useToast();
   const { updateDeployment } = useAssets();
@@ -436,7 +197,7 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Deployment Name</FormLabel>
-                  <FormDescription>A name for this deployment if no data is present.</FormDescription>
+                  <FormDescription>A name for this deployment.</FormDescription>
                   <FormControl><Input {...field} placeholder="e.g., Initial Deployment" /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -474,33 +235,6 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
   );
 }
 
-function getDeploymentDateRange(files: DataFile[]): string {
-    if (!files || files.length === 0) {
-        return "";
-    }
-
-    const dates = files.flatMap(file => [new Date(file.startDate), new Date(file.endDate)]);
-    
-    const yearlyData: { [year: number]: Set<number> } = {};
-
-    dates.forEach(date => {
-        const year = getYear(date);
-        const month = getMonth(date);
-        if (!yearlyData[year]) {
-            yearlyData[year] = new Set();
-        }
-        yearlyData[year].add(month);
-    });
-
-    return Object.entries(yearlyData)
-        .map(([year, monthsSet]) => {
-            const sortedMonths = Array.from(monthsSet).sort((a, b) => a - b);
-            const monthNames = sortedMonths.map(monthIndex => format(new Date(0, monthIndex), 'MMM'));
-            return `${year}: ${monthNames.join(', ')}`;
-        })
-        .join('; ');
-}
-
 
 export default function DeploymentList({ deployments, asset }: { deployments: Deployment[], asset: Asset }) {
   const { toast } = useToast();
@@ -531,18 +265,9 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
 
   const formattedDeployments = React.useMemo(() => {
     return deployments.map(d => {
-      const filesWithLocalDates = (d.files || []).map(f => ({
-        ...f,
-        startDate: new Date(f.startDate).toLocaleDateString(),
-        endDate: f.endDate ? new Date(f.endDate).toLocaleDateString() : "Present",
-      }));
-      
-      const dateRangeLabel = getDeploymentDateRange(d.files || []);
-
       return {
         ...d,
-        files: filesWithLocalDates,
-        dateRangeLabel: dateRangeLabel || d.name || `Empty Deployment (ID: ${d.id.substring(0, 4)})`,
+        dateRangeLabel: d.name || `Deployment (ID: ${d.id.substring(0, 4)})`,
       };
     });
   }, [deployments]);
@@ -555,7 +280,7 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
           <div className="grid gap-2">
             <CardTitle className="font-headline">Deployments</CardTitle>
             <CardDescription>
-              Manage sensor deployments and associated datafiles for this asset.
+              Manage sensor deployments for this asset.
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -582,41 +307,6 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
                 <AccordionContent>
                   <div className="space-y-6 pl-2">
                     <EditDeploymentForm deployment={deployment} asset={asset} />
-                    <Separator />
-                    <div className="space-y-2">
-                       <div className="flex justify-between items-center">
-                         <h4 className="font-semibold">Datafiles</h4>
-                         <AddDatafileDialog deployment={deployment} asset={asset} />
-                       </div>
-                       <Table>
-                          <TableHeader>
-                              <TableRow>
-                                <TableHead>File Name</TableHead>
-                                <TableHead>Data Period</TableHead>
-                              </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                              {(deployment.files || []).map((file) => (
-                              <TableRow key={file.id}>
-                                  <TableCell className="flex items-center gap-2 text-muted-foreground">
-                                      <FileText className="h-4 w-4" />
-                                      <span className="font-mono text-xs">{file.fileName}</span>
-                                  </TableCell>
-                                  <TableCell>
-                                    {file.startDate} - {file.endDate}
-                                  </TableCell>
-                              </TableRow>
-                              ))}
-                              {(!deployment.files || deployment.files.length === 0) && (
-                                <TableRow>
-                                  <TableCell colSpan={2} className="text-center text-muted-foreground">
-                                    No datafiles for this deployment yet.
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                          </TableBody>
-                      </Table>
-                    </div>
                   </div>
                 </AccordionContent>
               </AccordionItem>
@@ -636,3 +326,4 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     
 
     
+
