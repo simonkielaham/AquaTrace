@@ -43,6 +43,7 @@ const editAssetFormSchema = z.object({
 });
 
 const editDeploymentSchema = z.object({
+  name: z.string().optional(),
   sensorId: z.string().min(1),
   sensorElevation: z.coerce.number(),
 });
@@ -411,8 +412,7 @@ export async function createAsset(data: any, formData: FormData) {
 
   } catch (error) {
     console.error('Failed to create asset:', error);
-    return { message: `An error occurred: ${(error as Error).message}` };
+    const message = error instanceof Error ? error.message : "An unknown error occurred during asset creation.";
+    return { message: `Error: ${message}` };
   }
 }
-
-    

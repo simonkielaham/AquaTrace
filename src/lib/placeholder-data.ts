@@ -23,6 +23,7 @@ export type Deployment = {
   sensorId: string;
   sensorElevation: number;
   files: DataFile[];
+  name?: string;
 };
 
 export type DataPoint = {

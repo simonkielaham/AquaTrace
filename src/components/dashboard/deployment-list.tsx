@@ -4,9 +4,10 @@
 import type { Deployment, DataFile, Asset } from "@/lib/placeholder-data";
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
 import Papa from "papaparse";
+import { format, getYear, getMonth } from "date-fns";
 
 import {
   Card,
@@ -24,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, PlusCircle, UploadCloud, Save, ChevronDown } from "lucide-react";
+import { FileText, PlusCircle, UploadCloud, Save, ChevronDown, CalendarIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
@@ -59,6 +60,7 @@ import { Separator } from "@/components/ui/separator";
 
 // Schemas for forms
 const editDeploymentSchema = z.object({
+  name: z.string().optional(),
   sensorId: z.string().min(1, "Sensor ID is required."),
   sensorElevation: z.coerce.number(),
 });
@@ -166,7 +168,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
       </DialogTrigger>
       <DialogContent className="sm:max-w-[625px]">
         <DialogHeader>
-          <DialogTitle>Add Datafile to Sensor: {deployment.sensorId}</DialogTitle>
+          <DialogTitle>Add Datafile to Deployment</DialogTitle>
           <DialogDescription>
             Upload a new CSV datafile. The data will be appended to the asset's performance history.
           </DialogDescription>
@@ -254,6 +256,7 @@ function EditDeploymentForm({ deployment }: { deployment: Deployment }) {
   const form = useForm<EditDeploymentValues>({
     resolver: zodResolver(editDeploymentSchema),
     defaultValues: {
+      name: deployment.name || "",
       sensorId: deployment.sensorId,
       sensorElevation: deployment.sensorElevation,
     },
@@ -280,6 +283,18 @@ function EditDeploymentForm({ deployment }: { deployment: Deployment }) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Deployment Name</FormLabel>
+                  <FormDescription>A name for this deployment if no data is present.</FormDescription>
+                  <FormControl><Input {...field} placeholder="e.g., Initial Deployment" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           <FormField
             control={form.control}
             name="sensorId"
@@ -312,29 +327,62 @@ function EditDeploymentForm({ deployment }: { deployment: Deployment }) {
   );
 }
 
+function getDeploymentDateRange(files: DataFile[]): string {
+    if (!files || files.length === 0) {
+        return "";
+    }
+
+    const dates = files.flatMap(file => [new Date(file.startDate), new Date(file.endDate)]);
+    
+    const yearlyData: { [year: number]: Set<number> } = {};
+
+    dates.forEach(date => {
+        const year = getYear(date);
+        const month = getMonth(date);
+        if (!yearlyData[year]) {
+            yearlyData[year] = new Set();
+        }
+        yearlyData[year].add(month);
+    });
+
+    return Object.entries(yearlyData)
+        .map(([year, monthsSet]) => {
+            const sortedMonths = Array.from(monthsSet).sort((a, b) => a - b);
+            const monthNames = sortedMonths.map(monthIndex => format(new Date(0, monthIndex), 'MMM'));
+            return `${year}: ${monthNames.join(', ')}`;
+        })
+        .join('; ');
+}
+
+
 export default function DeploymentList({ deployments, asset }: { deployments: Deployment[], asset: Asset }) {
   const { toast } = useToast();
-  const [formattedDeployments, setFormattedDeployments] = React.useState(deployments);
-
-  React.useEffect(() => {
-    setFormattedDeployments(
-      deployments.map(d => ({
-        ...d,
-        files: (d.files || []).map(f => ({
-          ...f,
-          startDate: new Date(f.startDate).toLocaleDateString(),
-          endDate: f.endDate ? new Date(f.endDate).toLocaleDateString() : "Present",
-        }))
-      }))
-    );
-  }, [deployments]);
-
+  
   const handleNotImplemented = () => {
     toast({
       title: "Feature not implemented",
       description: "This functionality is not yet available.",
     });
   };
+  
+  const formattedDeployments = React.useMemo(() => {
+    return deployments.map(d => {
+      const filesWithLocalDates = (d.files || []).map(f => ({
+        ...f,
+        startDate: new Date(f.startDate).toLocaleDateString(),
+        endDate: f.endDate ? new Date(f.endDate).toLocaleDateString() : "Present",
+      }));
+      
+      const dateRangeLabel = getDeploymentDateRange(d.files || []);
+
+      return {
+        ...d,
+        files: filesWithLocalDates,
+        dateRangeLabel: dateRangeLabel || d.name || `Empty Deployment (ID: ${d.id.substring(0, 4)})`,
+      };
+    });
+  }, [deployments]);
+
 
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm flex flex-col">
@@ -358,9 +406,9 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
             {formattedDeployments.map((deployment) => (
               <AccordionItem value={deployment.id} key={deployment.id}>
                 <AccordionTrigger>
-                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">Sensor:</span> 
-                    <span className="font-mono text-primary">{deployment.sensorId}</span>
+                   <div className="flex items-center gap-2 text-left">
+                    <CalendarIcon className="h-4 w-4 shrink-0" />
+                    <span className="font-semibold">{deployment.dateRangeLabel}</span>
                     <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
                    </div>
                 </AccordionTrigger>
