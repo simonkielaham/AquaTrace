@@ -46,7 +46,7 @@ const chartConfig = {
   },
   permanentPoolElevation: {
     label: "Permanent Pool",
-    color: "hsl(var(--primary))",
+    color: "hsl(210 40% 56%)",
   },
 } satisfies ChartConfig;
 
@@ -63,6 +63,11 @@ export default function PerformanceChart({
 }: PerformanceChartProps) {
   const { permanentPoolElevation, designElevations } = asset;
   
+  const chartData = data.map(item => ({
+    ...item,
+    permanentPoolElevation,
+  }));
+
   return (
     <Card className="col-span-1 lg:col-span-4 shadow-sm">
       <CardHeader>
@@ -75,7 +80,7 @@ export default function PerformanceChart({
         <ChartContainer config={chartConfig} className="h-[300px] w-full">
           <ResponsiveContainer>
             <ComposedChart
-              data={data}
+              data={chartData}
               margin={{ top: 5, right: 20, left: -10, bottom: 5 }}
             >
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
@@ -139,10 +144,10 @@ export default function PerformanceChart({
                <Line
                 yAxisId="left"
                 dataKey="permanentPoolElevation"
-                stroke="none"
-                activeDot={false}
+                stroke={chartConfig.permanentPoolElevation.color}
                 strokeWidth={0}
                 dot={false}
+                activeDot={false}
               />
               <ReferenceLine
                 y={permanentPoolElevation}
