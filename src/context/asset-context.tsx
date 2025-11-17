@@ -5,6 +5,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { 
   Asset, 
   Deployment,
+  DataPoint,
 } from '@/lib/placeholder-data';
 import { 
   createAsset as createAssetAction, 
@@ -13,6 +14,8 @@ import {
   createDeployment as createDeploymentAction, 
   downloadLogs as downloadLogsAction,
   deleteAsset as deleteAssetAction,
+  addDatafile as addDatafileAction,
+  getProcessedData as getProcessedDataAction,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -29,6 +32,8 @@ interface AssetContextType {
   deleteAsset: (assetId: string) => Promise<any>;
   createDeployment: (assetId: string, data: any) => Promise<any>;
   downloadLogs: (assetId: string) => Promise<any>;
+  addDatafile: (formData: FormData) => Promise<any>;
+  getProcessedData: (assetId: string) => Promise<DataPoint[]>;
   loading: boolean;
 }
 
@@ -179,6 +184,40 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const addDatafile = useCallback(async (formData: FormData) => {
+    try {
+      const result = await addDatafileAction(formData);
+      // If successful, update the deployments state
+      if (result.newFile) {
+        const deploymentId = formData.get('deploymentId') as string;
+        setDeployments(prev => prev.map(d => {
+          if (d.id === deploymentId) {
+            const updatedFiles = [...(d.files || []), result.newFile];
+            return { ...d, files: updatedFiles };
+          }
+          return d;
+        }));
+      }
+      return result;
+    } catch (error) {
+       const message = await getErrorMessage(error);
+       return { message: `Error: ${message}` };
+    }
+  }, []);
+
+  const getProcessedData = useCallback(async (assetId: string): Promise<DataPoint[]> => {
+    try {
+      return await getProcessedDataAction(assetId);
+    } catch (error) {
+      console.error("Error fetching processed data in context:", error);
+      const message = await getErrorMessage(error);
+      // Depending on how you want to handle errors, you could re-throw,
+      // or return an empty array and maybe show a toast.
+      // For now, returning an empty array to prevent chart crash.
+      return [];
+    }
+  }, []);
+
 
   const value = {
     assets,
@@ -191,6 +230,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     deleteAsset,
     createDeployment,
     downloadLogs,
+    addDatafile,
+    getProcessedData,
     loading,
   };
 
