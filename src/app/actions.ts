@@ -401,7 +401,7 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
             const fileData = await readJsonFile<{ timestamp: string, waterLevel: number }[]>(filePath);
             const mappedData = fileData.map(d => ({
                 timestamp: new Date(d.timestamp).getTime(),
-                waterLevel: d.waterLevel + deployment.sensorElevation
+                waterLevel: Number(d.waterLevel) + Number(deployment.sensorElevation)
             }));
             allData = [...allData, ...mappedData];
           } catch (e) {
@@ -706,3 +706,5 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
+
+    
