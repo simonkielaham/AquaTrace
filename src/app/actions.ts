@@ -188,9 +188,10 @@ export async function addDatafile(deploymentId: string, data: any, formData: For
     if (!deployment.files) deployment.files = [];
     deployment.files.push(newDataFile);
 
-    if (!performanceData[deployment.assetId]) performanceData[deployment.assetId] = [];
-    performanceData[deployment.assetId].push(...processedData);
-    performanceData[deployment.assetId].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    const existingData = performanceData[deployment.assetId] || [];
+    const combinedData = [...existingData, ...processedData];
+    combinedData.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    performanceData[deployment.assetId] = combinedData;
 
     await writeJsonFile(deploymentsFilePath, deployments);
     await writeJsonFile(performanceDataFilePath, performanceData);
