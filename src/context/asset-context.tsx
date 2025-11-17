@@ -169,9 +169,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
         setDeployments(prev => prev.map(d => d.id === deploymentId ? result.updatedDeployment : d));
       }
       return result;
-    } catch (error) {
-      const message = await getErrorMessage(error);
-      return { message: `Error: ${message}` };
+    } catch (error: any) {
+      // Return the raw error message from the server action crash
+      return { message: `Error: ${error.message}` };
     }
   }, []);
   
@@ -220,5 +220,3 @@ export const useAssets = () => {
   }
   return context;
 };
-
-    
