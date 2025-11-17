@@ -94,12 +94,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
         if (!allData[deployment.assetId]) {
           allData[deployment.assetId] = [];
         }
-        for (const file of deployment.files) {
-          const result = await getProcessedData(file.id);
-          if (result.data) {
-            allData[deployment.assetId].push(...result.data);
-          } else {
-            console.error(`Failed to load data for file ${file.id}: ${result.message}`);
+        if (Array.isArray(deployment.files)) {
+          for (const file of deployment.files) {
+            const result = await getProcessedData(file.id);
+            if (result.data) {
+              allData[deployment.assetId].push(...result.data);
+            } else {
+              console.error(`Failed to load data for file ${file.id}: ${result.message}`);
+            }
           }
         }
       }
