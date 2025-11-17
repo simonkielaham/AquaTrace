@@ -57,9 +57,9 @@ export default function PerformanceChart({
 
   const yAxisDomain = React.useMemo(() => {
     const allElevations = chartData.flatMap(d => {
-        const values = [];
-        if (d.waterLevel !== undefined) values.push(d.waterLevel);
-        if (d.elevation !== undefined) values.push(d.elevation);
+        const values: number[] = [];
+        if (d.waterLevel !== undefined && d.waterLevel !== null) values.push(d.waterLevel);
+        if (d.elevation !== undefined && d.elevation !== null) values.push(d.elevation);
         return values;
     });
 
@@ -300,5 +300,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    
