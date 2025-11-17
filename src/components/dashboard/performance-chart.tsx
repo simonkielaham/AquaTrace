@@ -58,8 +58,8 @@ export default function PerformanceChart({
   const yAxisDomain = React.useMemo(() => {
     const allElevations = chartData.flatMap(d => {
         const values = [];
-        if (d.waterLevel) values.push(d.waterLevel);
-        if (d.elevation) values.push(d.elevation);
+        if (d.waterLevel !== undefined) values.push(d.waterLevel);
+        if (d.elevation !== undefined) values.push(d.elevation);
         return values;
     });
 
@@ -184,6 +184,7 @@ export default function PerformanceChart({
               tickMargin={8}
               type="number"
               domain={['dataMin', 'dataMax']}
+              id={0}
             />
             <YAxis
               unit="m"
@@ -193,6 +194,7 @@ export default function PerformanceChart({
               domain={yAxisDomain}
               allowDataOverflow={true}
               type="number"
+              id={0}
             />
             <ChartTooltip
               cursor={false}
@@ -219,7 +221,7 @@ export default function PerformanceChart({
                                 <span className="font-bold">WATER ELEVATION: {`${value.toFixed(2)}m`}</span>
                                 <span className={cn(
                                   "text-xs",
-                                  isPositive ? "text-green-600" : "text-destructive"
+                                   isPositive ? "text-green-600 dark:text-green-500" : "text-destructive"
                                 )}>
                                   {diffText}
                                 </span>
@@ -252,12 +254,16 @@ export default function PerformanceChart({
               name="Water Elevation"
               connectNulls
               dot={false}
+              xAxisId={0}
+              yAxisId={0}
             />
              <Scatter 
                 dataKey="elevation" 
                 fill="var(--color-surveyPoints)" 
                 name="Survey Points" 
                 shape={<Dot r={4} strokeWidth={2} stroke="var(--background)" />}
+                xAxisId={0}
+                yAxisId={0}
              />
             <ReferenceLine
               y={asset.permanentPoolElevation}
@@ -294,3 +300,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
