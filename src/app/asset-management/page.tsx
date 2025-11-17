@@ -148,11 +148,11 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
 
     try {
       const result = await updateAsset(asset.id, data);
-      if (result?.errors) {
+      if (result?.message && result.message.startsWith('An error occurred')) {
         toast({
           variant: "destructive",
           title: "Error Updating Asset",
-          description: result.message || "Validation failed.",
+          description: result.message,
         });
       } else {
         toast({
@@ -165,7 +165,7 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
       toast({
         variant: "destructive",
         title: "An Unexpected Error Occurred",
-        description: "Could not update the asset. Please try again.",
+        description: (error as Error).message || "Could not update the asset. Please try again.",
       });
     } finally {
       setIsSubmitting(false);
@@ -320,7 +320,7 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
 
     try {
       const result = await deleteAsset(asset.id);
-      if (result.errors) {
+      if (result.message.startsWith('An error occurred')) {
         toast({
           variant: "destructive",
           title: "Error Deleting Asset",
@@ -337,7 +337,7 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
       toast({
         variant: "destructive",
         title: "An Unexpected Error Occurred",
-        description: "Could not delete the asset. Please try again.",
+        description: (error as Error).message || "Could not delete the asset. Please try again.",
       });
     } finally {
       setIsDeleting(false);
@@ -496,11 +496,11 @@ export default function AssetManagementPage() {
     try {
       const result = await createAsset(data, formData);
 
-      if (result?.errors) {
+      if (result?.message && result.message.startsWith('An error occurred')) {
           toast({
               variant: "destructive",
               title: "Error Creating Asset",
-              description: result.message || "Validation failed.",
+              description: result.message,
           });
       } else {
          toast({
@@ -517,7 +517,7 @@ export default function AssetManagementPage() {
         toast({
             variant: "destructive",
             title: "An Unexpected Error Occurred",
-            description: "Could not create the asset. Please try again.",
+            description: (error as Error).message || "Could not create the asset. Please try again.",
         });
     } finally {
         setIsSubmitting(false);

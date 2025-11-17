@@ -127,7 +127,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
 
   const handleSubmit = async (data: AddDatafileValues) => {
     if (!file || !fileContent) {
-      toast({ variant: "destructive", title: "File Missing" });
+      toast({ variant: "destructive", title: "File Missing", description: "Please select a CSV file to upload." });
       return;
     }
     setIsSubmitting(true);
@@ -138,8 +138,8 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
     
     try {
       const result = await addDatafile(deployment.id, data, formData);
-      if (result?.errors) {
-        toast({ variant: "destructive", title: "Error", description: result.message });
+      if (result?.message && result.message.startsWith('An error occurred')) {
+        toast({ variant: "destructive", title: "Error Adding Datafile", description: result.message });
       } else {
         toast({ title: "Success", description: "New datafile added." });
         setIsOpen(false);
@@ -149,7 +149,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
         setCsvHeaders([]);
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "Could not add datafile." });
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message || "Could not add datafile." });
     } finally {
       setIsSubmitting(false);
     }
@@ -262,13 +262,13 @@ function EditDeploymentForm({ deployment }: { deployment: Deployment }) {
     setIsSubmitting(true);
     try {
       const result = await updateDeployment(deployment.id, data);
-      if (result?.errors) {
-        toast({ variant: "destructive", title: "Error", description: result.message });
+      if (result?.message && result.message.startsWith('An error occurred')) {
+        toast({ variant: "destructive", title: "Error Updating Deployment", description: result.message });
       } else {
         toast({ title: "Success", description: "Deployment updated." });
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "Could not update deployment." });
+      toast({ variant: "destructive", title: "Error", description: (e as Error).message || "Could not update deployment." });
     } finally {
       setIsSubmitting(false);
     }
@@ -410,5 +410,3 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
-
-    
