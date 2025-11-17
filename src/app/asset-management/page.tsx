@@ -10,6 +10,16 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
   Form,
   FormControl,
   FormDescription,
@@ -49,6 +59,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Asset } from "@/lib/placeholder-data";
 
 
 const designElevationSchema = z.object({
@@ -70,6 +81,15 @@ const assetFormSchema = z.object({
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
 
+const editAssetFormSchema = z.object({
+  name: z.string().min(2, "Asset name must be at least 2 characters."),
+  location: z.string().min(2, "Location is required."),
+  permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
+  designElevations: z.array(designElevationSchema).min(1, "At least one design elevation is required."),
+});
+
+type EditAssetFormValues = z.infer<typeof editAssetFormSchema>;
+
 const detectColumns = (headers: string[]) => {
   const datetimeKeywords = ["date", "time", "timestamp"];
   const waterLevelKeywords = ["water", "level", "elevation", "stage"];
@@ -85,6 +105,196 @@ const statusVariantMap = {
   warning: "secondary",
   error: "destructive",
 } as const;
+
+
+function EditAssetDialog({ asset }: { asset: Asset }) {
+  const { toast } = useToast();
+  const { updateAsset } = useAssets();
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  const form = useForm<EditAssetFormValues>({
+    resolver: zodResolver(editAssetFormSchema),
+    defaultValues: {
+      name: asset.name,
+      location: asset.location,
+      permanentPoolElevation: asset.permanentPoolElevation,
+      designElevations: asset.designElevations,
+    },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "designElevations",
+  });
+
+  const handleEditSubmit = async (data: EditAssetFormValues) => {
+    setIsSubmitting(true);
+    toast({
+      title: "Updating Asset...",
+      description: "Please wait while we save your changes.",
+    });
+
+    try {
+      const result = await updateAsset(asset.id, data);
+      if (result?.errors) {
+        toast({
+          variant: "destructive",
+          title: "Error Updating Asset",
+          description: result.message || "Validation failed.",
+        });
+      } else {
+        toast({
+          title: "Asset Updated!",
+          description: `${data.name} has been successfully updated.`,
+        });
+        setIsOpen(false); 
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "An Unexpected Error Occurred",
+        description: "Could not update the asset. Please try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <FilePenLine className="h-4 w-4" />
+          <span className="sr-only">Edit</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[625px]">
+        <DialogHeader>
+          <DialogTitle>Edit Asset: {asset.name}</DialogTitle>
+          <DialogDescription>
+            Update the details for this asset. Click save when you're done.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleEditSubmit)} className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-8">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Asset Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Northwood Pond" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g, Springfield, ON" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="permanentPoolElevation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Permanent Pool Elevation (meters)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="space-y-8">
+                <div>
+                  <FormLabel>Design Elevations</FormLabel>
+                  <FormDescription className="mb-4">
+                    Specify design storm year and corresponding elevation.
+                  </FormDescription>
+                  <div className="space-y-4 max-h-[200px] overflow-y-auto pr-2">
+                    {fields.map((field, index) => (
+                      <div key={field.id} className="flex items-end gap-4">
+                        <FormField
+                          control={form.control}
+                          name={`designElevations.${index}.year`}
+                          render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <FormLabel className="text-xs">Year</FormLabel>
+                              <FormControl>
+                                <Input type="number" placeholder="e.g., 10" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`designElevations.${index}.elevation`}
+                          render={({ field }) => (
+                            <FormItem className="flex-1">
+                              <FormLabel className="text-xs">Elevation (m)</FormLabel>
+                              <FormControl>
+                                <Input type="number" step="0.01" placeholder="e.g., 12.0" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => remove(index)}
+                          disabled={fields.length <= 1}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={() => append({ year: 0, elevation: 0 })}
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Add Elevation
+                  </Button>
+                </div>
+              </div>
+            </div>
+             <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="secondary">Cancel</Button>
+              </DialogClose>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function AssetListTable() {
   const { assets } = useAssets();
@@ -126,10 +336,7 @@ function AssetListTable() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={handleNotImplemented}>
-                    <FilePenLine className="h-4 w-4" />
-                    <span className="sr-only">Edit</span>
-                  </Button>
+                  <EditAssetDialog asset={asset} />
                   <Button variant="ghost" size="icon" onClick={handleNotImplemented}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                      <span className="sr-only">Delete</span>
@@ -233,6 +440,10 @@ export default function AssetManagementPage() {
             title: 'Asset Created!',
             description: `${data.name} has been successfully created.`,
         });
+        form.reset();
+        setFile(null);
+        setFileContent(null);
+        setCsvHeaders([]);
         router.push('/');
       }
     } catch (error) {
@@ -528,3 +739,5 @@ export default function AssetManagementPage() {
     </SidebarProvider>
   );
 }
+
+    

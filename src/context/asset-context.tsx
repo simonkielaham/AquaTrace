@@ -7,7 +7,7 @@ import {
   Deployment,
   DataPoint,
 } from '@/lib/placeholder-data';
-import { createAsset as createAssetAction } from '@/app/actions';
+import { createAsset as createAssetAction, updateAsset as updateAssetAction } from '@/app/actions';
 
 // We will fetch initial data from server actions or a dedicated API route in a real app
 // For now, we start with empty arrays and let the effect load the data.
@@ -23,6 +23,7 @@ interface AssetContextType {
   deployments: Deployment[];
   performanceData: { [assetId: string]: DataPoint[] };
   createAsset: (data: any, formData: FormData) => Promise<any>;
+  updateAsset: (assetId: string, data: any) => Promise<any>;
   loading: boolean;
 }
 
@@ -52,23 +53,29 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     const result = await createAssetAction(data, formData);
     
     if (result && !result.errors) {
-      // The action was successful, now update the client-side state
-      // The server action returns the new state
       if (result.newAsset && result.newDeployment && result.newPerformanceData) {
         const newAsset = result.newAsset;
         const newDeployment = result.newDeployment;
         
         setAssets(prev => [...prev, newAsset]);
-        // Since a new asset always creates one new deployment, we just add it.
         setDeployments(prev => [...prev, newDeployment]);
-
         setPerformanceData(prev => ({
           ...prev,
           ...result.newPerformanceData
         }));
 
-        // Optionally select the new asset
         setSelectedAssetId(newAsset.id);
+      }
+    }
+    return result;
+  }, []);
+
+  const updateAsset = useCallback(async (assetId: string, data: any) => {
+    const result = await updateAssetAction(assetId, data);
+    
+    if (result && !result.errors) {
+      if(result.updatedAsset) {
+        setAssets(prev => prev.map(a => a.id === assetId ? result.updatedAsset : a));
       }
     }
     return result;
@@ -82,6 +89,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     deployments,
     performanceData,
     createAsset,
+    updateAsset,
     loading,
   };
 
@@ -99,3 +107,5 @@ export const useAssets = () => {
   }
   return context;
 };
+
+    

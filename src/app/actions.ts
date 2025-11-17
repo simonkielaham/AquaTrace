@@ -32,6 +32,17 @@ const assetFormSchema = z.object({
   startRow: z.coerce.number().min(1),
 });
 
+const editAssetFormSchema = z.object({
+  name: z.string().min(2),
+  location: z.string().min(2),
+  permanentPoolElevation: z.coerce.number().min(0),
+  designElevations: z.array(z.object({
+    year: z.coerce.number(),
+    elevation: z.coerce.number()
+  })),
+});
+
+
 // Helper function to read and parse a JSON file
 async function readJsonFile<T>(filePath: string): Promise<T> {
   try {
@@ -57,6 +68,53 @@ async function writeJsonFile<T>(filePath: string, data: T): Promise<void> {
     throw new Error(`Could not write data file: ${path.basename(filePath)}`);
   }
 }
+
+export async function updateAsset(assetId: string, data: any) {
+  const validatedFields = editAssetFormSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    console.error('Validation Errors:', validatedFields.error.flatten().fieldErrors);
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Validation failed. Please check the fields.',
+    };
+  }
+
+  const validatedData = validatedFields.data;
+
+  try {
+    const assets: Asset[] = await readJsonFile<Asset[]>(assetsFilePath);
+    const assetIndex = assets.findIndex(a => a.id === assetId);
+
+    if (assetIndex === -1) {
+      return { message: 'Asset not found.' };
+    }
+
+    // Update the asset properties
+    assets[assetIndex] = {
+      ...assets[assetIndex],
+      name: validatedData.name,
+      location: validatedData.location,
+      permanentPoolElevation: validatedData.permanentPoolElevation,
+      designElevations: validatedData.designElevations,
+    };
+    
+    await writeJsonFile(assetsFilePath, assets);
+
+    revalidatePath('/');
+    revalidatePath('/asset-management');
+
+    return {
+      message: 'Asset updated successfully',
+      updatedAsset: assets[assetIndex],
+    };
+
+  } catch (error) {
+    console.error('Failed to update asset:', error);
+    return { message: `An error occurred: ${(error as Error).message}` };
+  }
+}
+
 
 // The main server action
 export async function createAsset(data: any, formData: FormData) {
@@ -183,3 +241,5 @@ export async function createAsset(data: any, formData: FormData) {
     return { message: `An error occurred: ${(error as Error).message}` };
   }
 }
+
+    
