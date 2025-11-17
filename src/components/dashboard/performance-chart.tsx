@@ -164,20 +164,23 @@ export default function PerformanceChart({
                     return 'Invalid Date';
                   }}
                   indicator="dot"
-                  formatter={(value, name) => {
-                    if (name === 'Water Elevation' && typeof value === 'number') {
-                       const diff = (value - asset.permanentPoolElevation) * 100; // difference in cm
-                       const diffText = diff >= 0 ? `+${diff.toFixed(0)}` : diff.toFixed(0);
-                       return (
-                        <div className="flex flex-col items-end">
-                            <span>{`${value.toFixed(2)}m`}</span>
-                            <span className="text-xs text-muted-foreground">
-                                ({diffText}cm from PPE)
-                            </span>
+                  formatter={(value, name, item) => {
+                    if (item.dataKey === 'waterLevel' && typeof value === 'number') {
+                      const diff = (value - asset.permanentPoolElevation) * 100; // difference in cm
+                      const direction = diff >= 0 ? 'above' : 'below';
+                      const diffText = `${Math.abs(diff).toFixed(1)}cm ${direction} permanent pool`;
+                      
+                      return (
+                        <div className="flex items-center gap-2">
+                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-waterLevel)'}}/>
+                            <div className="flex flex-col items-start">
+                                <span>{`${value.toFixed(2)}m`}</span>
+                                <span className="text-xs text-muted-foreground uppercase">{`WATER ELEVATION (${diffText})`}</span>
+                            </div>
                         </div>
-                       )
+                      )
                     }
-                    return value;
+                    return null;
                   }}
                 />
               }
