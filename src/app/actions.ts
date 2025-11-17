@@ -66,7 +66,6 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       // If file doesn't exist, return a default empty state based on file name
-      // This prevents the app from crashing on first run or after data is cleared.
       if (filePath.endsWith('s.json') || filePath.endsWith('log.json')) return [] as T;
       if (filePath.endsWith('-data.json')) return {} as T;
     }
@@ -213,8 +212,8 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
 
     const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
     
-    // The user provides a 1-based start row. Papa parse with `header:true` returns an array
-    // where the first data row is at index 0. Subtract 2 to correctly handle 1-based vs 0-based indexing and header.
+    // The user provides a 1-based start row. Papa parse with `header:true` returns a 0-indexed array
+    // of data rows. Subtract 2 to correctly handle 1-based vs 0-based indexing and the header row.
     const sliceIndex = Math.max(0, validatedData.startRow - 2);
     const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
     
