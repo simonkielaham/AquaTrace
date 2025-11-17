@@ -5,6 +5,8 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { 
   Asset, 
   Deployment,
+  DataFile,
+  DataPoint,
 } from '@/lib/placeholder-data';
 import { 
   createAsset as createAssetAction, 
@@ -12,6 +14,8 @@ import {
   updateDeployment as updateDeploymentAction, 
   createDeployment as createDeploymentAction, 
   downloadLogs as downloadLogsAction,
+  addDatafile as addDatafileAction,
+  getProcessedData as getProcessedDataAction,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -28,24 +32,32 @@ interface AssetContextType {
   deleteAsset: (assetId: string) => Promise<any>;
   createDeployment: (assetId: string, data: any) => Promise<any>;
   downloadLogs: (assetId: string) => Promise<any>;
+  addDatafile: (formData: FormData) => Promise<any>;
+  getProcessedData: (assetId: string) => Promise<DataPoint[]>;
   loading: boolean;
 }
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
 
 const getErrorMessage = async (error: any): Promise<string> => {
-    console.error("Raw error object:", error);
-    try {
-        // Attempt to stringify the full error object to capture all details
-        const errorString = JSON.stringify(error, Object.getOwnPropertyNames(error));
-        return `SERVER RAW RESPONSE: ${errorString}`;
-    } catch (e) {
-        // Fallback for circular structures or other stringify errors
-        if (error instanceof Error) {
-            return `SERVER RAW RESPONSE (Fallback): ${error.message}\n${error.stack}`;
-        }
-        return "An unknown error occurred during error processing.";
+    // Check if the error is a Response object from a server crash
+    if (error instanceof Response) {
+        const text = await error.text();
+        // The text is likely a full HTML page for the Next.js error overlay
+        return `An unexpected response was received from the server. Raw response: ${text.substring(0, 2000)}...`;
     }
+    if (error instanceof Error) {
+        return error.message;
+    }
+    if (typeof error === 'object' && error !== null) {
+      try {
+        const errorString = JSON.stringify(error, Object.getOwnPropertyNames(error));
+        return `An unexpected error occurred: ${errorString}`;
+      } catch (e) {
+         return 'An unknown, non-serializable error occurred.';
+      }
+    }
+    return 'An unknown error occurred.';
 };
 
 
@@ -73,6 +85,37 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('selectedAssetId', id);
     setSelectedAssetId(id);
   }
+  
+  const addDatafile = useCallback(async (formData: FormData) => {
+    try {
+      const result = await addDatafileAction(formData);
+      if (result && !result.errors && result.newFile) {
+        const deploymentId = formData.get('deploymentId') as string;
+        setDeployments(prev => prev.map(d => {
+          if (d.id === deploymentId) {
+            const updatedFiles = [...(d.files || []), result.newFile];
+            return { ...d, files: updatedFiles };
+          }
+          return d;
+        }));
+      }
+      return result;
+    } catch (error) {
+      const message = await getErrorMessage(error);
+      return { message: `Error: ${message}` };
+    }
+  }, []);
+
+  const getProcessedData = useCallback(async (assetId: string) => {
+    try {
+      const data = await getProcessedDataAction(assetId);
+      // The data from JSON is plain objects, we need to convert strings back to dates
+      return data.map(d => ({ ...d, timestamp: new Date(d.timestamp) }));
+    } catch (error) {
+      console.error("Failed to get processed data in context:", error);
+      return [];
+    }
+  }, []);
 
   const createAsset = useCallback(async (data: any) => {
     try {
@@ -152,6 +195,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     deleteAsset,
     createDeployment,
     downloadLogs,
+    addDatafile,
+    getProcessedData,
     loading,
   };
 

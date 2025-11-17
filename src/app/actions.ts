@@ -5,7 +5,8 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { Asset, Deployment, ActivityLog } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog, DataFile, DataPoint } from '@/lib/placeholder-data';
+import Papa from 'papaparse';
 
 // Define paths to data files
 const dataDir = path.join(process.cwd(), 'data');
@@ -92,6 +93,127 @@ async function writeLog(logEntry: Omit<ActivityLog, 'id' | 'timestamp'>) {
   }
 }
 
+export async function addDatafile(formData: FormData) {
+  const deploymentId = formData.get('deploymentId') as string;
+  const assetId = formData.get('assetId') as string;
+  const file = formData.get('file') as File;
+  const fileContent = formData.get('fileContent') as string;
+  
+  const rawData = {
+    datetimeColumn: formData.get('datetimeColumn'),
+    waterLevelColumn: formData.get('waterLevelColumn'),
+    startRow: formData.get('startRow'),
+  };
+  const logPayload = { assetId, deploymentId, fileName: file.name, ...rawData };
+
+  const addDatafileSchema = z.object({
+    datetimeColumn: z.string(),
+    waterLevelColumn: z.string(),
+    startRow: z.coerce.number().min(1),
+  });
+
+  const validatedFields = addDatafileSchema.safeParse(rawData);
+  if (!validatedFields.success) {
+     const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+     await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
+     return response;
+  }
+  const { datetimeColumn, waterLevelColumn, startRow } = validatedFields.data;
+
+  try {
+    const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
+    
+    // The data starts at the user-specified row. Since papaparse with header:true already consumes the first row,
+    // and array is 0-indexed, we subtract 2 from the 1-based startRow.
+    const sliceIndex = startRow - 2; 
+    const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
+    
+    const processedData = dataRows.map(row => {
+        const dateValue = row[datetimeColumn];
+        const levelValue = row[waterLevelColumn];
+        if (dateValue && levelValue) {
+            return {
+                timestamp: new Date(dateValue),
+                waterLevel: parseFloat(levelValue),
+            };
+        }
+        return null;
+    }).filter(p => p && !isNaN(p.timestamp.getTime()) && !isNaN(p.waterLevel));
+
+    if (processedData.length === 0) {
+      throw new Error("No valid data points could be processed. Check column mapping and start row.");
+    }
+    
+    const timestamps = processedData.map(p => p!.timestamp.getTime());
+    const minDate = new Date(Math.min(...timestamps));
+    const maxDate = new Date(Math.max(...timestamps));
+
+    const newDataFile: DataFile = {
+      id: `file-${Date.now()}`,
+      filename: file.name,
+      uploadDate: new Date().toISOString(),
+      startDate: minDate.toISOString(),
+      endDate: maxDate.toISOString(),
+      rowCount: processedData.length
+    };
+    
+    // Save processed data to a new file in the data/processed directory
+    const processedDataDir = path.join(dataDir, 'processed');
+    await fs.mkdir(processedDataDir, { recursive: true });
+    const processedFilePath = path.join(processedDataDir, `${newDataFile.id}.json`);
+    await writeJsonFile(processedFilePath, processedData);
+
+    // Update the deployments file with the new datafile metadata
+    const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
+    if (deploymentIndex === -1) throw new Error('Deployment not found');
+
+    if (!deployments[deploymentIndex].files) {
+      deployments[deploymentIndex].files = [];
+    }
+    deployments[deploymentIndex].files!.push(newDataFile);
+    
+    await writeJsonFile(deploymentsFilePath, deployments);
+    revalidatePath('/');
+    
+    const response = { message: 'Datafile added successfully', newFile: newDataFile };
+    await writeLog({ action: 'addDatafile', status: 'success', assetId, deploymentId, payload: logPayload, response });
+    return response;
+
+  } catch(error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
+    return response;
+  }
+}
+
+export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
+  try {
+    const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const assetDeployments = deployments.filter(d => d.assetId === assetId);
+
+    let allData: DataPoint[] = [];
+
+    for (const deployment of assetDeployments) {
+      if (deployment.files) {
+        for (const file of deployment.files) {
+          const filePath = path.join(dataDir, 'processed', `${file.id}.json`);
+          const fileData = await readJsonFile<DataPoint[]>(filePath);
+          allData = [...allData, ...fileData];
+        }
+      }
+    }
+    
+    allData.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return allData;
+
+  } catch (error) {
+    console.error("Failed to get processed data:", error);
+    return []; // Return empty array on error
+  }
+}
+
 export async function downloadLogs(assetId: string): Promise<{logs?: string, message?: string}> {
   try {
     const logs = await readJsonFile<ActivityLog[]>(activityLogFilePath);
@@ -136,6 +258,7 @@ export async function createDeployment(assetId: string, data: any) {
       sensorId: validatedData.sensorId,
       sensorElevation: validatedData.sensorElevation,
       name: validatedData.name || `Deployment ${new Date().toLocaleDateString()}`,
+      files: [],
     };
 
     deployments.push(newDeployment);

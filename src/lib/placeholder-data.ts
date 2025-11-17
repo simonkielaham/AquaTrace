@@ -9,12 +9,27 @@ export type Asset = {
   imageId: string;
 };
 
+export type DataFile = {
+  id: string;
+  filename: string;
+  uploadDate: string;
+  startDate: string;
+  endDate: string;
+  rowCount: number;
+};
+
+export type DataPoint = {
+  timestamp: Date;
+  waterLevel: number;
+};
+
 export type Deployment = {
   id:string;
   assetId: string;
   sensorId: string;
   sensorElevation: number;
   name?: string;
+  files?: DataFile[];
 };
 
 export type AnalysisResult = {
