@@ -168,10 +168,9 @@ export async function addDatafile(formData: FormData) {
     const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
     if (deploymentIndex === -1) throw new Error('Deployment not found');
 
-    if (!deployments[deploymentIndex].files) {
-      deployments[deploymentIndex].files = [];
-    }
-    deployments[deploymentIndex].files!.push(newDataFile);
+    // Robustly update the files array
+    const existingFiles = deployments[deploymentIndex].files || [];
+    deployments[deploymentIndex].files = [...existingFiles, newDataFile];
     
     await writeJsonFile(deploymentsFilePath, deployments);
     revalidatePath('/');
@@ -524,3 +523,4 @@ export async function deleteAsset(assetId: string) {
     
 
     
+
