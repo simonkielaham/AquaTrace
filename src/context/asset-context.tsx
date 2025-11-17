@@ -170,8 +170,10 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       }
       return result;
     } catch (error: any) {
-      // Return the raw error message from the server action crash
-      return { message: `Error: ${error.message}` };
+      // The error object from a server action crash contains the error details
+      // in its `message` property. This will be the raw HTML of the Next.js error page.
+      const rawError = error.message || "An unknown error occurred on the server.";
+      return { message: `Error: ${rawError}` };
     }
   }, []);
   
