@@ -136,23 +136,24 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
     formData.append('csvFile', file);
     formData.append('csvContent', fileContent);
     
-    try {
-      const result = await addDatafile(deployment.id, data, formData);
-      if (result?.message && result.message.startsWith('An error occurred')) {
-        toast({ variant: "destructive", title: "Error Adding Datafile", description: result.message });
-      } else {
-        toast({ title: "Success", description: "New datafile added." });
-        setIsOpen(false);
-        form.reset();
-        setFile(null);
-        setFileContent(null);
-        setCsvHeaders([]);
-      }
-    } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: (e as Error).message || "Could not add datafile." });
-    } finally {
-      setIsSubmitting(false);
+    const result = await addDatafile(deployment.id, data, formData);
+
+    if (result?.message && result.message.startsWith('Error:')) {
+      toast({ 
+        variant: "destructive", 
+        title: "Error Adding Datafile", 
+        description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
+      });
+    } else {
+      toast({ title: "Success", description: "New datafile added." });
+      setIsOpen(false);
+      form.reset();
+      setFile(null);
+      setFileContent(null);
+      setCsvHeaders([]);
     }
+    
+    setIsSubmitting(false);
   };
 
   return (
@@ -260,18 +261,19 @@ function EditDeploymentForm({ deployment }: { deployment: Deployment }) {
 
   const onSubmit = async (data: EditDeploymentValues) => {
     setIsSubmitting(true);
-    try {
-      const result = await updateDeployment(deployment.id, data);
-      if (result?.message && result.message.startsWith('An error occurred')) {
-        toast({ variant: "destructive", title: "Error Updating Deployment", description: result.message });
-      } else {
-        toast({ title: "Success", description: "Deployment updated." });
-      }
-    } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: (e as Error).message || "Could not update deployment." });
-    } finally {
-      setIsSubmitting(false);
+    const result = await updateDeployment(deployment.id, data);
+    
+    if (result?.message && result.message.startsWith('Error:')) {
+      toast({ 
+        variant: "destructive", 
+        title: "Error Updating Deployment", 
+        description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
+      });
+    } else {
+      toast({ title: "Success", description: "Deployment updated." });
     }
+    
+    setIsSubmitting(false);
   };
 
   return (

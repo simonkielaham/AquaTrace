@@ -32,6 +32,23 @@ interface AssetContextType {
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
 
+// Helper to get detailed error messages
+const getErrorMessage = async (error: any) => {
+  if (error instanceof Error) {
+    // This is a client-side error or a structured error from the server
+    return error.message;
+  }
+  // This likely means the server action crashed and returned an HTML error page
+  // instead of JSON. We'll try to read the response as text.
+  if (error && typeof error.text === 'function') {
+    const text = await error.text();
+    return `An unexpected response was received from the server:\n\n${text}`;
+  }
+  // Fallback for other unexpected error types
+  return "An unknown error occurred.";
+};
+
+
 export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [deployments, setDeployments] = useState<Deployment[]>([]);
@@ -53,80 +70,105 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const createAsset = useCallback(async (data: any, formData: FormData) => {
-    const result = await createAssetAction(data, formData);
-    
-    if (result && !result.errors) {
-      if (result.newAsset && result.newDeployment && result.newPerformanceData) {
-        const newAsset = result.newAsset;
-        const newDeployment = result.newDeployment;
-        
-        setAssets(prev => [...prev, newAsset]);
-        setDeployments(prev => [...prev, newDeployment]);
-        setPerformanceData(prev => ({
-          ...prev,
-          ...result.newPerformanceData
-        }));
+    try {
+      const result = await createAssetAction(data, formData);
+      
+      if (result && !result.errors) {
+        if (result.newAsset && result.newDeployment && result.newPerformanceData) {
+          const newAsset = result.newAsset;
+          const newDeployment = result.newDeployment;
+          
+          setAssets(prev => [...prev, newAsset]);
+          setDeployments(prev => [...prev, newDeployment]);
+          setPerformanceData(prev => ({
+            ...prev,
+            ...result.newPerformanceData
+          }));
 
-        setSelectedAssetId(newAsset.id);
+          setSelectedAssetId(newAsset.id);
+        }
       }
+      return result;
+    } catch (error) {
+      const message = await getErrorMessage(error);
+      return { message: `Error: ${message}` };
     }
-    return result;
   }, []);
 
   const updateAsset = useCallback(async (assetId: string, data: any) => {
-    const result = await updateAssetAction(assetId, data);
-    
-    if (result && !result.errors) {
-      if(result.updatedAsset) {
-        setAssets(prev => prev.map(a => a.id === assetId ? result.updatedAsset : a));
+    try {
+      const result = await updateAssetAction(assetId, data);
+      
+      if (result && !result.errors) {
+        if(result.updatedAsset) {
+          setAssets(prev => prev.map(a => a.id === assetId ? result.updatedAsset : a));
+        }
       }
+      return result;
+    } catch (error) {
+       const message = await getErrorMessage(error);
+       return { message: `Error: ${message}` };
     }
-    return result;
   }, []);
 
   const updateDeployment = useCallback(async (deploymentId: string, data: any) => {
-    const result = await updateDeploymentAction(deploymentId, data);
-    if (result && !result.errors && result.updatedDeployment) {
-      setDeployments(prev => prev.map(d => d.id === deploymentId ? result.updatedDeployment : d));
+    try {
+      const result = await updateDeploymentAction(deploymentId, data);
+      if (result && !result.errors && result.updatedDeployment) {
+        setDeployments(prev => prev.map(d => d.id === deploymentId ? result.updatedDeployment : d));
+      }
+      return result;
+    } catch (error) {
+       const message = await getErrorMessage(error);
+       return { message: `Error: ${message}` };
     }
-    return result;
   }, []);
 
   const addDatafile = useCallback(async (deploymentId: string, data: any, formData: FormData) => {
-    const result = await addDatafileAction(deploymentId, data, formData);
-    if (result && !result.errors && result.updatedDeployment && result.updatedPerformanceData) {
-      const { updatedDeployment, updatedPerformanceData } = result;
-      setDeployments(prev => prev.map(d => d.id === deploymentId ? updatedDeployment : d));
-      setPerformanceData(prev => ({
-        ...prev,
-        ...updatedPerformanceData
-      }));
+    try {
+      const result = await addDatafileAction(deploymentId, data, formData);
+      if (result && !result.errors && result.updatedDeployment && result.updatedPerformanceData) {
+        const { updatedDeployment, updatedPerformanceData } = result;
+        setDeployments(prev => prev.map(d => d.id === deploymentId ? updatedDeployment : d));
+        setPerformanceData(prev => ({
+          ...prev,
+          ...updatedPerformanceData
+        }));
+      }
+      return result;
+    } catch (error) {
+      const message = await getErrorMessage(error);
+      return { message: `Error: ${message}` };
     }
-    return result;
   }, []);
   
   const deleteAsset = useCallback(async (assetId: string) => {
-    const result = await deleteAssetAction(assetId);
-    if (result && !result.errors) {
-      const remainingAssets = assets.filter(a => a.id !== assetId);
-      setAssets(remainingAssets);
-      setDeployments(prev => prev.filter(d => d.assetId !== assetId));
-      setPerformanceData(prev => {
-        const newState = { ...prev };
-        delete newState[assetId];
-        return newState;
-      });
+    try {
+      const result = await deleteAssetAction(assetId);
+      if (result && !result.errors) {
+        const remainingAssets = assets.filter(a => a.id !== assetId);
+        setAssets(remainingAssets);
+        setDeployments(prev => prev.filter(d => d.assetId !== assetId));
+        setPerformanceData(prev => {
+          const newState = { ...prev };
+          delete newState[assetId];
+          return newState;
+        });
 
-      // If the deleted asset was the selected one, select the first available asset
-      if (selectedAssetId === assetId) {
-          if (remainingAssets.length > 0) {
-              setSelectedAssetId(remainingAssets[0].id);
-          } else {
-              setSelectedAssetId('');
-          }
+        // If the deleted asset was the selected one, select the first available asset
+        if (selectedAssetId === assetId) {
+            if (remainingAssets.length > 0) {
+                setSelectedAssetId(remainingAssets[0].id);
+            } else {
+                setSelectedAssetId('');
+            }
+        }
       }
+      return result;
+    } catch (error) {
+       const message = await getErrorMessage(error);
+       return { message: `Error: ${message}` };
     }
-    return result;
   }, [assets, selectedAssetId]);
 
 

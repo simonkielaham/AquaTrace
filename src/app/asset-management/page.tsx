@@ -146,30 +146,23 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
       description: "Please wait while we save your changes.",
     });
 
-    try {
-      const result = await updateAsset(asset.id, data);
-      if (result?.message && result.message.startsWith('An error occurred')) {
-        toast({
-          variant: "destructive",
-          title: "Error Updating Asset",
-          description: result.message,
-        });
-      } else {
-        toast({
-          title: "Asset Updated!",
-          description: `${data.name} has been successfully updated.`,
-        });
-        setIsOpen(false); 
-      }
-    } catch (error) {
+    const result = await updateAsset(asset.id, data);
+    
+    if (result?.message && result.message.startsWith('Error:')) {
       toast({
         variant: "destructive",
-        title: "An Unexpected Error Occurred",
-        description: (error as Error).message || "Could not update the asset. Please try again.",
+        title: "Error Updating Asset",
+        description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
       });
-    } finally {
-      setIsSubmitting(false);
+    } else {
+      toast({
+        title: "Asset Updated!",
+        description: `${data.name} has been successfully updated.`,
+      });
+      setIsOpen(false); 
     }
+    
+    setIsSubmitting(false);
   };
 
   return (
@@ -318,30 +311,22 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
       description: "Please wait.",
     });
 
-    try {
-      const result = await deleteAsset(asset.id);
-      if (result.message.startsWith('An error occurred')) {
-        toast({
-          variant: "destructive",
-          title: "Error Deleting Asset",
-          description: result.message,
-        });
-      } else {
-        toast({
-          title: "Asset Deleted",
-          description: `${asset.name} and all its data have been removed.`,
-        });
-        onDeleted(); // Callback to potentially close dialog or refresh
-      }
-    } catch (error) {
+    const result = await deleteAsset(asset.id);
+    if (result.message.startsWith('Error:')) {
       toast({
         variant: "destructive",
-        title: "An Unexpected Error Occurred",
-        description: (error as Error).message || "Could not delete the asset. Please try again.",
+        title: "Error Deleting Asset",
+        description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
       });
-    } finally {
-      setIsDeleting(false);
+    } else {
+      toast({
+        title: "Asset Deleted",
+        description: `${asset.name} and all its data have been removed.`,
+      });
+      onDeleted(); // Callback to potentially close dialog or refresh
     }
+    
+    setIsDeleting(false);
   };
 
   return (
@@ -493,35 +478,27 @@ export default function AssetManagementPage() {
     formData.append('csvFile', file);
     formData.append('csvContent', fileContent);
 
-    try {
-      const result = await createAsset(data, formData);
+    const result = await createAsset(data, formData);
 
-      if (result?.message && result.message.startsWith('An error occurred')) {
-          toast({
-              variant: "destructive",
-              title: "Error Creating Asset",
-              description: result.message,
-          });
-      } else {
-         toast({
-            title: 'Asset Created!',
-            description: `${data.name} has been successfully created.`,
-        });
-        form.reset();
-        setFile(null);
-        setFileContent(null);
-        setCsvHeaders([]);
-        router.push('/');
-      }
-    } catch (error) {
+    if (result?.message && result.message.startsWith('Error:')) {
         toast({
             variant: "destructive",
-            title: "An Unexpected Error Occurred",
-            description: (error as Error).message || "Could not create the asset. Please try again.",
+            title: "Error Creating Asset",
+            description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
         });
-    } finally {
-        setIsSubmitting(false);
+    } else {
+        toast({
+          title: 'Asset Created!',
+          description: `${data.name} has been successfully created.`,
+      });
+      form.reset();
+      setFile(null);
+      setFileContent(null);
+      setCsvHeaders([]);
+      router.push('/');
     }
+    
+    setIsSubmitting(false);
   };
 
   return (
