@@ -1,9 +1,4 @@
 
-import assetsData from '@/../data/assets.json';
-import deploymentsData from '@/../data/deployments.json';
-import analysisData from '@/../data/analysis-results.json';
-import performanceDataJson from '@/../data/performance-data.json';
-
 export type Asset = {
   id: string;
   name: string;
@@ -41,26 +36,6 @@ export type AnalysisResult = {
   timestamp: string;
 };
 
-// These are now the initial values which can be updated by server actions
-export const assets: Asset[] = assetsData;
-export const deployments: Deployment[] = deploymentsData;
-export const analysisResults: AnalysisResult[] = analysisData;
-
-// The performance data can be a mix of parsed and unparsed data depending on where it comes from.
-// This ensures it is always parsed correctly.
-export const performanceData: { [key: string]: DataPoint[] } = {};
-for (const key in performanceDataJson) {
-    if (Object.prototype.hasOwnProperty.call(performanceDataJson, key)) {
-        const value = (performanceDataJson as any)[key];
-        if (typeof value === 'string') {
-            try {
-                performanceData[key] = JSON.parse(value);
-            } catch (e) {
-                console.error(`Failed to parse performance data for key ${key}:`, e);
-                performanceData[key] = [];
-            }
-        } else {
-            performanceData[key] = value;
-        }
-    }
-}
+// This file now only contains type definitions.
+// The actual data is loaded and managed in AssetProvider.
+export const analysisResults: AnalysisResult[] = [];

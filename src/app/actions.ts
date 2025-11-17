@@ -5,7 +5,6 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import Papa from 'papaparse';
 import { Asset, Deployment, DataPoint } from '@/lib/placeholder-data';
 
@@ -39,21 +38,26 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
     return JSON.parse(fileContent);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      // If the file doesn't exist, return a default value based on the file type
-      if (filePath.endsWith('s.json')) return [] as T; // For assets, deployments (arrays)
-      if (filePath.endsWith('-data.json')) return {} as T; // For performance data (object)
+      if (filePath.endsWith('s.json')) return [] as T;
+      if (filePath.endsWith('-data.json')) return {} as T;
     }
-    throw error;
+    console.error(`Error reading ${filePath}:`, error);
+    throw new Error(`Could not read data file: ${path.basename(filePath)}`);
   }
 }
 
 // Helper function to write to a JSON file
 async function writeJsonFile<T>(filePath: string, data: T): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  try {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (error) {
+     console.error(`Error writing ${filePath}:`, error);
+    throw new Error(`Could not write data file: ${path.basename(filePath)}`);
+  }
 }
 
-
+// The main server action
 export async function createAsset(data: any, formData: FormData) {
   const validatedFields = assetFormSchema.safeParse(data);
   
@@ -74,10 +78,8 @@ export async function createAsset(data: any, formData: FormData) {
   }
 
   try {
-    // Ensure data directories exist
-    await fs.mkdir(uploadsDir, { recursive: true });
-
     // 1. Save the uploaded CSV file
+    await fs.mkdir(uploadsDir, { recursive: true });
     const uniqueFileName = `${Date.now()}-${file.name}`;
     const filePath = path.join(uploadsDir, uniqueFileName);
     const csvBuffer = Buffer.from(fileContent);
@@ -118,32 +120,51 @@ export async function createAsset(data: any, formData: FormData) {
       .map(row => {
         const timeValue = row[validatedData.datetimeColumn];
         const waterLevelValue = parseFloat(row[validatedData.waterLevelColumn]);
+        
+        if (timeValue === undefined || isNaN(waterLevelValue)) {
+            return null;
+        }
+
         const waterElevation = waterLevelValue + validatedData.sensorElevation;
+        const date = new Date(timeValue);
+        
+        if (isNaN(date.getTime())) {
+            return null;
+        }
+
         return {
-          time: new Date(timeValue).toISOString(),
+          time: date.toISOString(),
           waterLevel: waterLevelValue,
           waterElevation: waterElevation,
           precipitation: 0,
         };
-      }).filter(dp => !isNaN(dp.waterLevel) && dp.time && new Date(dp.time).getTime() > 0);
+      }).filter((dp): dp is DataPoint => dp !== null);
 
 
     // 5. Append new data and write back to files
     assets.push(newAsset);
     deployments.push(newDeployment);
+    const newPerformanceData = { [newAssetId]: processedData };
     performanceData[newAssetId] = processedData;
 
     await writeJsonFile(assetsFilePath, assets);
     await writeJsonFile(deploymentsFilePath, deployments);
     await writeJsonFile(performanceDataFilePath, performanceData);
 
+    // Revalidate paths to trigger data refetch on the client
+    revalidatePath('/');
+    revalidatePath('/asset-management');
+
+    // Return the new data so the client-side state can be updated without a full reload
+    return {
+        message: 'Asset created successfully',
+        newAsset,
+        newDeployment,
+        newPerformanceData
+    };
+
   } catch (error) {
     console.error('Failed to create asset:', error);
     return { message: `An error occurred: ${(error as Error).message}` };
   }
-  
-  // Revalidate paths to reflect changes and redirect
-  revalidatePath('/');
-  revalidatePath('/asset-management');
-  redirect('/'); 
 }

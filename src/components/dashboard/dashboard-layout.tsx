@@ -19,21 +19,34 @@ import { useRouter } from "next/navigation";
 
 export default function DashboardLayout() {
   const router = useRouter();
-  const { assets, selectedAssetId, setSelectedAssetId, deployments, performanceData } = useAssets();
+  const { assets, selectedAssetId, setSelectedAssetId, deployments, performanceData, loading } = useAssets();
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   
   // Handle case where selected asset is not found or none is selected
   React.useEffect(() => {
-    if (assets.length > 0 && !assets.find(a => a.id === selectedAssetId)) {
+    if (!loading && assets.length > 0 && !assets.find(a => a.id === selectedAssetId)) {
       setSelectedAssetId(assets[0].id);
     }
-  }, [selectedAssetId, assets, setSelectedAssetId]);
+  }, [selectedAssetId, assets, setSelectedAssetId, loading]);
+
+  if (loading) {
+     return (
+       <div className="flex h-screen w-full items-center justify-center">
+         <p>Loading data...</p>
+       </div>
+    )
+  }
 
   if (assets.length === 0) {
     return (
        <div className="flex h-screen w-full items-center justify-center">
-         <p>No assets found. Create one in Asset Management.</p>
+         <div className="text-center">
+          <h2 className="text-2xl font-semibold mb-2">No Assets Found</h2>
+          <p className="text-muted-foreground">
+            Get started by creating a new asset in the Asset Management section.
+            </p>
+         </div>
        </div>
     )
   }
@@ -64,7 +77,7 @@ export default function DashboardLayout() {
             selectedAssetId={selectedAssetId}
             onSelectAsset={(id) => {
               setSelectedAssetId(id);
-              router.push('/');
+              // No need to push router, selection change is enough
             }}
           />
         </Sidebar>

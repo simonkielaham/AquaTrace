@@ -49,7 +49,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { createAsset } from "@/app/actions";
 
 
 const designElevationSchema = z.object({
@@ -148,11 +147,12 @@ function AssetListTable() {
 export default function AssetManagementPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { assets, setSelectedAssetId } = useAssets();
+  const { assets, setSelectedAssetId, createAsset } = useAssets();
 
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
   const [file, setFile] = React.useState<File | null>(null);
   const [fileContent, setFileContent] = React.useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),
@@ -206,26 +206,32 @@ export default function AssetManagementPage() {
         });
         return;
     }
-
-    const formData = new FormData();
-    formData.append('csvFile', file);
-    formData.append('csvContent', fileContent);
     
+    setIsSubmitting(true);
     toast({
         title: 'Creating Asset...',
         description: 'Please wait while we save your data.',
     });
 
+    const formData = new FormData();
+    formData.append('csvFile', file);
+    formData.append('csvContent', fileContent);
+
     try {
-      // The server action will handle redirection on success
       const result = await createAsset(data, formData);
 
-      if (result?.message) {
+      if (result?.errors) {
           toast({
               variant: "destructive",
               title: "Error Creating Asset",
-              description: result.message,
+              description: result.message || "Validation failed.",
           });
+      } else {
+         toast({
+            title: 'Asset Created!',
+            description: `${data.name} has been successfully created.`,
+        });
+        router.push('/');
       }
     } catch (error) {
         toast({
@@ -233,6 +239,8 @@ export default function AssetManagementPage() {
             title: "An Unexpected Error Occurred",
             description: "Could not create the asset. Please try again.",
         });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -293,7 +301,7 @@ export default function AssetManagementPage() {
                                     <FormItem>
                                       <FormLabel>Location</FormLabel>
                                       <FormControl>
-                                        <Input placeholder="e.g., Springfield, ON" {...field} />
+                                        <Input placeholder="e.g, Springfield, ON" {...field} />
                                       </FormControl>
                                       <FormMessage />
                                     </FormItem>
@@ -482,7 +490,9 @@ export default function AssetManagementPage() {
                               </div>
                             </div>
 
-                            <Button type="submit" disabled={!file}>Create Asset</Button>
+                            <Button type="submit" disabled={!file || isSubmitting}>
+                               {isSubmitting ? "Creating..." : "Create Asset"}
+                            </Button>
                           </form>
                         </Form>
                        </CardContent>
@@ -499,5 +509,3 @@ export default function AssetManagementPage() {
     </SidebarProvider>
   );
 }
-
-    
