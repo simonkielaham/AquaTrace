@@ -165,18 +165,19 @@ export async function createDeployment(assetId: string, data: any) {
     await writeLog({ action: 'createDeployment', status: 'success', assetId, payload: logPayload, response });
     return response;
   } catch (error) {
-    console.error('Failed to create deployment:', error);
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
+    // Ensure failure is logged
     await writeLog({ action: 'createDeployment', status: 'failure', assetId, payload: logPayload, response });
+    console.error('Failed to create deployment:', error);
     return response;
   }
 }
 
 export async function addDatafile(deploymentId: string, assetId: string, data: any, formData: FormData) {
-  const validatedFields = addDatafileSchema.safeParse(data);
   const logPayload = { deploymentId, assetId, data: { ...data, csvFileName: (formData.get('csvFile') as File)?.name } };
   
+  const validatedFields = addDatafileSchema.safeParse(data);
   if (!validatedFields.success) {
     const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
     await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
@@ -204,9 +205,7 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
 
     const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
     if (deploymentIndex === -1) {
-      const response = { message: "Deployment not found." };
-      await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
-      return response;
+      throw new Error("Deployment not found.");
     }
     const deployment = deployments[deploymentIndex];
 
@@ -273,10 +272,11 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
     return response;
 
   } catch (error) {
-    console.error('Failed to add datafile:', error);
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
+    // LOG FAILURE FIRST
     await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
+    console.error('Failed to add datafile:', error);
     return response;
   }
 }
@@ -317,10 +317,11 @@ export async function updateDeployment(deploymentId: string, assetId: string, da
     return response;
 
   } catch (error) {
-    console.error('Failed to update deployment:', error);
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
+    // Ensure failure is logged
     await writeLog({ action: 'updateDeployment', status: 'failure', assetId, deploymentId, payload: logPayload, response });
+    console.error('Failed to update deployment:', error);
     return response;
   }
 }
@@ -372,10 +373,11 @@ export async function updateAsset(assetId: string, data: any) {
     return response;
 
   } catch (error) {
-    console.error('Failed to update asset:', error);
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
+    // Ensure failure is logged
     await writeLog({ action: 'updateAsset', status: 'failure', assetId, payload: logPayload, response });
+    console.error('Failed to update asset:', error);
     return response;
 
   }
@@ -430,10 +432,11 @@ export async function createAsset(data: any) {
     return response;
 
   } catch (error) {
-    console.error('Failed to create asset:', error);
     const message = error instanceof Error ? error.message : "An unknown error occurred during asset creation.";
     const response = { message: `Error: ${message}` };
+    // Ensure failure is logged
     await writeLog({ action: 'createAsset', status: 'failure', payload: logPayload, response });
+    console.error('Failed to create asset:', error);
     return response;
   }
 }
