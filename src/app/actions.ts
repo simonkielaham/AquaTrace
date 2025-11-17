@@ -206,24 +206,49 @@ export async function assignDatafileToDeployment(formData: FormData) {
   const stagedFilePath = path.join(stagedDir, filename);
 
   try {
-    // Read the staged file content
     const fileContent = await fs.readFile(stagedFilePath, 'utf-8');
-    const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
     
-    const sliceIndex = startRow >= 2 ? startRow - 2 : 0; 
-    const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
-    
+    const parsedCsv = await new Promise<Papa.ParseResult<any>>((resolve, reject) => {
+        Papa.parse(fileContent, {
+            header: true,
+            skipEmptyLines: true,
+            preview: startRow - 1, // Read a few lines to find headers
+            complete: (results: Papa.ParseResult<any>) => {
+                const headerRow = results.meta.fields;
+                if (!headerRow) {
+                    return reject(new Error("Could not determine headers."));
+                }
+                // Now parse the full file with correct headers
+                Papa.parse(fileContent, {
+                    header: true,
+                    skipEmptyLines: true,
+                    // Papa's `header` detection is smart, but we need to tell it where data starts
+                    // by effectively skipping rows before the data.
+                    // This is tricky. Let's just parse the whole thing and slice.
+                    complete: (fullResults: Papa.ParseResult<any>) => {
+                      resolve(fullResults);
+                    }
+                });
+            }
+        });
+    });
+
+    const dataRows = (parsedCsv.data as any[]).slice(startRow - 1);
+
     const processedData = dataRows.map(row => {
         const dateValue = row[datetimeColumn];
         const levelValue = row[waterLevelColumn];
-        if (dateValue && levelValue) {
-            return {
-                timestamp: new Date(dateValue),
-                waterLevel: parseFloat(levelValue),
-            };
+        
+        if (dateValue && (levelValue !== null && levelValue !== undefined)) {
+            const timestamp = new Date(dateValue);
+            const waterLevel = parseFloat(levelValue);
+
+            if (!isNaN(timestamp.getTime()) && !isNaN(waterLevel)) {
+                return { timestamp, waterLevel };
+            }
         }
         return null;
-    }).filter(p => p && !isNaN(p.timestamp.getTime()) && !isNaN(p.waterLevel));
+    }).filter(p => p !== null);
 
     if (processedData.length === 0) {
       throw new Error("No valid data points could be processed. Check column mapping and start row.");
@@ -251,8 +276,9 @@ export async function assignDatafileToDeployment(formData: FormData) {
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
     const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
     if (deploymentIndex === -1) throw new Error('Deployment not found');
-
-    deployments[deploymentIndex].files = [...(deployments[deploymentIndex].files || []), newDataFile];
+    
+    const existingFiles = deployments[deploymentIndex].files || [];
+    deployments[deploymentIndex].files = [...existingFiles, newDataFile];
     
     await writeJsonFile(deploymentsFilePath, deployments);
 
