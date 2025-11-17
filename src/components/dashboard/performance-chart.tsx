@@ -20,6 +20,7 @@ import {
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine } from "recharts";
 import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 import * as React from "react";
+import { cn } from "@/lib/utils";
 
 type PerformanceChartProps = {
   asset: Asset;
@@ -167,15 +168,21 @@ export default function PerformanceChart({
                   formatter={(value, name, item) => {
                     if (item.dataKey === 'waterLevel' && typeof value === 'number') {
                       const diff = (value - asset.permanentPoolElevation) * 100; // difference in cm
-                      const direction = diff >= 0 ? 'above' : 'below';
+                      const isPositive = diff >= 0;
+                      const direction = isPositive ? 'above' : 'below';
                       const diffText = `${Math.abs(diff).toFixed(1)}cm ${direction} permanent pool`;
-                      
+
                       return (
                         <div className="flex items-center gap-2">
                            <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-waterLevel)'}}/>
                             <div className="flex flex-col items-start">
-                                <span>{`${value.toFixed(2)}m`}</span>
-                                <span className="text-xs text-muted-foreground uppercase">{`WATER ELEVATION (${diffText})`}</span>
+                                <span className="font-bold">WATER ELEVATION: {`${value.toFixed(2)}m`}</span>
+                                <span className={cn(
+                                  "text-xs",
+                                  isPositive ? "text-green-600" : "text-destructive"
+                                )}>
+                                  ({diffText})
+                                </span>
                             </div>
                         </div>
                       )
