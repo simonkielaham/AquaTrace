@@ -192,7 +192,11 @@ export async function addDatafile(deploymentId: string, data: any, formData: For
     const deployment = deployments[deploymentIndex];
 
     const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
-    const dataRows = (parsedCsv.data as any[]).slice(validatedData.startRow - 1);
+    
+    // The `data` property from papaparse contains only data rows if `header: true`
+    // We adjust for the user inputting a 1-based row number.
+    const sliceIndex = Math.max(0, validatedData.startRow - 2);
+    const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
     
     let minDate: Date | null = null;
     let maxDate: Date | null = null;

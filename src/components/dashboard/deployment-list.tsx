@@ -107,7 +107,7 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
     setIsSubmitting(true);
     const result = await createDeployment(asset.id, data);
     if (result?.message && result.message.startsWith('Error:')) {
-      toast({ variant: "destructive", title: "Error", description: result.message });
+      toast({ variant: "destructive", title: "Error", description: <pre className="mt-2 w-full max-w-[550px] whitespace-pre-wrap break-all rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre> });
     } else {
       toast({ title: "Success", description: "New deployment created." });
       setIsOpen(false);
@@ -195,6 +195,13 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
       startRow: 2
     },
   });
+  
+  const resetDialogState = () => {
+    form.reset({ startRow: 2 });
+    setFile(null);
+    setFileContent(null);
+    setCsvHeaders([]);
+  }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -243,17 +250,19 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
     } else {
       toast({ title: "Success", description: "New datafile added." });
       setIsOpen(false);
-      form.reset();
-      setFile(null);
-      setFileContent(null);
-      setCsvHeaders([]);
+      resetDialogState();
     }
     
     setIsSubmitting(false);
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      setIsOpen(open);
+      if (!open) {
+        resetDialogState();
+      }
+    }}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm">
           <PlusCircle className="mr-2 h-4 w-4" />
@@ -322,6 +331,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
                     <FormItem>
                       <FormLabel>Data Start Row</FormLabel>
                       <FormControl><Input type="number" min="1" {...field} /></FormControl>
+                      <FormDescription>The row number where your actual data begins (1-based).</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
