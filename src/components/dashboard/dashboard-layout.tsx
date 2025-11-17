@@ -90,7 +90,7 @@ export default function DashboardLayout() {
                 data={assetPerformanceData}
                 asset={selectedAsset}
               />
-              <DeploymentList deployments={assetDeployments} />
+              <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <AnalysisResults results={assetAnalysisResults} />
             </div>
           </main>
@@ -99,3 +99,5 @@ export default function DashboardLayout() {
     </SidebarProvider>
   );
 }
+
+    

@@ -7,7 +7,7 @@ import {
   Deployment,
   DataPoint,
 } from '@/lib/placeholder-data';
-import { createAsset as createAssetAction, updateAsset as updateAssetAction } from '@/app/actions';
+import { createAsset as createAssetAction, updateAsset as updateAssetAction, updateDeployment as updateDeploymentAction, addDatafile as addDatafileAction } from '@/app/actions';
 
 // We will fetch initial data from server actions or a dedicated API route in a real app
 // For now, we start with empty arrays and let the effect load the data.
@@ -24,6 +24,8 @@ interface AssetContextType {
   performanceData: { [assetId: string]: DataPoint[] };
   createAsset: (data: any, formData: FormData) => Promise<any>;
   updateAsset: (assetId: string, data: any) => Promise<any>;
+  updateDeployment: (deploymentId: string, data: any) => Promise<any>;
+  addDatafile: (deploymentId: string, data: any, formData: FormData) => Promise<any>;
   loading: boolean;
 }
 
@@ -81,6 +83,29 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     return result;
   }, []);
 
+  const updateDeployment = useCallback(async (deploymentId: string, data: any) => {
+    const result = await updateDeploymentAction(deploymentId, data);
+    if (result && !result.errors && result.updatedDeployment) {
+      setDeployments(prev => prev.map(d => d.id === deploymentId ? result.updatedDeployment : d));
+    }
+    return result;
+  }, []);
+
+  const addDatafile = useCallback(async (deploymentId: string, data: any, formData: FormData) => {
+    const result = await addDatafileAction(deploymentId, data, formData);
+    if (result && !result.errors && result.updatedDeployment && result.newDataPoints) {
+      const { updatedDeployment, newDataPoints } = result;
+      setDeployments(prev => prev.map(d => d.id === deploymentId ? updatedDeployment : d));
+      setPerformanceData(prev => {
+        const assetId = updatedDeployment.assetId;
+        const existingData = prev[assetId] || [];
+        const newData = [...existingData, ...newDataPoints].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+        return { ...prev, [assetId]: newData };
+      });
+    }
+    return result;
+  }, []);
+
 
   const value = {
     assets,
@@ -90,6 +115,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     performanceData,
     createAsset,
     updateAsset,
+    updateDeployment,
+    addDatafile,
     loading,
   };
 

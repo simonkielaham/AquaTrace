@@ -42,6 +42,17 @@ const editAssetFormSchema = z.object({
   })),
 });
 
+const editDeploymentSchema = z.object({
+  sensorId: z.string().min(1),
+  sensorElevation: z.coerce.number(),
+});
+
+const addDatafileSchema = z.object({
+  datetimeColumn: z.string().min(1),
+  waterLevelColumn: z.string().min(1),
+  startRow: z.coerce.number().min(1),
+});
+
 
 // Helper function to read and parse a JSON file
 async function readJsonFile<T>(filePath: string): Promise<T> {
@@ -66,6 +77,124 @@ async function writeJsonFile<T>(filePath: string, data: T): Promise<void> {
   } catch (error) {
      console.error(`Error writing ${filePath}:`, error);
     throw new Error(`Could not write data file: ${path.basename(filePath)}`);
+  }
+}
+
+export async function addDatafile(deploymentId: string, data: any, formData: FormData) {
+  const validatedFields = addDatafileSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+  }
+  const validatedData = validatedFields.data;
+
+  const file = formData.get('csvFile') as File | null;
+  const fileContent = formData.get('csvContent') as string | null;
+
+  if (!file || !fileContent) {
+    return { message: 'CSV file is required.' };
+  }
+
+  try {
+    await fs.mkdir(uploadsDir, { recursive: true });
+    const uniqueFileName = `${Date.now()}-${file.name}`;
+    const filePath = path.join(uploadsDir, uniqueFileName);
+    await fs.writeFile(filePath, Buffer.from(fileContent));
+
+    let deployments: Deployment[] = await readJsonFile(deploymentsFilePath);
+    const performanceData: { [key: string]: DataPoint[] } = await readJsonFile(performanceDataFilePath);
+
+    const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
+    if (deploymentIndex === -1) {
+      return { message: "Deployment not found." };
+    }
+    const deployment = deployments[deploymentIndex];
+
+    const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
+    const dataRows = (parsedCsv.data as any[]).slice(validatedData.startRow - 1);
+    
+    let minDate: Date | null = null;
+    let maxDate: Date | null = null;
+
+    const processedData = dataRows.map(row => {
+        const timeValue = row[validatedData.datetimeColumn];
+        const waterLevelValue = parseFloat(row[validatedData.waterLevelColumn]);
+        if (!timeValue || isNaN(waterLevelValue)) return null;
+        
+        const date = new Date(timeValue);
+        if (isNaN(date.getTime())) return null;
+
+        if (!minDate || date < minDate) minDate = date;
+        if (!maxDate || date > maxDate) maxDate = date;
+        
+        return {
+          time: date.toISOString(),
+          waterLevel: waterLevelValue,
+          waterElevation: waterLevelValue + deployment.sensorElevation,
+          precipitation: 0,
+        };
+      }).filter((dp): dp is DataPoint => dp !== null);
+
+    const newDataFile: DataFile = {
+      id: `file-${Date.now()}`,
+      deploymentId: deploymentId,
+      fileName: file.name,
+      startDate: minDate?.toISOString() || new Date().toISOString(),
+      endDate: maxDate?.toISOString() || new Date().toISOString(),
+    };
+
+    if (!deployment.files) deployment.files = [];
+    deployment.files.push(newDataFile);
+
+    if (!performanceData[deployment.assetId]) performanceData[deployment.assetId] = [];
+    performanceData[deployment.assetId].push(...processedData);
+    performanceData[deployment.assetId].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+    await writeJsonFile(deploymentsFilePath, deployments);
+    await writeJsonFile(performanceDataFilePath, performanceData);
+
+    revalidatePath('/');
+    
+    return {
+      message: 'Datafile added successfully',
+      updatedDeployment: deployment,
+      newDataPoints: processedData,
+    };
+
+  } catch (error) {
+    console.error('Failed to add datafile:', error);
+    return { message: `An error occurred: ${(error as Error).message}` };
+  }
+}
+
+export async function updateDeployment(deploymentId: string, data: any) {
+  const validatedFields = editDeploymentSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+  }
+  
+  try {
+    let deployments: Deployment[] = await readJsonFile(deploymentsFilePath);
+    const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
+    if (deploymentIndex === -1) {
+      return { message: 'Deployment not found.' };
+    }
+
+    deployments[deploymentIndex] = {
+      ...deployments[deploymentIndex],
+      ...validatedFields.data,
+    };
+    
+    await writeJsonFile(deploymentsFilePath, deployments);
+
+    revalidatePath('/');
+    
+    return {
+      message: 'Deployment updated successfully',
+      updatedDeployment: deployments[deploymentIndex],
+    };
+  } catch (error) {
+    console.error('Failed to update deployment:', error);
+    return { message: `An error occurred: ${(error as Error).message}` };
   }
 }
 
