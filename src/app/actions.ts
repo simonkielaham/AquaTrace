@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile, SurveyPoint } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 
 // Define paths to data files
@@ -13,6 +13,7 @@ const dataDir = path.join(process.cwd(), 'data');
 const assetsFilePath = path.join(dataDir, 'assets.json');
 const deploymentsFilePath = path.join(dataDir, 'deployments.json');
 const activityLogFilePath = path.join(dataDir, 'activity-log.json');
+const surveyPointsFilePath = path.join(dataDir, 'survey-points.json');
 const stagedDir = path.join(dataDir, 'staged');
 const processedDir = path.join(dataDir, 'processed');
 
@@ -51,6 +52,11 @@ const editDeploymentSchema = z.object({
   sensorElevation: z.coerce.number(),
 });
 
+const surveyPointSchema = z.object({
+  date: z.string().min(1, 'Date is required.'),
+  elevation: z.coerce.number(),
+});
+
 
 // Helper function to read and parse a JSON file
 async function readJsonFile<T>(filePath: string): Promise<T> {
@@ -60,7 +66,7 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
     return JSON.parse(fileContent);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      if (filePath.endsWith('s.json') || filePath.endsWith('log.json')) return [] as T;
+      if (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json')) return [] as T;
       return {} as T;
     }
     console.error(`Error reading ${filePath}:`, error);
@@ -94,6 +100,90 @@ async function writeLog(logEntry: Omit<ActivityLog, 'id' | 'timestamp'>) {
     console.error("Failed to write to activity log:", error);
   }
 }
+
+
+// == Manual Survey Point Actions ==
+
+export async function addSurveyPoint(assetId: string, data: any) {
+  const logPayload = { assetId, data };
+  const validatedFields = surveyPointSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+    await writeLog({ action: 'addSurveyPoint', status: 'failure', assetId, payload: logPayload, response });
+    return response;
+  }
+  const { date, elevation } = validatedFields.data;
+
+  try {
+    const surveyPoints = await readJsonFile<SurveyPoint[]>(surveyPointsFilePath);
+    
+    // Combine date with a default time (midday) to create a full Date object in UTC
+    const timestamp = new Date(date);
+    timestamp.setUTCHours(12, 0, 0, 0);
+
+    const newPoint: SurveyPoint = {
+      id: `survey-${Date.now()}`,
+      assetId,
+      timestamp: timestamp.getTime(),
+      elevation,
+    };
+    
+    surveyPoints.push(newPoint);
+    await writeJsonFile(surveyPointsFilePath, surveyPoints);
+
+    revalidatePath('/');
+    
+    const response = { message: 'Survey point added successfully', newPoint };
+    await writeLog({ action: 'addSurveyPoint', status: 'success', assetId, payload: logPayload, response });
+    return response;
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'addSurveyPoint', status: 'failure', assetId, payload: logPayload, response });
+    return response;
+  }
+}
+
+export async function getSurveyPoints(assetId: string): Promise<SurveyPoint[]> {
+  try {
+    const allPoints = await readJsonFile<SurveyPoint[]>(surveyPointsFilePath);
+    return allPoints.filter(p => p.assetId === assetId).sort((a,b) => a.timestamp - b.timestamp);
+  } catch (error) {
+    console.error(`Failed to get survey points for asset ${assetId}:`, error);
+    return [];
+  }
+}
+
+export async function deleteSurveyPoint(pointId: string) {
+    const logPayload = { pointId };
+    try {
+        let points = await readJsonFile<SurveyPoint[]>(surveyPointsFilePath);
+        const pointToDelete = points.find(p => p.id === pointId);
+        
+        if (!pointToDelete) {
+             const response = { message: `Error: Survey point with ID ${pointId} not found.` };
+             await writeLog({ action: 'deleteSurveyPoint', status: 'failure', payload: logPayload, response });
+             return response;
+        }
+
+        const updatedPoints = points.filter(p => p.id !== pointId);
+        await writeJsonFile(surveyPointsFilePath, updatedPoints);
+
+        revalidatePath('/');
+
+        const response = { message: 'Survey point deleted successfully.' };
+        await writeLog({ action: 'deleteSurveyPoint', status: 'success', assetId: pointToDelete.assetId, payload: logPayload, response });
+        return response;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "An unknown error occurred.";
+        const response = { message: `Error: ${message}` };
+        await writeLog({ action: 'deleteSurveyPoint', status: 'failure', payload: logPayload, response });
+        return response;
+    }
+}
+
 
 // == Staged File Management Actions ==
 

@@ -31,6 +31,13 @@ export type DataPoint = {
   waterLevel: number;
 };
 
+export type SurveyPoint = {
+  id: string;
+  assetId: string;
+  timestamp: number;
+  elevation: number;
+};
+
 export type Deployment = {
   id:string;
   assetId: string;

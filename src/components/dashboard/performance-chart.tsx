@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Asset, DataPoint } from "@/lib/placeholder-data";
+import type { Asset, DataPoint, SurveyPoint } from "@/lib/placeholder-data";
 import {
   Card,
   CardContent,
@@ -17,8 +17,8 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart";
-import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine } from "recharts";
-import { getProcessedData as getProcessedDataAction } from "@/app/actions";
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter } from "recharts";
+import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +32,10 @@ const chartConfig = {
     label: "Water Elevation",
     color: "hsl(var(--chart-1))",
   },
+  surveyPoints: {
+    label: "Survey Points",
+    color: "hsl(var(--accent))",
+  },
   ppe: {
     label: "Permanent Pool",
     color: "hsl(var(--chart-2))",
@@ -43,19 +47,24 @@ export default function PerformanceChart({
   dataVersion,
 }: PerformanceChartProps) {
   const [chartData, setChartData] = React.useState<DataPoint[]>([]);
+  const [surveyPoints, setSurveyPoints] = React.useState<SurveyPoint[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   const yAxisDomain = React.useMemo(() => {
-    if (!chartData || chartData.length === 0) {
+    const allElevations = [
+        ...chartData.map(d => d.waterLevel),
+        ...surveyPoints.map(p => p.elevation)
+    ];
+
+    if (allElevations.length === 0) {
       return [
         asset.permanentPoolElevation - 2,
         asset.permanentPoolElevation + 2,
       ];
     }
     
-    const waterLevels = chartData.map(d => d.waterLevel);
-    const min = Math.min(...waterLevels);
-    const max = Math.max(...waterLevels);
+    const min = Math.min(...allElevations);
+    const max = Math.max(...allElevations);
     
     const range = max - min;
 
@@ -66,7 +75,7 @@ export default function PerformanceChart({
     const buffer = range * 0.1; // 10% buffer
     
     return [min - buffer, max + buffer];
-  }, [chartData, asset.permanentPoolElevation]);
+  }, [chartData, surveyPoints, asset.permanentPoolElevation]);
 
 
   React.useEffect(() => {
@@ -74,9 +83,14 @@ export default function PerformanceChart({
     const fetchData = async () => {
       if (!asset.id) return;
       setLoading(true);
-      const data = await getProcessedDataAction(asset.id);
+      const [data, points] = await Promise.all([
+        getProcessedDataAction(asset.id),
+        getSurveyPointsAction(asset.id)
+      ]);
+      
       if (isMounted) {
         setChartData(data);
+        setSurveyPoints(points);
         setLoading(false);
       }
     };
@@ -102,7 +116,7 @@ export default function PerformanceChart({
     )
   }
 
-  if (chartData.length === 0) {
+  if (chartData.length === 0 && surveyPoints.length === 0) {
     return (
       <Card className="col-span-1 lg:col-span-4 shadow-sm">
         <CardHeader>
@@ -116,7 +130,7 @@ export default function PerformanceChart({
               <div className="text-center">
                   <BarChart className="mx-auto h-8 w-8 mb-2" />
                   <p>No performance data available.</p>
-                  <p className="text-xs">Upload a datafile to see performance metrics.</p>
+                  <p className="text-xs">Upload a datafile or add a survey point to see performance metrics.</p>
               </div>
           </div>
         </CardContent>
@@ -153,6 +167,7 @@ export default function PerformanceChart({
               domain={yAxisDomain}
               allowDataOverflow={true}
               type="number"
+              dataKey="waterLevel"
             />
             <ChartTooltip
               cursor={false}
@@ -187,6 +202,16 @@ export default function PerformanceChart({
                         </div>
                       )
                     }
+                    if (item.dataKey === 'elevation' && typeof value === 'number') {
+                       return (
+                         <div className="flex items-center gap-2">
+                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-surveyPoints)'}}/>
+                            <div className="flex flex-col items-start">
+                                <span className="font-bold">SURVEY POINT: {`${value.toFixed(2)}m`}</span>
+                            </div>
+                        </div>
+                       )
+                    }
                     return null;
                   }}
                 />
@@ -201,6 +226,7 @@ export default function PerformanceChart({
               stackId="a"
               name="Water Elevation"
             />
+             <Scatter data={surveyPoints} fill="var(--color-surveyPoints)" name="Survey Points" dataKey="elevation" />
             <ReferenceLine
               y={asset.permanentPoolElevation}
               label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}

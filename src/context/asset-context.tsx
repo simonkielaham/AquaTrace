@@ -6,7 +6,8 @@ import {
   Asset, 
   Deployment,
   DataPoint,
-  StagedFile
+  StagedFile,
+  SurveyPoint
 } from '@/lib/placeholder-data';
 import { 
   createAsset as createAssetAction, 
@@ -20,6 +21,9 @@ import {
   getStagedFiles as getStagedFilesAction,
   deleteStagedFile as deleteStagedFileAction,
   getStagedFileContent as getStagedFileContentAction,
+  addSurveyPoint as addSurveyPointAction,
+  deleteSurveyPoint as deleteSurveyPointAction,
+  getSurveyPoints as getSurveyPointsAction,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -43,6 +47,9 @@ interface AssetContextType {
   uploadStagedFile: (formData: FormData) => Promise<any>;
   deleteStagedFile: (filename: string) => Promise<any>;
   getStagedFileContent: (filename: string) => Promise<string | null>;
+  addSurveyPoint: (assetId: string, data: any) => Promise<any>;
+  deleteSurveyPoint: (pointId: string) => Promise<any>;
+  getSurveyPoints: (assetId: string) => Promise<SurveyPoint[]>;
   dataVersion: number;
 }
 
@@ -90,6 +97,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const [loadingStagedFiles, setLoadingStagedFiles] = useState(true);
   const [dataVersion, setDataVersion] = useState(0);
 
+  const incrementDataVersion = useCallback(() => setDataVersion(v => v + 1), []);
+
   const fetchStagedFiles = useCallback(async () => {
     setLoadingStagedFiles(true);
     try {
@@ -127,52 +136,56 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       const result = await createAssetAction(data);
       if (result && !result.errors && result.newAsset) {
         setAssets(prev => [...prev, result.newAsset]);
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
       const message = await getErrorMessage(error);
       return { message: `Error: ${message}` };
     }
-  }, []);
+  }, [incrementDataVersion]);
   
   const createDeployment = useCallback(async (assetId: string, data: any) => {
     try {
       const result = await createDeploymentAction(assetId, data);
       if (result && !result.errors && result.newDeployment) {
         setDeployments(prev => [...prev, result.newDeployment]);
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, []);
+  }, [incrementDataVersion]);
 
   const updateAsset = useCallback(async (assetId: string, data: any) => {
     try {
       const result = await updateAssetAction(assetId, data);
       if (result && !result.errors && result.updatedAsset) {
         setAssets(prev => prev.map(a => a.id === assetId ? result.updatedAsset : a));
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, []);
+  }, [incrementDataVersion]);
 
   const updateDeployment = useCallback(async (deploymentId: string, assetId: string, data: any) => {
     try {
       const result = await updateDeploymentAction(deploymentId, assetId, data);
       if (result && !result.errors && result.updatedDeployment) {
         setDeployments(prev => prev.map(d => d.id === deploymentId ? result.updatedDeployment : d));
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, []);
+  }, [incrementDataVersion]);
 
   const deleteAsset = useCallback(async (assetId: string) => {
     try {
@@ -192,14 +205,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
           handleSetSelectedAssetId('');
         }
       }
-      
+      incrementDataVersion();
       return { message: 'Asset deleted successfully.' };
 
     } catch (error) {
       const message = await getErrorMessage(error);
       return { message: `Error: ${message}` };
     }
-  }, [assets, selectedAssetId]);
+  }, [assets, selectedAssetId, incrementDataVersion]);
 
   const downloadLogs = useCallback(async (assetId: string) => {
     try {
@@ -223,14 +236,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
           return d;
         }));
         await fetchStagedFiles(); // Refresh staged files list
-        setDataVersion(v => v + 1); // Increment version to trigger re-fetch
+        incrementDataVersion(); // Increment version to trigger re-fetch
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, [fetchStagedFiles]);
+  }, [fetchStagedFiles, incrementDataVersion]);
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
     try {
@@ -267,6 +280,32 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const addSurveyPoint = useCallback(async (assetId: string, data: any) => {
+    try {
+      const result = await addSurveyPointAction(assetId, data);
+      if(result.newPoint) {
+        incrementDataVersion();
+      }
+      return result;
+    } catch (error) {
+       const message = await getErrorMessage(error);
+       return { message: `Error: ${message}` };
+    }
+  }, [incrementDataVersion]);
+
+  const deleteSurveyPoint = useCallback(async (pointId: string) => {
+    try {
+      const result = await deleteSurveyPointAction(pointId);
+      if(!result.message.startsWith('Error:')) {
+        incrementDataVersion();
+      }
+      return result;
+    } catch (error) {
+       const message = await getErrorMessage(error);
+       return { message: `Error: ${message}` };
+    }
+  }, [incrementDataVersion]);
+
 
   const value = {
     assets,
@@ -286,6 +325,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     uploadStagedFile,
     deleteStagedFile,
     getStagedFileContent,
+    addSurveyPoint,
+    deleteSurveyPoint,
+    getSurveyPoints: getSurveyPointsAction,
     dataVersion,
   };
 

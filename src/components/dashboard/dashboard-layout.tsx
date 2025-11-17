@@ -8,6 +8,7 @@ import PageHeader from "@/components/dashboard/page-header";
 import AssetOverview from "@/components/dashboard/asset-overview";
 import DeploymentList from "@/components/dashboard/deployment-list";
 import AnalysisResults from "@/components/dashboard/analysis-results";
+import SurveyPointManager from "@/components/dashboard/survey-point-manager";
 import {
   analysisResults,
 } from "@/lib/placeholder-data";
@@ -84,6 +85,7 @@ export default function DashboardLayout() {
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <AnalysisResults results={assetAnalysisResults} />
               <PerformanceChart asset={selectedAsset} dataVersion={dataVersion}/>
+              <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
             </div>
           </main>
         </div>
