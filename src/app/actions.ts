@@ -218,17 +218,8 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
     const parsedCsv = Papa.parse(fileContent, {
       header: true,
       skipEmptyLines: true,
-      // PapaParse's `data` array is 0-indexed and starts *after* the header row.
-      // The user's `startRow` is 1-based and *includes* the header row.
-      // So, to skip the correct number of rows from the top of the file, we must
-      // tell PapaParse to start parsing from `startRow - 1` (since it's 0-indexed).
-      // However, PapaParse doesn't have a direct "start from row" option with headers.
-      // The most robust way is to parse the whole file and then slice the data array.
     });
 
-    // The user provides a 1-based start row. Papa parse with `header:true` uses row 1 as the header.
-    // The returned `data` array is 0-indexed. So, to get to the user's intended start row,
-    // we must slice from index `startRow - 2` (1 for header, 1 for 0-based index).
     const sliceIndex = Math.max(0, validatedData.startRow - 2);
     const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
     
@@ -286,10 +277,10 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
 
   } catch (error) {
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
-    const response = { message: `Error: ${message}` };
-    await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
+    await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response: { message } });
     console.error('Failed to add datafile:', error);
-    return response;
+    // Re-throw the error to let the client know something went wrong server-side.
+    throw error;
   }
 }
 

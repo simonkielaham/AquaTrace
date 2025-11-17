@@ -41,23 +41,10 @@ const AssetContext = createContext<AssetContextType | undefined>(undefined);
 
 const getErrorMessage = async (error: any): Promise<string> => {
     if (error instanceof Error) {
+        // This will catch errors thrown from the server action
         return error.message;
     }
-    if (error instanceof Response) {
-        try {
-            // For server crashes, Next.js often returns a full HTML error page.
-            // Returning the raw text gives us the most information.
-            const text = await error.text();
-            return `An unexpected response was received from the server. Raw Response:\n${text}`;
-        } catch (e) {
-            return "An unexpected and unreadable response was received from the server.";
-        }
-    }
-    if (typeof error === 'object' && error !== null) {
-        try {
-            return `An unexpected error object was received: ${JSON.stringify(error, null, 2)}`;
-        } catch {}
-    }
+    // This is a fallback for other types of errors
     return "An unknown error occurred.";
 };
 
