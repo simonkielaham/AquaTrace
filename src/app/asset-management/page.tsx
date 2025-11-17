@@ -5,7 +5,6 @@ import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
-import Papa from "papaparse";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -16,8 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -39,17 +36,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { PlusCircle, Trash2, UploadCloud, TableIcon, ChevronDown, FilePenLine } from "lucide-react";
+import { PlusCircle, Trash2, FilePenLine, ChevronDown } from "lucide-react";
 import { SidebarProvider, Sidebar } from "@/components/ui/sidebar";
 import SidebarNav from "@/components/dashboard/sidebar-nav";
 import PageHeader from "@/components/dashboard/page-header";
@@ -71,6 +60,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Asset } from "@/lib/placeholder-data";
+import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 
 
 const designElevationSchema = z.object({
@@ -83,11 +73,6 @@ const assetFormSchema = z.object({
   location: z.string().min(2, "Location is required."),
   permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
   designElevations: z.array(designElevationSchema).min(1, "At least one design elevation is required."),
-  sensorId: z.string().min(1, "Sensor ID is required."),
-  datetimeColumn: z.string().min(1, "Datetime column is required."),
-  waterLevelColumn: z.string().min(1, "Water level column is required."),
-  sensorElevation: z.coerce.number().min(0, "Sensor elevation is required."),
-  startRow: z.coerce.number().min(1, "Start row must be at least 1."),
 });
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
@@ -100,16 +85,6 @@ const editAssetFormSchema = z.object({
 });
 
 type EditAssetFormValues = z.infer<typeof editAssetFormSchema>;
-
-const detectColumns = (headers: string[]) => {
-  const datetimeKeywords = ["date", "time", "timestamp"];
-  const waterLevelKeywords = ["water", "level", "elevation", "stage"];
-
-  const datetimeColumn = headers.find(h => datetimeKeywords.some(k => h.toLowerCase().includes(k))) || "";
-  const waterLevelColumn = headers.find(h => waterLevelKeywords.some(k => h.toLowerCase().includes(k))) || "";
-  
-  return { datetimeColumn, waterLevelColumn };
-};
 
 const statusVariantMap = {
   ok: "default",
@@ -408,10 +383,6 @@ export default function AssetManagementPage() {
   const { toast } = useToast();
   const router = useRouter();
   const { assets, setSelectedAssetId, createAsset } = useAssets();
-
-  const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
-  const [file, setFile] = React.useState<File | null>(null);
-  const [fileContent, setFileContent] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const form = useForm<AssetFormValues>({
@@ -421,9 +392,6 @@ export default function AssetManagementPage() {
       location: "",
       permanentPoolElevation: 0,
       designElevations: [{ year: 2, elevation: 0 }],
-      sensorId: "",
-      sensorElevation: 0,
-      startRow: 2,
     },
   });
 
@@ -432,53 +400,14 @@ export default function AssetManagementPage() {
     name: "designElevations",
   });
   
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target?.result as string;
-        setFileContent(text);
-        Papa.parse(text, {
-          header: true,
-          skipEmptyLines: true,
-          preview: 1, // Only parse the first row for headers
-          complete: (results) => {
-            const headers = results.meta.fields || [];
-            setCsvHeaders(headers);
-            const { datetimeColumn, waterLevelColumn } = detectColumns(headers);
-            form.setValue("datetimeColumn", datetimeColumn);
-            form.setValue("waterLevelColumn", waterLevelColumn);
-            form.setValue("startRow", 2);
-          },
-        });
-      };
-      reader.readAsText(selectedFile);
-    }
-  };
-  
   const handleSubmit = async (data: AssetFormValues) => {
-    if (!file || !fileContent) {
-        toast({
-            variant: "destructive",
-            title: "File Missing",
-            description: "Please upload a CSV file.",
-        });
-        return;
-    }
-    
     setIsSubmitting(true);
     toast({
         title: 'Creating Asset...',
-        description: 'Please wait while we save your data.',
+        description: 'Please wait while we create the asset.',
     });
 
-    const formData = new FormData();
-    formData.append('csvFile', file);
-    formData.append('csvContent', fileContent);
-
-    const result = await createAsset(data, formData);
+    const result = await createAsset(data);
 
     if (result?.message && result.message.startsWith('Error:')) {
         toast({
@@ -492,9 +421,6 @@ export default function AssetManagementPage() {
           description: `${data.name} has been successfully created.`,
       });
       form.reset();
-      setFile(null);
-      setFileContent(null);
-      setCsvHeaders([]);
       router.push('/');
     }
     
@@ -526,7 +452,7 @@ export default function AssetManagementPage() {
                           <div>
                             <CardTitle className="font-headline text-left">Add New Asset</CardTitle>
                             <CardDescription className="text-left mt-1">
-                              Fill in the details below to create a new stormwater management asset and its initial deployment.
+                              Fill in the details below to create a new stormwater management asset.
                             </CardDescription>
                           </div>
                           <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
@@ -638,133 +564,7 @@ export default function AssetManagementPage() {
                                 </div>
                               </div>
                             </div>
-                            
-                            <Separator />
-                            
-                            <div>
-                              <FormLabel>Sensor Deployment and Datafile</FormLabel>
-                              <FormDescription className="mb-4">
-                                Provide the sensor details and upload a CSV file containing time series data.
-                              </FormDescription>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="flex items-center justify-center w-full">
-                                  <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted">
-                                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                      <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
-                                      <p className="mb-2 text-sm text-muted-foreground">
-                                        {file ? (
-                                          <span className="font-semibold">{file.name}</span>
-                                        ) : (
-                                          <>
-                                            <span className="font-semibold">Click to upload</span> or drag and drop
-                                          </>
-                                        )}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">CSV (MAX. 5MB)</p>
-                                    </div>
-                                    <Input id="dropzone-file" type="file" className="hidden" onChange={handleFileChange} accept=".csv" />
-                                  </label>
-                                </div>
-                                
-                                  <div className="space-y-4">
-                                     <FormField
-                                        control={form.control}
-                                        name="sensorId"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormLabel>Sensor ID</FormLabel>
-                                            <FormControl>
-                                              <Input placeholder="e.g., SN-12345" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                      <FormField
-                                        control={form.control}
-                                        name="sensorElevation"
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormLabel>Sensor Elevation (meters)</FormLabel>
-                                            <FormControl>
-                                              <Input type="number" step="0.01" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    {csvHeaders.length > 0 && (
-                                    <>
-                                        <div className="flex items-center gap-2 text-sm font-medium pt-4">
-                                            <TableIcon className="h-5 w-5" />
-                                            <span>Column Mapping & Settings</span>
-                                        </div>
-                                        <FormField
-                                          control={form.control}
-                                          name="datetimeColumn"
-                                          render={({ field }) => (
-                                            <FormItem>
-                                              <FormLabel>Datetime Column</FormLabel>
-                                              <Select onValueChange={field.onChange} value={field.value}>
-                                                <FormControl>
-                                                  <SelectTrigger>
-                                                    <SelectValue placeholder="Select a column" />
-                                                  </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                  {csvHeaders.map(header => (
-                                                    <SelectItem key={header} value={header}>{header}</SelectItem>
-                                                  ))}
-                                                </SelectContent>
-                                              </Select>
-                                              <FormMessage />
-                                            </FormItem>
-                                          )}
-                                        />
-                                        <FormField
-                                          control={form.control}
-                                          name="waterLevelColumn"
-                                          render={({ field }) => (
-                                            <FormItem>
-                                              <FormLabel>Water Level Column</FormLabel>
-                                              <Select onValueChange={field.onChange} value={field.value}>
-                                                <FormControl>
-                                                  <SelectTrigger>
-                                                    <SelectValue placeholder="Select a column" />
-                                                  </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                  {csvHeaders.map(header => (
-                                                    <SelectItem key={header} value={header}>{header}</SelectItem>
-                                                  ))}
-                                                </SelectContent>
-                                              </Select>
-                                              <FormMessage />
-                                            </FormItem>
-                                          )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="startRow"
-                                            render={({ field }) => (
-                                              <FormItem>
-                                                <FormLabel>Data Start Row</FormLabel>
-                                                <FormControl>
-                                                  <Input type="number" min="1" {...field} />
-                                                </FormControl>
-                                                <FormDescription>The first row containing data (not headers).</FormDescription>
-                                                <FormMessage />
-                                              </FormItem>
-                                            )}
-                                          />
-                                    </>
-                                    )}
-                                  </div>
-                                
-                              </div>
-                            </div>
-
-                            <Button type="submit" disabled={!file || isSubmitting}>
+                            <Button type="submit" disabled={isSubmitting}>
                                {isSubmitting ? "Creating..." : "Create Asset"}
                             </Button>
                           </form>

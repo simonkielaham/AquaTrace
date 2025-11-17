@@ -7,7 +7,7 @@ import {
   Deployment,
   DataPoint,
 } from '@/lib/placeholder-data';
-import { createAsset as createAssetAction, updateAsset as updateAssetAction, updateDeployment as updateDeploymentAction, addDatafile as addDatafileAction, deleteAsset as deleteAssetAction } from '@/app/actions';
+import { createAsset as createAssetAction, updateAsset as updateAssetAction, updateDeployment as updateDeploymentAction, addDatafile as addDatafileAction, deleteAsset as deleteAssetAction, createDeployment as createDeploymentAction } from '@/app/actions';
 
 // We will fetch initial data from server actions or a dedicated API route in a real app
 // For now, we start with empty arrays and let the effect load the data.
@@ -22,11 +22,12 @@ interface AssetContextType {
   setSelectedAssetId: (id: string) => void;
   deployments: Deployment[];
   performanceData: { [assetId: string]: DataPoint[] };
-  createAsset: (data: any, formData: FormData) => Promise<any>;
+  createAsset: (data: any) => Promise<any>;
   updateAsset: (assetId: string, data: any) => Promise<any>;
   updateDeployment: (deploymentId: string, data: any) => Promise<any>;
   addDatafile: (deploymentId: string, data: any, formData: FormData) => Promise<any>;
   deleteAsset: (assetId: string) => Promise<any>;
+  createDeployment: (assetId: string, data: any) => Promise<any>;
   loading: boolean;
 }
 
@@ -34,17 +35,24 @@ const AssetContext = createContext<AssetContextType | undefined>(undefined);
 
 // Helper to get detailed error messages
 const getErrorMessage = async (error: any) => {
-  if (error instanceof Error) {
-    // This is a client-side error or a structured error from the server
+  // Check if it's an error with a 'message' property
+  if (error && typeof error.message === 'string') {
     return error.message;
   }
-  // This likely means the server action crashed and returned an HTML error page
-  // instead of JSON. We'll try to read the response as text.
-  if (error && typeof error.text === 'function') {
+  // Check if it's a Response object (from a failed fetch in a server action)
+  if (error instanceof Response) {
     const text = await error.text();
-    return `An unexpected response was received from the server:\n\n${text}`;
+    // This text is likely the HTML of the Next.js error overlay
+    return `An unexpected response was received from the server. This usually means the server action crashed. Response: ${text}`;
   }
   // Fallback for other unexpected error types
+  if (typeof error === 'object' && error !== null) {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      // Ignore if not stringifiable
+    }
+  }
   return "An unknown error occurred.";
 };
 
@@ -69,29 +77,31 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   }, []);
 
-  const createAsset = useCallback(async (data: any, formData: FormData) => {
+  const createAsset = useCallback(async (data: any) => {
     try {
-      const result = await createAssetAction(data, formData);
+      const result = await createAssetAction(data);
       
-      if (result && !result.errors) {
-        if (result.newAsset && result.newDeployment && result.newPerformanceData) {
-          const newAsset = result.newAsset;
-          const newDeployment = result.newDeployment;
-          
-          setAssets(prev => [...prev, newAsset]);
-          setDeployments(prev => [...prev, newDeployment]);
-          setPerformanceData(prev => ({
-            ...prev,
-            ...result.newPerformanceData
-          }));
-
-          setSelectedAssetId(newAsset.id);
-        }
+      if (result && !result.errors && result.newAsset) {
+        setAssets(prev => [...prev, result.newAsset]);
+        setSelectedAssetId(result.newAsset.id);
       }
       return result;
     } catch (error) {
       const message = await getErrorMessage(error);
       return { message: `Error: ${message}` };
+    }
+  }, []);
+  
+  const createDeployment = useCallback(async (assetId: string, data: any) => {
+    try {
+      const result = await createDeploymentAction(assetId, data);
+      if (result && !result.errors && result.newDeployment) {
+        setDeployments(prev => [...prev, result.newDeployment]);
+      }
+      return result;
+    } catch (error) {
+       const message = await getErrorMessage(error);
+       return { message: `Error: ${message}` };
     }
   }, []);
 
@@ -183,6 +193,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     updateDeployment,
     addDatafile,
     deleteAsset,
+    createDeployment,
     loading,
   };
 

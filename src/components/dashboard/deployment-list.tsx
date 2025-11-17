@@ -67,6 +67,14 @@ const editDeploymentSchema = z.object({
 
 type EditDeploymentValues = z.infer<typeof editDeploymentSchema>;
 
+const deploymentFormSchema = z.object({
+  sensorId: z.string().min(1, "Sensor ID is required."),
+  sensorElevation: z.coerce.number(),
+  name: z.string().optional(),
+});
+type DeploymentFormValues = z.infer<typeof deploymentFormSchema>;
+
+
 const addDatafileSchema = z.object({
   datetimeColumn: z.string().min(1, "Datetime column is required."),
   waterLevelColumn: z.string().min(1, "Water level column is required."),
@@ -84,6 +92,92 @@ const detectColumns = (headers: string[]) => {
   
   return { datetimeColumn, waterLevelColumn };
 };
+
+function NewDeploymentDialog({ asset }: { asset: Asset }) {
+  const { toast } = useToast();
+  const { createDeployment } = useAssets();
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const form = useForm<DeploymentFormValues>({
+    resolver: zodResolver(deploymentFormSchema),
+  });
+
+  const handleSubmit = async (data: DeploymentFormValues) => {
+    setIsSubmitting(true);
+    const result = await createDeployment(asset.id, data);
+    if (result?.message && result.message.startsWith('Error:')) {
+      toast({ variant: "destructive", title: "Error", description: result.message });
+    } else {
+      toast({ title: "Success", description: "New deployment created." });
+      setIsOpen(false);
+      form.reset();
+    }
+    setIsSubmitting(false);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <PlusCircle className="mr-2 h-4 w-4" />
+          New Deployment
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create New Deployment</DialogTitle>
+          <DialogDescription>
+            Add a new sensor deployment for {asset.name}.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Deployment Name (Optional)</FormLabel>
+                  <FormControl><Input placeholder="e.g., Initial Deployment" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="sensorId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sensor ID</FormLabel>
+                  <FormControl><Input placeholder="e.g., SN-12345" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="sensorElevation"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sensor Elevation (m)</FormLabel>
+                  <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : "Create Deployment"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 
 function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asset: Asset }) {
@@ -356,14 +450,6 @@ function getDeploymentDateRange(files: DataFile[]): string {
 
 
 export default function DeploymentList({ deployments, asset }: { deployments: Deployment[], asset: Asset }) {
-  const { toast } = useToast();
-  
-  const handleNotImplemented = () => {
-    toast({
-      title: "Feature not implemented",
-      description: "This functionality is not yet available.",
-    });
-  };
   
   const formattedDeployments = React.useMemo(() => {
     return deployments.map(d => {
@@ -394,10 +480,7 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
               Manage sensor deployments and associated datafiles for this asset.
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={handleNotImplemented}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            New Deployment
-          </Button>
+          <NewDeploymentDialog asset={asset} />
         </div>
       </CardHeader>
       <CardContent className="flex-grow">
@@ -454,6 +537,11 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
                 </AccordionContent>
               </AccordionItem>
             ))}
+             {formattedDeployments.length === 0 && (
+                <div className="text-center text-muted-foreground pt-8">
+                    No deployments for this asset yet.
+                </div>
+            )}
           </Accordion>
         </ScrollArea>
       </CardContent>

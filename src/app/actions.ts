@@ -25,11 +25,6 @@ const assetFormSchema = z.object({
     year: z.coerce.number(),
     elevation: z.coerce.number()
   })),
-  sensorId: z.string().min(1),
-  datetimeColumn: z.string().min(1),
-  waterLevelColumn: z.string().min(1),
-  sensorElevation: z.coerce.number().min(0),
-  startRow: z.coerce.number().min(1),
 });
 
 const editAssetFormSchema = z.object({
@@ -41,6 +36,13 @@ const editAssetFormSchema = z.object({
     elevation: z.coerce.number()
   })),
 });
+
+const deploymentFormSchema = z.object({
+  sensorId: z.string().min(1),
+  sensorElevation: z.coerce.number(),
+  name: z.string().optional(),
+});
+
 
 const editDeploymentSchema = z.object({
   name: z.string().optional(),
@@ -80,6 +82,42 @@ async function writeJsonFile<T>(filePath: string, data: T): Promise<void> {
     throw new Error(`Could not write data file: ${path.basename(filePath)}`);
   }
 }
+
+export async function createDeployment(assetId: string, data: any) {
+  const validatedFields = deploymentFormSchema.safeParse(data);
+  if (!validatedFields.success) {
+    return { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+  }
+  const validatedData = validatedFields.data;
+
+  try {
+    let deployments: Deployment[] = await readJsonFile(deploymentsFilePath);
+
+    const newDeployment: Deployment = {
+      id: `dep-${Date.now()}`,
+      assetId: assetId,
+      sensorId: validatedData.sensorId,
+      sensorElevation: validatedData.sensorElevation,
+      name: validatedData.name || `Deployment ${new Date().toLocaleDateString()}`,
+      files: [],
+    };
+
+    deployments.push(newDeployment);
+
+    await writeJsonFile(deploymentsFilePath, deployments);
+    
+    revalidatePath('/');
+    
+    return {
+      message: 'Deployment created successfully',
+      newDeployment,
+    };
+  } catch (error) {
+    console.error('Failed to create deployment:', error);
+    return { message: `An error occurred: ${(error as Error).message}` };
+  }
+}
+
 
 export async function deleteAsset(assetId: string) {
   try {
@@ -207,7 +245,8 @@ export async function addDatafile(deploymentId: string, data: any, formData: For
 
   } catch (error) {
     console.error('Failed to add datafile:', error);
-    return { message: `An error occurred: ${(error as Error).message}` };
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    return { message: `Error: ${message}` };
   }
 }
 
@@ -239,7 +278,8 @@ export async function updateDeployment(deploymentId: string, data: any) {
     };
   } catch (error) {
     console.error('Failed to update deployment:', error);
-    return { message: `An error occurred: ${(error as Error).message}` };
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    return { message: `Error: ${message}` };
   }
 }
 
@@ -285,13 +325,14 @@ export async function updateAsset(assetId: string, data: any) {
 
   } catch (error) {
     console.error('Failed to update asset:', error);
-    return { message: `An error occurred: ${(error as Error).message}` };
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    return { message: `Error: ${message}` };
   }
 }
 
 
 // The main server action
-export async function createAsset(data: any, formData: FormData) {
+export async function createAsset(data: any) {
   const validatedFields = assetFormSchema.safeParse(data);
   
   if (!validatedFields.success) {
@@ -303,62 +344,12 @@ export async function createAsset(data: any, formData: FormData) {
   }
   
   const validatedData = validatedFields.data;
-  const file = formData.get('csvFile') as File | null;
-  const fileContent = formData.get('csvContent') as string | null;
-
-  if (!file || !fileContent) {
-    return { message: 'CSV file is required.' };
-  }
 
   try {
-    // 1. Save the uploaded CSV file
-    await fs.mkdir(uploadsDir, { recursive: true });
-    const uniqueFileName = `${Date.now()}-${file.name}`;
-    const filePath = path.join(uploadsDir, uniqueFileName);
-    const csvBuffer = Buffer.from(fileContent);
-    await fs.writeFile(filePath, csvBuffer);
-
-    // 2. Read existing data
+    // 1. Read existing data
     const assets: Asset[] = await readJsonFile<Asset[]>(assetsFilePath);
-    let deployments: Deployment[] = await readJsonFile<Deployment[]>(deploymentsFilePath);
-    const performanceData: { [key: string]: DataPoint[] } = await readJsonFile(performanceDataFilePath);
 
-    // 3. Process CSV and create performance data
-    const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
-    const allRows = (parsedCsv.data as any[]);
-    const dataRows = allRows.slice(validatedData.startRow - 1);
-    
-    let minDate: Date | null = null;
-    let maxDate: Date | null = null;
-
-    const processedData = dataRows
-      .map(row => {
-        const timeValue = row[validatedData.datetimeColumn];
-        const waterLevelValue = parseFloat(row[validatedData.waterLevelColumn]);
-        
-        if (timeValue === undefined || isNaN(waterLevelValue)) {
-            return null;
-        }
-        
-        const date = new Date(timeValue);
-        if (isNaN(date.getTime())) {
-            return null;
-        }
-
-        if (!minDate || date < minDate) minDate = date;
-        if (!maxDate || date > maxDate) maxDate = date;
-        
-        const waterElevation = waterLevelValue + validatedData.sensorElevation;
-
-        return {
-          time: date.toISOString(),
-          waterLevel: waterLevelValue,
-          waterElevation: waterElevation,
-          precipitation: 0,
-        };
-      }).filter((dp): dp is DataPoint => dp !== null);
-      
-    // 4. Create or update asset, deployment, and file records
+    // 2. Create new asset record
     const newAssetId = `asset-${Date.now()}`;
     const newAsset: Asset = {
       id: newAssetId,
@@ -369,34 +360,10 @@ export async function createAsset(data: any, formData: FormData) {
       status: 'ok', // Default status
       imageId: ['pond', 'basin', 'creek'][Math.floor(Math.random() * 3)],
     };
-
-    const newDeploymentId = `dep-${Date.now()}`;
-    const newDataFileId = `file-${Date.now()}`;
-
-    const newDataFile: DataFile = {
-      id: newDataFileId,
-      deploymentId: newDeploymentId,
-      fileName: file.name,
-      startDate: minDate?.toISOString() || new Date().toISOString(),
-      endDate: maxDate?.toISOString() || new Date().toISOString(),
-    };
     
-    const newDeployment: Deployment = {
-      id: newDeploymentId,
-      assetId: newAssetId,
-      sensorId: validatedData.sensorId,
-      sensorElevation: validatedData.sensorElevation,
-      files: [newDataFile],
-    };
-
-    // 5. Append new data and write back to files
+    // 3. Append new data and write back to file
     assets.push(newAsset);
-    deployments.push(newDeployment);
-    performanceData[newAssetId] = processedData;
-
     await writeJsonFile(assetsFilePath, assets);
-    await writeJsonFile(deploymentsFilePath, deployments);
-    await writeJsonFile(performanceDataFilePath, performanceData);
 
     // Revalidate paths to trigger data refetch on the client
     revalidatePath('/');
@@ -406,8 +373,6 @@ export async function createAsset(data: any, formData: FormData) {
     return {
         message: 'Asset created successfully',
         newAsset,
-        newDeployment,
-        newPerformanceData: { [newAssetId]: processedData }
     };
 
   } catch (error) {
