@@ -101,6 +101,11 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
 
   const form = useForm<DeploymentFormValues>({
     resolver: zodResolver(deploymentFormSchema),
+    defaultValues: {
+      sensorId: "",
+      sensorElevation: 0,
+      name: "",
+    }
   });
 
   const handleSubmit = async (data: DeploymentFormValues) => {

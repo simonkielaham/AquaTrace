@@ -342,7 +342,7 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
 
 
 function AssetListTable() {
-  const { assets, deleteAsset } = useAssets();
+  const { assets } = useAssets();
   const [_, startTransition] = React.useTransition();
   const router = useRouter();
 
@@ -432,6 +432,9 @@ export default function AssetManagementPage() {
       });
       form.reset();
       setIsAccordionOpen(false);
+      if (result.newAsset) {
+        setSelectedAssetId(result.newAsset.id);
+      }
       router.push('/');
     }
     

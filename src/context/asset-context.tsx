@@ -74,10 +74,20 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     setPerformanceData(initialPerformanceData);
     
     if (initialAssets.length > 0) {
-      setSelectedAssetId(initialAssets[0].id);
+      const storedAssetId = localStorage.getItem('selectedAssetId');
+      if (storedAssetId && initialAssets.some(a => a.id === storedAssetId)) {
+        setSelectedAssetId(storedAssetId);
+      } else {
+        setSelectedAssetId(initialAssets[0].id);
+      }
     }
     setLoading(false);
   }, []);
+
+  const handleSetSelectedAssetId = (id: string) => {
+    localStorage.setItem('selectedAssetId', id);
+    setSelectedAssetId(id);
+  }
 
   const createAsset = useCallback(async (data: any) => {
     try {
@@ -85,7 +95,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       
       if (result && !result.errors && result.newAsset) {
         setAssets(prev => [...prev, result.newAsset]);
-        setSelectedAssetId(result.newAsset.id);
+        // Don't auto-select, let the user navigate
       }
       return result;
     } catch (error) {
@@ -159,6 +169,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     // The UI button will still exist but the action it calls will do nothing.
     // In a real-world app, we'd want a more robust, possibly soft-delete, mechanism.
     console.warn("deleteAsset is currently disabled.");
+    // This action would need to remove the asset, its deployments, and its performance data.
+    // For now, we return a message. A real implementation would modify the JSON files.
     return { message: "Asset deletion is temporarily disabled for safety."}
   }, []);
 
@@ -166,7 +178,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const value = {
     assets,
     selectedAssetId,
-    setSelectedAssetId,
+    setSelectedAssetId: handleSetSelectedAssetId,
     deployments,
     performanceData,
     createAsset,
