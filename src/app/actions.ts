@@ -215,12 +215,13 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
     }
     const deployment = deployments[deploymentIndex];
 
+    const sliceIndex = Math.max(0, validatedData.startRow - 2);
+
     const parsedCsv = Papa.parse(fileContent, {
       header: true,
       skipEmptyLines: true,
     });
-
-    const sliceIndex = Math.max(0, validatedData.startRow - 2);
+    
     const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
     
     let minDate: Date | null = null;
@@ -276,8 +277,7 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
     return response;
 
   } catch (error) {
-    const message = error instanceof Error ? error.message : "An unknown error occurred.";
-    await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response: { message } });
+    await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response: { message: (error as Error).message } });
     console.error('Failed to add datafile:', error);
     // Re-throw the error to let the client know something went wrong server-side.
     throw error;
@@ -442,3 +442,6 @@ export async function createAsset(data: any) {
 
     
 
+
+
+    
