@@ -79,9 +79,9 @@ const deploymentFormSchema = z.object({
 type DeploymentFormValues = z.infer<typeof deploymentFormSchema>;
 
 const assignDatafileSchema = z.object({
-  filename: z.string().min(1, "Please select a file to assign."),
-  datetimeColumn: z.string().min(1, "Please select the date/time column."),
-  waterLevelColumn: z.string().min(1, "Please select the water level column."),
+  filename: z.string({ required_error: "Please select a file to assign."}).min(1, "Please select a file to assign."),
+  datetimeColumn: z.string({ required_error: "Please select the date/time column."}).min(1, "Please select the date/time column."),
+  waterLevelColumn: z.string({ required_error: "Please select the water level column."}).min(1, "Please select the water level column."),
   startRow: z.coerce.number().min(1, "Start row must be at least 1."),
 });
 type AssignDatafileValues = z.infer<typeof assignDatafileSchema>;
@@ -278,13 +278,13 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   
   const form = useForm<AssignDatafileValues>({
     resolver: zodResolver(assignDatafileSchema),
-    defaultValues: { startRow: 1, filename: undefined, datetimeColumn: undefined, waterLevelColumn: undefined },
+    defaultValues: { startRow: 2, filename: undefined, datetimeColumn: undefined, waterLevelColumn: undefined },
   });
   
   const selectedFilename = form.watch("filename");
 
   const resetDialogState = React.useCallback(() => {
-    form.reset({ startRow: 1, filename: undefined, datetimeColumn: undefined, waterLevelColumn: undefined });
+    form.reset({ startRow: 2, filename: undefined, datetimeColumn: undefined, waterLevelColumn: undefined });
     setCsvHeaders([]);
     setIsSubmitting(false);
     setIsParsing(false);
@@ -312,12 +312,15 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   };
   
   const handleFileSelect = async (filename: string) => {
+    if (!filename) {
+      resetDialogState();
+      return
+    };
+
     form.setValue("filename", filename);
     form.setValue("datetimeColumn", undefined);
     form.setValue("waterLevelColumn", undefined);
     setCsvHeaders([]);
-    
-    if (!filename) return;
 
     setIsParsing(true);
     toast({ title: "Parsing File...", description: "Reading headers from the selected CSV file."});
@@ -332,11 +335,16 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
 
     Papa.parse(fileContent, {
         preview: 1, // only need the first row for headers
+        skipEmptyLines: true,
         complete: (results) => {
-            const headers = results.data[0] as string[];
-            setCsvHeaders(headers);
+            const headers = (results.data[0] as string[] || []).filter(h => h);
+            if (headers.length > 0) {
+              setCsvHeaders(headers);
+              toast({ title: "Headers Parsed", description: "Please map the required columns." });
+            } else {
+               toast({ variant: "destructive", title: "Parsing Error", description: "Could not parse CSV headers. Check file format." });
+            }
             setIsParsing(false);
-            toast({ title: "Headers Parsed", description: "Please map the required columns." });
         },
         error: (error) => {
             console.error("PapaParse error:", error);
@@ -447,7 +455,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
 
             <DialogFooter>
               <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
-              <Button type="submit" disabled={isSubmitting || isParsing || !selectedFilename}>
+              <Button type="submit" disabled={isSubmitting || isParsing || !form.formState.isValid}>
                 {isSubmitting ? "Processing..." : "Assign and Process"}
               </Button>
             </DialogFooter>
@@ -564,6 +572,7 @@ function DataFileManager({ children }: { children: React.ReactNode }) {
                 onChange={handleFileUpload}
                 className="sr-only"
                 disabled={isUploading}
+                accept=".csv"
               />
             </Label>
              {isUploading && <Loader2 className="h-5 w-5 animate-spin" />}
@@ -708,5 +717,3 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
-
-    
