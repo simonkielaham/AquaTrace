@@ -135,6 +135,8 @@ export default function PerformanceChart({
               axisLine={false}
               tickMargin={8}
               domain={yAxisDomain}
+              allowDataOverflow={true}
+              type="number"
             />
             <ChartTooltip
               cursor={false}
