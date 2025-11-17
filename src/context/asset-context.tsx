@@ -33,9 +33,9 @@ interface AssetContextType {
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
 
 export const AssetProvider = ({ children }: { children: ReactNode }) => {
-  const [assets, setAssets] = useState<Asset[]>(initialAssets);
-  const [deployments, setDeployments] = useState<Deployment[]>(initialDeployments);
-  const [performanceData, setPerformanceData] = useState<{ [assetId: string]: DataPoint[] }>(initialPerformanceData);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const [performanceData, setPerformanceData] = useState<{ [assetId: string]: DataPoint[] }>({});
   const [selectedAssetId, setSelectedAssetId] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
@@ -110,7 +110,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const deleteAsset = useCallback(async (assetId: string) => {
     const result = await deleteAssetAction(assetId);
     if (result && !result.errors) {
-      setAssets(prev => prev.filter(a => a.id !== assetId));
+      const remainingAssets = assets.filter(a => a.id !== assetId);
+      setAssets(remainingAssets);
       setDeployments(prev => prev.filter(d => d.assetId !== assetId));
       setPerformanceData(prev => {
         const newState = { ...prev };
@@ -120,7 +121,6 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
 
       // If the deleted asset was the selected one, select the first available asset
       if (selectedAssetId === assetId) {
-          const remainingAssets = assets.filter(a => a.id !== assetId);
           if (remainingAssets.length > 0) {
               setSelectedAssetId(remainingAssets[0].id);
           } else {
