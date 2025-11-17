@@ -44,7 +44,7 @@ export default function DeploymentList({ deployments }: DeploymentListProps) {
     setFormattedDeployments(
       deployments.map(d => ({
         ...d,
-        files: d.files.map(f => ({
+        files: (d.files || []).map(f => ({
           ...f,
           startDate: new Date(f.startDate).toLocaleDateString(),
           endDate: f.endDate ? new Date(f.endDate).toLocaleDateString() : "Present",
