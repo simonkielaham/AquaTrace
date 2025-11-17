@@ -164,6 +164,21 @@ export default function PerformanceChart({
                     return 'Invalid Date';
                   }}
                   indicator="dot"
+                  formatter={(value, name) => {
+                    if (name === 'Water Elevation' && typeof value === 'number') {
+                       const diff = (value - asset.permanentPoolElevation) * 100; // difference in cm
+                       const diffText = diff >= 0 ? `+${diff.toFixed(0)}` : diff.toFixed(0);
+                       return (
+                        <div className="flex flex-col items-end">
+                            <span>{`${value.toFixed(2)}m`}</span>
+                            <span className="text-xs text-muted-foreground">
+                                ({diffText}cm from PPE)
+                            </span>
+                        </div>
+                       )
+                    }
+                    return value;
+                  }}
                 />
               }
             />
