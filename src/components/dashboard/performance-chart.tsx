@@ -73,9 +73,9 @@ const CustomTooltipContent = (props: any) => {
     );
     const currentWaterElevation = waterElevationPoint?.value;
 
-    let depthAbovePoolMm: number | null = null;
+    let depthAbovePoolCm: number | null = null;
     if (currentWaterElevation !== undefined && asset?.permanentPoolElevation !== undefined) {
-      depthAbovePoolMm = (currentWaterElevation - asset.permanentPoolElevation) * 1000;
+      depthAbovePoolCm = (currentWaterElevation - asset.permanentPoolElevation) * 100;
     }
     
     return (
@@ -113,7 +113,7 @@ const CustomTooltipContent = (props: any) => {
                 </div>
               </div>
           ))}
-          {depthAbovePoolMm !== null && (
+          {depthAbovePoolCm !== null && (
             <div
                 className={cn(
                   "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground"
@@ -126,10 +126,10 @@ const CustomTooltipContent = (props: any) => {
                   className="flex flex-1 justify-between leading-none"
                 >
                   <span className="text-muted-foreground">
-                    Depth Above Pool (mm)
+                    Depth Above Pool (cm)
                   </span>
                   <span className="font-mono font-medium tabular-nums text-foreground">
-                    {depthAbovePoolMm.toFixed(0)}
+                    {depthAbovePoolCm.toFixed(1)}
                   </span>
                 </div>
               </div>
