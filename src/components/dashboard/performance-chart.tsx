@@ -23,6 +23,7 @@ import * as React from "react";
 
 type PerformanceChartProps = {
   asset: Asset;
+  dataVersion: number;
 };
 
 const chartConfig = {
@@ -38,6 +39,7 @@ const chartConfig = {
 
 export default function PerformanceChart({
   asset,
+  dataVersion,
 }: PerformanceChartProps) {
   const { getProcessedData, loading: contextLoading } = useAssets();
   const [chartData, setChartData] = React.useState<DataPoint[]>([]);
@@ -56,7 +58,7 @@ export default function PerformanceChart({
     };
     fetchData();
     return () => { isMounted = false };
-  }, [asset.id, getProcessedData]);
+  }, [asset.id, getProcessedData, dataVersion]);
 
   if (loading || contextLoading) {
     return (

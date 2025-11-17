@@ -45,6 +45,7 @@ interface AssetContextType {
   uploadStagedFile: (formData: FormData) => Promise<any>;
   deleteStagedFile: (filename: string) => Promise<any>;
   getStagedFileContent: (filename: string) => Promise<string | null>;
+  dataVersion: number;
 }
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
@@ -89,6 +90,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
   const [loadingStagedFiles, setLoadingStagedFiles] = useState(true);
+  const [dataVersion, setDataVersion] = useState(0);
 
   const fetchStagedFiles = useCallback(async () => {
     setLoadingStagedFiles(true);
@@ -223,6 +225,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
           return d;
         }));
         await fetchStagedFiles(); // Refresh staged files list
+        setDataVersion(v => v + 1); // Increment version to trigger re-fetch
       }
       return result;
     } catch (error) {
@@ -294,7 +297,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     loadingStagedFiles,
     uploadStagedFile,
     deleteStagedFile,
-    getStagedFileContent
+    getStagedFileContent,
+    dataVersion,
   };
 
   return (

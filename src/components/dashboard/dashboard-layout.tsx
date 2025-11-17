@@ -16,7 +16,7 @@ import PerformanceChart from "@/components/dashboard/performance-chart";
 
 
 export default function DashboardLayout() {
-  const { assets, selectedAssetId, setSelectedAssetId, deployments, loading } = useAssets();
+  const { assets, selectedAssetId, setSelectedAssetId, deployments, loading, dataVersion } = useAssets();
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   
@@ -83,7 +83,7 @@ export default function DashboardLayout() {
               <AssetOverview asset={selectedAsset} />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <AnalysisResults results={assetAnalysisResults} />
-              <PerformanceChart asset={selectedAsset}/>
+              <PerformanceChart asset={selectedAsset} dataVersion={dataVersion}/>
             </div>
           </main>
         </div>
