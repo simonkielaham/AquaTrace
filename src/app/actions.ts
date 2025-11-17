@@ -201,7 +201,7 @@ export async function addDatafile(deploymentId: string, data: any, formData: For
     return {
       message: 'Datafile added successfully',
       updatedDeployment: deployment,
-      newDataPoints: processedData,
+      updatedPerformanceData: { [deployment.assetId]: combinedData }
     };
 
   } catch (error) {

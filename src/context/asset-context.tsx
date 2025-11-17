@@ -94,15 +94,13 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
 
   const addDatafile = useCallback(async (deploymentId: string, data: any, formData: FormData) => {
     const result = await addDatafileAction(deploymentId, data, formData);
-    if (result && !result.errors && result.updatedDeployment && result.newDataPoints) {
-      const { updatedDeployment, newDataPoints } = result;
+    if (result && !result.errors && result.updatedDeployment && result.updatedPerformanceData) {
+      const { updatedDeployment, updatedPerformanceData } = result;
       setDeployments(prev => prev.map(d => d.id === deploymentId ? updatedDeployment : d));
-      setPerformanceData(prev => {
-        const assetId = updatedDeployment.assetId;
-        const existingData = prev[assetId] || [];
-        const newData = [...existingData, ...newDataPoints].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-        return { ...prev, [assetId]: newData };
-      });
+      setPerformanceData(prev => ({
+        ...prev,
+        ...updatedPerformanceData
+      }));
     }
     return result;
   }, []);
