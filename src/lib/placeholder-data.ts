@@ -42,6 +42,18 @@ export type AnalysisResult = {
   timestamp: string;
 };
 
+export type ActivityLog = {
+  id: string;
+  timestamp: string;
+  action: string;
+  status: 'success' | 'failure';
+  assetId?: string;
+  deploymentId?: string;
+  payload: any;
+  response: any;
+};
+
+
 // This file now only contains type definitions.
 // The actual data is loaded and managed in AssetProvider.
 export const analysisResults: AnalysisResult[] = [];

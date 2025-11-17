@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, PlusCircle, UploadCloud, Save, ChevronDown, CalendarIcon } from "lucide-react";
+import { FileText, PlusCircle, UploadCloud, Save, ChevronDown, CalendarIcon, Download } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
@@ -248,7 +248,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
     formData.append('csvFile', file);
     formData.append('csvContent', fileContent);
     
-    const result = await addDatafile(deployment.id, data, formData);
+    const result = await addDatafile(deployment.id, asset.id, data, formData);
 
     if (result?.message && result.message.startsWith('Error:')) {
       toast({ 
@@ -361,7 +361,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
 }
 
 
-function EditDeploymentForm({ deployment }: { deployment: Deployment }) {
+function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, asset: Asset }) {
   const { toast } = useToast();
   const { updateDeployment } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -377,7 +377,7 @@ function EditDeploymentForm({ deployment }: { deployment: Deployment }) {
 
   const onSubmit = async (data: EditDeploymentValues) => {
     setIsSubmitting(true);
-    const result = await updateDeployment(deployment.id, data);
+    const result = await updateDeployment(deployment.id, asset.id, data);
     
     if (result?.message && result.message.startsWith('Error:')) {
       toast({ 
@@ -469,7 +469,32 @@ function getDeploymentDateRange(files: DataFile[]): string {
 
 
 export default function DeploymentList({ deployments, asset }: { deployments: Deployment[], asset: Asset }) {
+  const { toast } = useToast();
+  const { downloadLogs } = useAssets();
   
+  const handleDownloadLogs = async () => {
+    toast({ title: "Generating log file..." });
+    const result = await downloadLogs(asset.id);
+
+    if (result.message) {
+      toast({ variant: "destructive", title: "Error", description: result.message });
+      return;
+    }
+    
+    if(result.logs) {
+      const blob = new Blob([result.logs], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${asset.name.replace(/\s+/g, '_')}_activity_log_${new Date().toISOString()}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({ title: "Success", description: "Log file downloaded." });
+    }
+  };
+
   const formattedDeployments = React.useMemo(() => {
     return deployments.map(d => {
       const filesWithLocalDates = (d.files || []).map(f => ({
@@ -499,7 +524,13 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
               Manage sensor deployments and associated datafiles for this asset.
             </CardDescription>
           </div>
-          <NewDeploymentDialog asset={asset} />
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
+              <Download className="mr-2 h-4 w-4" />
+              Download Log
+            </Button>
+            <NewDeploymentDialog asset={asset} />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="flex-grow">
@@ -516,7 +547,7 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="space-y-6 pl-2">
-                    <EditDeploymentForm deployment={deployment} />
+                    <EditDeploymentForm deployment={deployment} asset={asset} />
                     <Separator />
                     <div className="space-y-2">
                        <div className="flex justify-between items-center">

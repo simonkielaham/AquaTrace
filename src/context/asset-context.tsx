@@ -7,7 +7,7 @@ import {
   Deployment,
   DataPoint,
 } from '@/lib/placeholder-data';
-import { createAsset as createAssetAction, updateAsset as updateAssetAction, updateDeployment as updateDeploymentAction, addDatafile as addDatafileAction, createDeployment as createDeploymentAction } from '@/app/actions';
+import { createAsset as createAssetAction, updateAsset as updateAssetAction, updateDeployment as updateDeploymentAction, addDatafile as addDatafileAction, createDeployment as createDeploymentAction, downloadLogs as downloadLogsAction } from '@/app/actions';
 
 // We will fetch initial data from server actions or a dedicated API route in a real app
 // For now, we start with empty arrays and let the effect load the data.
@@ -24,10 +24,11 @@ interface AssetContextType {
   performanceData: { [assetId: string]: DataPoint[] };
   createAsset: (data: any) => Promise<any>;
   updateAsset: (assetId: string, data: any) => Promise<any>;
-  updateDeployment: (deploymentId: string, data: any) => Promise<any>;
-  addDatafile: (deploymentId: string, data: any, formData: FormData) => Promise<any>;
+  updateDeployment: (deploymentId: string, assetId: string, data: any) => Promise<any>;
+  addDatafile: (deploymentId: string, assetId: string, data: any, formData: FormData) => Promise<any>;
   deleteAsset: (assetId: string) => Promise<any>;
   createDeployment: (assetId: string, data: any) => Promise<any>;
+  downloadLogs: (assetId: string) => Promise<any>;
   loading: boolean;
 }
 
@@ -133,9 +134,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const updateDeployment = useCallback(async (deploymentId: string, data: any) => {
+  const updateDeployment = useCallback(async (deploymentId: string, assetId: string, data: any) => {
     try {
-      const result = await updateDeploymentAction(deploymentId, data);
+      const result = await updateDeploymentAction(deploymentId, assetId, data);
       if (result && !result.errors && result.updatedDeployment) {
         setDeployments(prev => prev.map(d => d.id === deploymentId ? result.updatedDeployment : d));
       }
@@ -146,9 +147,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const addDatafile = useCallback(async (deploymentId: string, data: any, formData: FormData) => {
+  const addDatafile = useCallback(async (deploymentId: string, assetId: string, data: any, formData: FormData) => {
     try {
-      const result = await addDatafileAction(deploymentId, data, formData);
+      const result = await addDatafileAction(deploymentId, assetId, data, formData);
       if (result && !result.errors && result.updatedDeployment && result.updatedPerformanceData) {
         const { updatedDeployment, updatedPerformanceData } = result;
         setDeployments(prev => prev.map(d => d.id === deploymentId ? updatedDeployment : d));
@@ -174,6 +175,15 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     return { message: "Asset deletion is temporarily disabled for safety."}
   }, []);
 
+  const downloadLogs = useCallback(async (assetId: string) => {
+    try {
+      return await downloadLogsAction(assetId);
+    } catch (error) {
+      const message = await getErrorMessage(error);
+      return { message: `Error: ${message}` };
+    }
+  }, []);
+
 
   const value = {
     assets,
@@ -187,6 +197,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     addDatafile,
     deleteAsset,
     createDeployment,
+    downloadLogs,
     loading,
   };
 
