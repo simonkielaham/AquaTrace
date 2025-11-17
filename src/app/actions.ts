@@ -125,7 +125,7 @@ export async function addDatafile(formData: FormData) {
     
     // The data starts at the user-specified row. Since papaparse with header:true already consumes the first row,
     // and array is 0-indexed, we subtract 2 from the 1-based startRow.
-    const sliceIndex = startRow - 2; 
+    const sliceIndex = startRow >= 2 ? startRow - 2 : 0; 
     const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
     
     const processedData = dataRows.map(row => {
@@ -168,7 +168,9 @@ export async function addDatafile(formData: FormData) {
     const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
     if (deploymentIndex === -1) throw new Error('Deployment not found');
 
-    // Robustly update the files array
+    // ** THIS IS THE FIX **
+    // Robustly update the files array by creating a new array
+    // This avoids mutation issues with the object read from JSON.
     const existingFiles = deployments[deploymentIndex].files || [];
     deployments[deploymentIndex].files = [...existingFiles, newDataFile];
     
@@ -524,3 +526,6 @@ export async function deleteAsset(assetId: string) {
 
     
 
+
+
+    
