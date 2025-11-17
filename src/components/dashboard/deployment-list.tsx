@@ -197,7 +197,9 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
   const form = useForm<AddDatafileValues>({
     resolver: zodResolver(addDatafileSchema),
     defaultValues: {
-      startRow: 2
+      startRow: 2,
+      datetimeColumn: "",
+      waterLevelColumn: ""
     },
   });
   
@@ -476,7 +478,7 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     toast({ title: "Generating log file..." });
     const result = await downloadLogs(asset.id);
 
-    if (result.message) {
+    if (result.message && !result.logs) {
       toast({ variant: "destructive", title: "Error", description: result.message });
       return;
     }
@@ -598,3 +600,5 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
+
+    

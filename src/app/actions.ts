@@ -110,7 +110,7 @@ export async function downloadLogs(assetId: string): Promise<{logs?: string, mes
     const assetLogs = logs.filter(log => log.assetId === assetId);
 
     if (assetLogs.length === 0) {
-      return { message: "No logs found for this asset." };
+      return { logs: "No logs found for this asset.", message: "No logs found for this asset." };
     }
 
     // Format logs for download
@@ -214,7 +214,7 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
     const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
     
     // The user provides a 1-based start row. Papa parse with `header:true` returns an array
-    // where the first data row is at index 0. Subtract 1 for header, 1 for 0-indexing.
+    // where the first data row is at index 0. Subtract 2 to correctly handle 1-based vs 0-based indexing and header.
     const sliceIndex = Math.max(0, validatedData.startRow - 2);
     const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
     
