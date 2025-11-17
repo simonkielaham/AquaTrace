@@ -29,6 +29,7 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from "recharts";
+import { cn } from "@/lib/utils";
 
 type PerformanceChartProps = {
   data: DataPoint[];
@@ -56,6 +57,91 @@ const elevationColors = [
   "hsl(var(--chart-4))",
   "hsl(var(--chart-5))",
 ];
+
+const CustomTooltipContent = (props: any) => {
+  const { active, payload, label, asset } = props;
+
+  if (active && payload && payload.length) {
+    // Exclude the permanent pool from the main list
+    const filteredPayload = payload.filter(
+      (p: any) => p.dataKey !== "permanentPoolElevation"
+    );
+
+    // Find the water elevation data point
+    const waterElevationPoint = payload.find(
+      (p: any) => p.dataKey === "waterElevation"
+    );
+    const currentWaterElevation = waterElevationPoint?.value;
+
+    let depthAbovePoolMm: number | null = null;
+    if (currentWaterElevation !== undefined && asset?.permanentPoolElevation !== undefined) {
+      depthAbovePoolMm = (currentWaterElevation - asset.permanentPoolElevation) * 1000;
+    }
+    
+    return (
+       <div className="grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl">
+        <div className="font-medium">
+          {new Date(label).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+        </div>
+        <div className="grid gap-1.5">
+          {filteredPayload.map((item: any, index: number) => (
+             <div
+                key={index}
+                className={cn(
+                  "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground"
+                )}
+              >
+                <div
+                  className="shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg] w-1"
+                  style={{
+                      "--color-bg": item.color,
+                      "--color-border": item.color,
+                    } as React.CSSProperties
+                  }
+                />
+                <div
+                  className="flex flex-1 justify-between leading-none"
+                >
+                  <span className="text-muted-foreground">
+                    {chartConfig[item.dataKey as keyof typeof chartConfig]?.label || item.name}
+                  </span>
+                  {item.value && (
+                    <span className="font-mono font-medium tabular-nums text-foreground">
+                      {item.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  )}
+                </div>
+              </div>
+          ))}
+          {depthAbovePoolMm !== null && (
+            <div
+                className={cn(
+                  "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground"
+                )}
+              >
+                <div
+                  className="shrink-0 rounded-[2px] border-transparent bg-transparent w-1"
+                />
+                <div
+                  className="flex flex-1 justify-between leading-none"
+                >
+                  <span className="text-muted-foreground">
+                    Depth Above Pool (mm)
+                  </span>
+                  <span className="font-mono font-medium tabular-nums text-foreground">
+                    {depthAbovePoolMm.toFixed(0)}
+                  </span>
+                </div>
+              </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
 
 export default function PerformanceChart({
   data,
@@ -121,9 +207,9 @@ export default function PerformanceChart({
                 }}
                 stroke="hsl(var(--chart-2))"
               />
-              <ChartTooltip
+              <Tooltip
                 cursor={false}
-                content={<ChartTooltipContent indicator="line" />}
+                content={<CustomTooltipContent asset={asset} />}
               />
               <ChartLegend content={<ChartLegendContent />} />
               <Bar
