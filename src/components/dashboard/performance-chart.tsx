@@ -137,6 +137,7 @@ export default function PerformanceChart({
                 dot={false}
               />
                <Line
+                yAxisId="left"
                 dataKey="permanentPoolElevation"
                 stroke="none"
                 activeDot={false}
