@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/chart";
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine } from "recharts";
 import { useAssets } from "@/context/asset-context";
+import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 import * as React from "react";
 
 type PerformanceChartProps = {
@@ -41,13 +42,12 @@ export default function PerformanceChart({
   asset,
   dataVersion,
 }: PerformanceChartProps) {
-  const { getProcessedData, loading: contextLoading } = useAssets();
+  const { loading: contextLoading } = useAssets();
   const [chartData, setChartData] = React.useState<DataPoint[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   const yAxisDomain = React.useMemo(() => {
     if (!chartData || chartData.length === 0) {
-      // Fallback domain if no data
       return [
         asset.permanentPoolElevation - 2,
         asset.permanentPoolElevation + 2,
@@ -61,7 +61,6 @@ export default function PerformanceChart({
     const range = max - min;
 
     if (range === 0) {
-        // Handle case where all data points are the same
         return [min - 1, max + 1];
     }
     
@@ -76,7 +75,7 @@ export default function PerformanceChart({
     const fetchData = async () => {
       if (!asset.id) return;
       setLoading(true);
-      const data = await getProcessedData(asset.id);
+      const data = await getProcessedDataAction(asset.id);
       if (isMounted) {
         setChartData(data);
         setLoading(false);
@@ -84,7 +83,7 @@ export default function PerformanceChart({
     };
     fetchData();
     return () => { isMounted = false };
-  }, [asset.id, getProcessedData, dataVersion]);
+  }, [asset.id, dataVersion]);
 
   if (loading || contextLoading) {
     return (
@@ -160,7 +159,12 @@ export default function PerformanceChart({
               cursor={false}
               content={
                 <ChartTooltipContent
-                  labelFormatter={(label) => new Date(label).toLocaleString()}
+                  labelFormatter={(label) => {
+                    if (typeof label === 'number') {
+                      return new Date(label).toLocaleString();
+                    }
+                    return 'Invalid Date';
+                  }}
                   indicator="dot"
                 />
               }

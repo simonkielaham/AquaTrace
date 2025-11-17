@@ -16,7 +16,6 @@ import {
   downloadLogs as downloadLogsAction,
   deleteAsset as deleteAssetAction,
   assignDatafileToDeployment as assignDatafileToDeploymentAction,
-  getProcessedData as getProcessedDataAction,
   uploadStagedFile as uploadStagedFileAction,
   getStagedFiles as getStagedFilesAction,
   deleteStagedFile as deleteStagedFileAction,
@@ -38,7 +37,6 @@ interface AssetContextType {
   createDeployment: (assetId: string, data: any) => Promise<any>;
   downloadLogs: (assetId: string) => Promise<any>;
   assignDatafileToDeployment: (formData: FormData) => Promise<any>;
-  getProcessedData: (assetId: string) => Promise<DataPoint[]>;
   loading: boolean;
   stagedFiles: StagedFile[];
   loadingStagedFiles: boolean;
@@ -260,15 +258,6 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [fetchStagedFiles]);
 
-  const getProcessedData = useCallback(async (assetId: string): Promise<DataPoint[]> => {
-    try {
-      return await getProcessedDataAction(assetId);
-    } catch (error) {
-      console.error("Error fetching processed data in context:", error);
-      return [];
-    }
-  }, []);
-
   const getStagedFileContent = useCallback(async (filename: string): Promise<string | null> => {
     try {
         return await getStagedFileContentAction(filename);
@@ -291,7 +280,6 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     createDeployment,
     downloadLogs,
     assignDatafileToDeployment,
-    getProcessedData,
     loading,
     stagedFiles,
     loadingStagedFiles,
@@ -315,5 +303,3 @@ export const useAssets = () => {
   }
   return context;
 };
-
-    
