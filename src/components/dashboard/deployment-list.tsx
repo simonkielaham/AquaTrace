@@ -6,7 +6,6 @@ import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import Papa from "papaparse";
 import {
   Card,
   CardContent,
@@ -61,6 +60,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Papa from "papaparse";
 
 // Schemas for forms
 const editDeploymentSchema = z.object({
@@ -82,7 +82,7 @@ const assignDatafileSchema = z.object({
   filename: z.string().min(1, "Please select a file to assign."),
   datetimeColumn: z.string().min(1, "Please select the date/time column."),
   waterLevelColumn: z.string().min(1, "Please select the water level column."),
-  startRow: z.coerce.number().min(2, "Start row must be at least 2."),
+  startRow: z.coerce.number().min(1, "Start row must be at least 1."),
 });
 type AssignDatafileValues = z.infer<typeof assignDatafileSchema>;
 
@@ -270,35 +270,25 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
 
 function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   const { toast } = useToast();
-  const { assignDatafileToDeployment, stagedFiles, loadingStagedFiles } = useAssets();
+  const { assignDatafileToDeployment, stagedFiles, loadingStagedFiles, getStagedFileContent } = useAssets();
   const [isOpen, setIsOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [fileContent, setFileContent] = React.useState<string | null>(null);
+  const [isParsing, setIsParsing] = React.useState(false);
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
   
   const form = useForm<AssignDatafileValues>({
     resolver: zodResolver(assignDatafileSchema),
-    defaultValues: { startRow: 2, filename: undefined, datetimeColumn: undefined, waterLevelColumn: undefined },
+    defaultValues: { startRow: 1, filename: undefined, datetimeColumn: undefined, waterLevelColumn: undefined },
   });
   
   const selectedFilename = form.watch("filename");
 
-  React.useEffect(() => {
-    if (selectedFilename) {
-      // This is a simplified approach. In a real app, you'd fetch the file content
-      // from the server to parse headers. For now, we'll assume a dummy parse
-      // or require manual entry. A full implementation would need an action to
-      // get staged file content. For now we will just parse the filename.
-       Papa.parse(selectedFilename, {
-          complete: (results) => {
-             // This is a dummy parse and won't work on a filename.
-             // We need a better way to get headers. Let's just create some dummy ones for now.
-             // A proper implementation would fetch file content from server and parse.
-          },
-      });
-    }
-  }, [selectedFilename]);
-
+  const resetDialogState = React.useCallback(() => {
+    form.reset({ startRow: 1, filename: undefined, datetimeColumn: undefined, waterLevelColumn: undefined });
+    setCsvHeaders([]);
+    setIsSubmitting(false);
+    setIsParsing(false);
+  }, [form]);
 
   const handleSubmit = async (data: AssignDatafileValues) => {
     setIsSubmitting(true);
@@ -317,27 +307,54 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
     } else {
       toast({ title: "File Assigned", description: `${data.filename} has been processed and assigned.` });
       setIsOpen(false);
-      form.reset();
     }
     setIsSubmitting(false);
   };
   
   const handleFileSelect = async (filename: string) => {
     form.setValue("filename", filename);
-    // In a real app, you would fetch a preview of the CSV from the server here
-    // to populate the headers. We'll simulate this by adding dummy headers,
-    // but a robust implementation needs a server action.
-    toast({ title: "File Selected", description: "Parsing headers (simulation)..."});
+    form.setValue("datetimeColumn", undefined);
+    form.setValue("waterLevelColumn", undefined);
+    setCsvHeaders([]);
     
-    // SIMULATION: In a real app, you'd call a server action.
-    // For now, we'll just have to assume some common headers.
-    const commonHeaders = ["Date-Time (EDT/EST)", "Water Level (m)", "Temp (C)", "Row", "Timestamp"];
-    setCsvHeaders(commonHeaders);
+    if (!filename) return;
+
+    setIsParsing(true);
+    toast({ title: "Parsing File...", description: "Reading headers from the selected CSV file."});
+    
+    const fileContent = await getStagedFileContent(filename);
+    
+    if (!fileContent) {
+        toast({ variant: "destructive", title: "Error", description: "Could not retrieve file content to parse headers." });
+        setIsParsing(false);
+        return;
+    }
+
+    Papa.parse(fileContent, {
+        preview: 1, // only need the first row for headers
+        complete: (results) => {
+            const headers = results.data[0] as string[];
+            setCsvHeaders(headers);
+            setIsParsing(false);
+            toast({ title: "Headers Parsed", description: "Please map the required columns." });
+        },
+        error: (error) => {
+            console.error("PapaParse error:", error);
+            toast({ variant: "destructive", title: "Parsing Error", description: "Could not parse CSV headers." });
+            setIsParsing(false);
+        }
+    });
   };
 
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) {
+      resetDialogState();
+    }
+  }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm"><FileUp className="mr-2 h-4 w-4" /> Assign Datafile</Button>
       </DialogTrigger>
@@ -371,11 +388,9 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                 )}
               />
 
-              {selectedFilename && (
+              {(isParsing || (selectedFilename && csvHeaders.length > 0)) && (
                 <>
-                  <div className="text-sm text-muted-foreground p-3 bg-muted/50 rounded-md">
-                    To get column headers, a server action would be needed to read the file preview. For this demo, common headers are pre-populated.
-                  </div>
+                 {isParsing && <div className="flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Parsing headers...</div>}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -383,7 +398,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Date/Time Column</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
                              <FormControl>
                               <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                             </FormControl>
@@ -401,7 +416,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Water Level Column</FormLabel>
-                           <Select onValueChange={field.onChange} value={field.value}>
+                           <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
                              <FormControl>
                               <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                             </FormControl>
@@ -420,7 +435,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                           <FormItem>
                             <FormLabel>Data Start Row</FormLabel>
                             <FormControl><Input type="number" {...field} /></FormControl>
-                            <FormDescription>The row number where the actual data begins (usually 2).</FormDescription>
+                            <FormDescription>The row number where the actual data begins (e.g., 2 if headers are on row 1).</FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -432,7 +447,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
 
             <DialogFooter>
               <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
-              <Button type="submit" disabled={isSubmitting || !selectedFilename}>
+              <Button type="submit" disabled={isSubmitting || isParsing || !selectedFilename}>
                 {isSubmitting ? "Processing..." : "Assign and Process"}
               </Button>
             </DialogFooter>
@@ -693,3 +708,5 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
+
+    

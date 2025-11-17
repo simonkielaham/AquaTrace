@@ -212,19 +212,17 @@ export async function assignDatafileToDeployment(formData: FormData) {
         Papa.parse(fileContent, {
             header: true,
             skipEmptyLines: true,
-            preview: startRow - 1, // Read a few lines to find headers
+            preview: startRow > 1 ? startRow - 1 : 0, // Preview to find headers if startRow is past the first line
             complete: (results: Papa.ParseResult<any>) => {
-                const headerRow = results.meta.fields;
-                if (!headerRow) {
-                    return reject(new Error("Could not determine headers."));
+                const headers = results.meta.fields;
+                if (!headers) {
+                    return reject(new Error("Could not determine headers from CSV."));
                 }
-                // Now parse the full file with correct headers
+                // Now parse the full file. Papa.js is smart enough if `header:true` is set.
+                // We will manually slice the data array later if startRow > 1.
                 Papa.parse(fileContent, {
                     header: true,
                     skipEmptyLines: true,
-                    // Papa's `header` detection is smart, but we need to tell it where data starts
-                    // by effectively skipping rows before the data.
-                    // This is tricky. Let's just parse the whole thing and slice.
                     complete: (fullResults: Papa.ParseResult<any>) => {
                       resolve(fullResults);
                     }
@@ -233,28 +231,30 @@ export async function assignDatafileToDeployment(formData: FormData) {
         });
     });
 
-    const dataRows = (parsedCsv.data as any[]).slice(startRow - 1);
+    // If startRow is 2, Papa automatically uses first row as header.
+    // If startRow > 2, we need to slice the results.
+    const dataRows = (parsedCsv.data as any[]).slice(startRow > 1 ? startRow - 2 : 0);
 
     const processedData = dataRows.map(row => {
         const dateValue = row[datetimeColumn];
         const levelValue = row[waterLevelColumn];
         
-        if (dateValue && (levelValue !== null && levelValue !== undefined)) {
+        if (dateValue && (levelValue !== null && levelValue !== undefined && levelValue !== '')) {
             const timestamp = new Date(dateValue);
             const waterLevel = parseFloat(levelValue);
 
             if (!isNaN(timestamp.getTime()) && !isNaN(waterLevel)) {
-                return { timestamp, waterLevel };
+                return { timestamp: timestamp.toISOString(), waterLevel };
             }
         }
         return null;
-    }).filter(p => p !== null);
+    }).filter(p => p !== null) as DataPoint[];
 
     if (processedData.length === 0) {
       throw new Error("No valid data points could be processed. Check column mapping and start row.");
     }
     
-    const timestamps = processedData.map(p => p!.timestamp.getTime());
+    const timestamps = processedData.map(p => new Date(p.timestamp).getTime());
     const minDate = new Date(Math.min(...timestamps));
     const maxDate = new Date(Math.max(...timestamps));
 
@@ -311,8 +311,9 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
         for (const file of deployment.files) {
           const filePath = path.join(processedDir, `${file.id}.json`);
           try {
-            const fileData = await readJsonFile<DataPoint[]>(filePath);
-            allData = [...allData, ...fileData];
+            const fileData = await readJsonFile<Omit<DataPoint, 'timestamp'> & { timestamp: string }[]>(filePath);
+            const mappedData = fileData.map(d => ({...d, timestamp: new Date(d.timestamp)}))
+            allData = [...allData, ...mappedData];
           } catch (e) {
              if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
                 console.error(`Could not read processed file ${file.id}.json:`, e);
@@ -614,3 +615,5 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
+
+    
