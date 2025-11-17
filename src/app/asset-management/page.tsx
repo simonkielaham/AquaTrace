@@ -127,7 +127,7 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
       toast({
         variant: "destructive",
         title: "Error Updating Asset",
-        description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
+        description: <pre className="mt-2 w-full max-w-[550px] whitespace-pre-wrap break-all rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
       });
     } else {
       toast({
@@ -291,7 +291,7 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
       toast({
         variant: "destructive",
         title: "Error Deleting Asset",
-        description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
+        description: <pre className="mt-2 w-full max-w-[550px] whitespace-pre-wrap break-all rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
       });
     } else {
       toast({
@@ -413,7 +413,7 @@ export default function AssetManagementPage() {
         toast({
             variant: "destructive",
             title: "Error Creating Asset",
-            description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
+            description: <pre className="mt-2 w-full max-w-[550px] whitespace-pre-wrap break-all rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
         });
     } else {
         toast({

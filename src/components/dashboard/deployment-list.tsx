@@ -238,7 +238,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
       toast({ 
         variant: "destructive", 
         title: "Error Adding Datafile", 
-        description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
+        description: <pre className="mt-2 w-full max-w-[550px] whitespace-pre-wrap break-all rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
       });
     } else {
       toast({ title: "Success", description: "New datafile added." });
@@ -364,7 +364,7 @@ function EditDeploymentForm({ deployment }: { deployment: Deployment }) {
       toast({ 
         variant: "destructive", 
         title: "Error Updating Deployment", 
-        description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
+        description: <pre className="mt-2 w-full max-w-[550px] whitespace-pre-wrap break-all rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
       });
     } else {
       toast({ title: "Success", description: "Deployment updated." });
