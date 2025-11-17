@@ -96,11 +96,23 @@ export default function PerformanceChart({
       ]);
       
       if (isMounted) {
-        // Merge sensor data and survey points into one array for the chart
-         const sensorPoints: ChartablePoint[] = processedData.map(p => ({ timestamp: p.timestamp, waterLevel: p.waterLevel }));
-         const manualPoints: ChartablePoint[] = surveyPoints.map(p => ({ timestamp: p.timestamp, elevation: p.elevation }));
+        const dataMap = new Map<number, ChartablePoint>();
 
-         const mergedData = [...sensorPoints, ...manualPoints].sort((a,b) => a.timestamp - b.timestamp);
+        processedData.forEach(p => {
+          if (!dataMap.has(p.timestamp)) {
+            dataMap.set(p.timestamp, { timestamp: p.timestamp });
+          }
+          dataMap.get(p.timestamp)!.waterLevel = p.waterLevel;
+        });
+
+        surveyPoints.forEach(p => {
+          if (!dataMap.has(p.timestamp)) {
+            dataMap.set(p.timestamp, { timestamp: p.timestamp });
+          }
+          dataMap.get(p.timestamp)!.elevation = p.elevation;
+        });
+        
+        const mergedData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
 
         setChartData(mergedData);
         setLoading(false);
@@ -264,3 +276,4 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
