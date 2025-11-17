@@ -28,7 +28,7 @@ type PerformanceChartProps = {
 
 const chartConfig = {
   waterLevel: {
-    label: "Water Level",
+    label: "Water Elevation",
     color: "hsl(var(--chart-1))",
   },
   ppe: {
@@ -165,3 +165,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    

@@ -250,7 +250,7 @@ export async function assignDatafileToDeployment(formData: FormData) {
             }
         }
         return null;
-    }).filter(p => p !== null) as DataPoint[];
+    }).filter(p => p !== null) as Omit<DataPoint, 'timestamp'> & { timestamp: string }[];
 
     if (processedData.length === 0) {
       throw new Error("No valid data points could be processed. Check column mapping and start row.");
@@ -314,7 +314,11 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
           const filePath = path.join(processedDir, `${file.id}.json`);
           try {
             const fileData = await readJsonFile<Omit<DataPoint, 'timestamp'> & { timestamp: string }[]>(filePath);
-            const mappedData = fileData.map(d => ({...d, timestamp: new Date(d.timestamp)}))
+            const mappedData = fileData.map(d => ({
+                ...d, 
+                timestamp: new Date(d.timestamp),
+                waterLevel: d.waterLevel + deployment.sensorElevation
+            }));
             allData = [...allData, ...mappedData];
           } catch (e) {
              if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
@@ -617,5 +621,7 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
+
+    
 
     
