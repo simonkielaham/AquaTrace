@@ -234,3 +234,5 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
     </Card>
   );
 }
+
+    
