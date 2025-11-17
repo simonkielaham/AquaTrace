@@ -17,7 +17,7 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart";
-import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter } from "recharts";
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter, Dot } from "recharts";
 import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
@@ -99,17 +99,19 @@ export default function PerformanceChart({
         const dataMap = new Map<number, ChartablePoint>();
 
         processedData.forEach(p => {
-          if (!dataMap.has(p.timestamp)) {
-            dataMap.set(p.timestamp, { timestamp: p.timestamp });
+          const timestamp = new Date(p.timestamp).getTime();
+          if (!dataMap.has(timestamp)) {
+            dataMap.set(timestamp, { timestamp });
           }
-          dataMap.get(p.timestamp)!.waterLevel = p.waterLevel;
+          dataMap.get(timestamp)!.waterLevel = p.waterLevel;
         });
 
         surveyPoints.forEach(p => {
-          if (!dataMap.has(p.timestamp)) {
-            dataMap.set(p.timestamp, { timestamp: p.timestamp });
+          const timestamp = new Date(p.timestamp).getTime();
+          if (!dataMap.has(timestamp)) {
+            dataMap.set(timestamp, { timestamp });
           }
-          dataMap.get(p.timestamp)!.elevation = p.elevation;
+          dataMap.get(timestamp)!.elevation = p.elevation;
         });
         
         const mergedData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
@@ -205,10 +207,10 @@ export default function PerformanceChart({
                   indicator="dot"
                   formatter={(value, name, item) => {
                     if (item.dataKey === 'waterLevel' && typeof value === 'number') {
-                      const diff = (value - asset.permanentPoolElevation) * 100; // difference in cm
+                      const diff = (value - asset.permanentPoolElevation);
                       const isPositive = diff >= 0;
                       const direction = isPositive ? 'above' : 'below';
-                      const diffText = `${Math.abs(diff).toFixed(1)}cm ${direction} permanent pool`;
+                      const diffText = `(${Math.abs(diff * 100).toFixed(1)}cm ${direction} permanent pool)`;
 
                       return (
                         <div className="flex items-center gap-2">
@@ -219,7 +221,7 @@ export default function PerformanceChart({
                                   "text-xs",
                                   isPositive ? "text-green-600" : "text-destructive"
                                 )}>
-                                  ({diffText})
+                                  {diffText}
                                 </span>
                             </div>
                         </div>
@@ -249,8 +251,14 @@ export default function PerformanceChart({
               stackId="a"
               name="Water Elevation"
               connectNulls
+              dot={false}
             />
-             <Scatter dataKey="elevation" fill="var(--color-surveyPoints)" name="Survey Points" />
+             <Scatter 
+                dataKey="elevation" 
+                fill="var(--color-surveyPoints)" 
+                name="Survey Points" 
+                shape={<Dot r={4} strokeWidth={2} stroke="var(--background)" />}
+             />
             <ReferenceLine
               y={asset.permanentPoolElevation}
               label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}
@@ -276,4 +284,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
