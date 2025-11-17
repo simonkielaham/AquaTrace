@@ -159,6 +159,18 @@ export async function getStagedFiles(): Promise<StagedFile[]> {
     }
 }
 
+export async function getStagedFileContent(filename: string): Promise<string | null> {
+    const filePath = path.join(stagedDir, filename);
+    try {
+        await fs.access(filePath);
+        const fileContent = await fs.readFile(filePath, 'utf-8');
+        return fileContent;
+    } catch (error) {
+        console.error(`Failed to read staged file ${filename}:`, error);
+        return null;
+    }
+}
+
 export async function deleteStagedFile(filename: string) {
   const logPayload = { filename };
   try {
@@ -209,33 +221,23 @@ export async function assignDatafileToDeployment(formData: FormData) {
     const fileContent = await fs.readFile(stagedFilePath, 'utf-8');
     
     const parsedCsv = await new Promise<Papa.ParseResult<any>>((resolve, reject) => {
+        let headerFound = false;
         Papa.parse(fileContent, {
             header: true,
             skipEmptyLines: true,
-            preview: startRow > 1 ? startRow - 1 : 0, // Preview to find headers if startRow is past the first line
             complete: (results: Papa.ParseResult<any>) => {
-                const headers = results.meta.fields;
-                if (!headers) {
-                    return reject(new Error("Could not determine headers from CSV."));
-                }
-                // Now parse the full file. Papa.js is smart enough if `header:true` is set.
-                // We will manually slice the data array later if startRow > 1.
-                Papa.parse(fileContent, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: (fullResults: Papa.ParseResult<any>) => {
-                      resolve(fullResults);
-                    }
-                });
-            }
+              if (!results.meta.fields || results.meta.fields.length === 0) {
+                 return reject(new Error("Could not determine headers from CSV."));
+              }
+              resolve(results);
+            },
+            // transformHeader is not reliable for this, so we handle data slicing manually
         });
     });
 
-    // If startRow is 2, Papa automatically uses first row as header.
-    // If startRow > 2, we need to slice the results.
-    const dataRows = (parsedCsv.data as any[]).slice(startRow > 1 ? startRow - 2 : 0);
+    const dataRows = parsedCsv.data.slice(startRow > 1 ? startRow - 2 : 0);
 
-    const processedData = dataRows.map(row => {
+    const processedData = dataRows.map((row: any) => {
         const dateValue = row[datetimeColumn];
         const levelValue = row[waterLevelColumn];
         

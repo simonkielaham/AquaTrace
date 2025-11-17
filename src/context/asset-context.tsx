@@ -20,6 +20,7 @@ import {
   uploadStagedFile as uploadStagedFileAction,
   getStagedFiles as getStagedFilesAction,
   deleteStagedFile as deleteStagedFileAction,
+  getStagedFileContent as getStagedFileContentAction,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -266,21 +267,13 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const getStagedFileContent = useCallback(async (filename: string): Promise<string | null> => {
-    // This is a bit of a hack since we can't directly read files on the client
-    // that were uploaded to the server. A better way would be a server action
-    // that returns file content. For now, we find the file in state.
-    const file = stagedFiles.find(f => f.filename === filename);
-    if (!file) return null;
-    
-    // In a real app, you'd have an action like `getStagedFileContentAction(filename)`
-    // This is a placeholder for that concept. Since we can't implement that action
-    // without more info, we'll return an empty string. The header parsing logic
-    // on the client will need to be adapted or this needs a true server action.
-    // Let's assume there is no way to get the content right now.
-    // The user will need a way to get the content of a staged file.
-    // For now, returning null as we cannot read from the server path on the client.
-    return null;
-  }, [stagedFiles]);
+    try {
+        return await getStagedFileContentAction(filename);
+    } catch (error) {
+        console.error("Error fetching staged file content in context:", error);
+        return null;
+    }
+  }, []);
 
 
   const value = {
