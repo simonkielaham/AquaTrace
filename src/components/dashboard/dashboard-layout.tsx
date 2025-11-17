@@ -12,6 +12,7 @@ import {
   analysisResults,
 } from "@/lib/placeholder-data";
 import { useAssets } from "@/context/asset-context";
+import PerformanceChart from "@/components/dashboard/performance-chart";
 
 
 export default function DashboardLayout() {
@@ -82,6 +83,7 @@ export default function DashboardLayout() {
               <AssetOverview asset={selectedAsset} />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <AnalysisResults results={assetAnalysisResults} />
+              <PerformanceChart asset={selectedAsset}/>
             </div>
           </main>
         </div>

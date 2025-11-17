@@ -34,10 +34,18 @@ interface AssetContextType {
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
 
 const getErrorMessage = async (error: any): Promise<string> => {
-    if (error instanceof Error) {
-        return error.message;
+    console.error("Raw error object:", error);
+    try {
+        // Attempt to stringify the full error object to capture all details
+        const errorString = JSON.stringify(error, Object.getOwnPropertyNames(error));
+        return `SERVER RAW RESPONSE: ${errorString}`;
+    } catch (e) {
+        // Fallback for circular structures or other stringify errors
+        if (error instanceof Error) {
+            return `SERVER RAW RESPONSE (Fallback): ${error.message}\n${error.stack}`;
+        }
+        return "An unknown error occurred during error processing.";
     }
-    return "An unknown error occurred.";
 };
 
 
