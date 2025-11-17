@@ -22,6 +22,12 @@ import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurve
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+type ChartablePoint = {
+    timestamp: number;
+    waterLevel?: number;
+    elevation?: number;
+}
+
 type PerformanceChartProps = {
   asset: Asset;
   dataVersion?: number;
@@ -46,15 +52,16 @@ export default function PerformanceChart({
   asset,
   dataVersion,
 }: PerformanceChartProps) {
-  const [chartData, setChartData] = React.useState<DataPoint[]>([]);
-  const [surveyPoints, setSurveyPoints] = React.useState<SurveyPoint[]>([]);
+  const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   const yAxisDomain = React.useMemo(() => {
-    const allElevations = [
-        ...chartData.map(d => d.waterLevel),
-        ...surveyPoints.map(p => p.elevation)
-    ];
+    const allElevations = chartData.flatMap(d => {
+        const values = [];
+        if (d.waterLevel) values.push(d.waterLevel);
+        if (d.elevation) values.push(d.elevation);
+        return values;
+    });
 
     if (allElevations.length === 0) {
       return [
@@ -63,8 +70,8 @@ export default function PerformanceChart({
       ];
     }
     
-    const min = Math.min(...allElevations);
-    const max = Math.max(...allElevations);
+    const min = Math.min(...allElevations, asset.permanentPoolElevation);
+    const max = Math.max(...allElevations, asset.permanentPoolElevation, ...asset.designElevations.map(de => de.elevation));
     
     const range = max - min;
 
@@ -75,7 +82,7 @@ export default function PerformanceChart({
     const buffer = range * 0.1; // 10% buffer
     
     return [min - buffer, max + buffer];
-  }, [chartData, surveyPoints, asset.permanentPoolElevation]);
+  }, [chartData, asset.permanentPoolElevation, asset.designElevations]);
 
 
   React.useEffect(() => {
@@ -83,14 +90,19 @@ export default function PerformanceChart({
     const fetchData = async () => {
       if (!asset.id) return;
       setLoading(true);
-      const [data, points] = await Promise.all([
+      const [processedData, surveyPoints] = await Promise.all([
         getProcessedDataAction(asset.id),
         getSurveyPointsAction(asset.id)
       ]);
       
       if (isMounted) {
-        setChartData(data);
-        setSurveyPoints(points);
+        // Merge sensor data and survey points into one array for the chart
+         const sensorPoints: ChartablePoint[] = processedData.map(p => ({ timestamp: p.timestamp, waterLevel: p.waterLevel }));
+         const manualPoints: ChartablePoint[] = surveyPoints.map(p => ({ timestamp: p.timestamp, elevation: p.elevation }));
+
+         const mergedData = [...sensorPoints, ...manualPoints].sort((a,b) => a.timestamp - b.timestamp);
+
+        setChartData(mergedData);
         setLoading(false);
       }
     };
@@ -116,7 +128,7 @@ export default function PerformanceChart({
     )
   }
 
-  if (chartData.length === 0 && surveyPoints.length === 0) {
+  if (chartData.length === 0) {
     return (
       <Card className="col-span-1 lg:col-span-4 shadow-sm">
         <CardHeader>
@@ -167,7 +179,6 @@ export default function PerformanceChart({
               domain={yAxisDomain}
               allowDataOverflow={true}
               type="number"
-              dataKey="waterLevel"
             />
             <ChartTooltip
               cursor={false}
@@ -225,13 +236,15 @@ export default function PerformanceChart({
               stroke="var(--color-waterLevel)"
               stackId="a"
               name="Water Elevation"
+              connectNulls
             />
-             <Scatter data={surveyPoints} fill="var(--color-surveyPoints)" name="Survey Points" dataKey="elevation" />
+             <Scatter dataKey="elevation" fill="var(--color-surveyPoints)" name="Survey Points" />
             <ReferenceLine
               y={asset.permanentPoolElevation}
               label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}
               stroke="var(--color-ppe)"
               strokeWidth={2}
+              isFront
             />
              {asset.designElevations.map(de => (
                <ReferenceLine
@@ -240,6 +253,7 @@ export default function PerformanceChart({
                 label={{ value: `${de.year}-Year`, position: 'right', fill: 'hsl(var(--muted-foreground))', fontSize: '10px' }}
                 stroke="hsl(var(--destructive))"
                 strokeDasharray="3 3"
+                isFront
               />
              ))}
 
