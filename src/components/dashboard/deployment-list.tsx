@@ -196,12 +196,16 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
     },
   });
   
-  const resetDialogState = () => {
-    form.reset({ startRow: 2 });
+  const resetDialogState = React.useCallback(() => {
+    form.reset({ startRow: 2, datetimeColumn: '', waterLevelColumn: '' });
     setFile(null);
     setFileContent(null);
     setCsvHeaders([]);
-  }
+    const fileInput = document.getElementById(`dropzone-file-${deployment.id}`) as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = "";
+    }
+  }, [form, deployment.id]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];

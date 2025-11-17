@@ -114,7 +114,8 @@ export async function createDeployment(assetId: string, data: any) {
     };
   } catch (error) {
     console.error('Failed to create deployment:', error);
-    return { message: `An error occurred: ${(error as Error).message}` };
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    return { message: `Error: ${message}` };
   }
 }
 
@@ -149,6 +150,8 @@ export async function addDatafile(deploymentId: string, data: any, formData: For
 
     const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
     
+    // The user provides a 1-based start row. Papa parse with `header:true` returns an array
+    // where the first data row is at index 0. So we subtract 1 for the header, and 1 for 0-indexing.
     const sliceIndex = Math.max(0, validatedData.startRow - 2);
     const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
     
