@@ -53,7 +53,7 @@ const editDeploymentSchema = z.object({
 });
 
 const surveyPointSchema = z.object({
-  date: z.string().min(1, 'Date is required.'),
+  timestamp: z.string().datetime(),
   elevation: z.coerce.number(),
 });
 
@@ -113,19 +113,15 @@ export async function addSurveyPoint(assetId: string, data: any) {
     await writeLog({ action: 'addSurveyPoint', status: 'failure', assetId, payload: logPayload, response });
     return response;
   }
-  const { date, elevation } = validatedFields.data;
+  const { timestamp, elevation } = validatedFields.data;
 
   try {
     const surveyPoints = await readJsonFile<SurveyPoint[]>(surveyPointsFilePath);
     
-    // Combine date with a default time (midday) to create a full Date object in UTC
-    const timestamp = new Date(date);
-    timestamp.setUTCHours(12, 0, 0, 0);
-
     const newPoint: SurveyPoint = {
       id: `survey-${Date.now()}`,
       assetId,
-      timestamp: timestamp.getTime(),
+      timestamp: new Date(timestamp).getTime(),
       elevation,
     };
     

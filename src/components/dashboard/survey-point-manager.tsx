@@ -26,10 +26,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, PlusCircle, Trash2, Loader2 } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Loader2, Clock } from "lucide-react";
 
 const surveyPointSchema = z.object({
   date: z.date({ required_error: "A date is required." }),
+  time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format. Use HH:MM" }),
   elevation: z.coerce.number({ required_error: "An elevation is required." }),
 });
 
@@ -45,6 +46,9 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
 
   const form = useForm<SurveyPointFormValues>({
     resolver: zodResolver(surveyPointSchema),
+    defaultValues: {
+      time: "12:00",
+    }
   });
 
   React.useEffect(() => {
@@ -63,9 +67,12 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
   const handleSubmit = async (data: SurveyPointFormValues) => {
     setIsSubmitting(true);
 
-    // Format the date to yyyy-MM-dd for the server action
+    const [hours, minutes] = data.time.split(':').map(Number);
+    const combinedDateTime = new Date(data.date);
+    combinedDateTime.setHours(hours, minutes, 0, 0);
+
     const serverData = {
-      date: format(data.date, 'yyyy-MM-dd'),
+      timestamp: combinedDateTime.toISOString(),
       elevation: data.elevation
     };
 
@@ -75,7 +82,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Survey point added." });
-      form.reset();
+      form.reset({ time: "12:00" });
     }
     
     setIsSubmitting(false);
@@ -105,47 +112,65 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
           <h4 className="font-medium mb-4">Add New Point</h4>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="date"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Date</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
+              <div className="flex gap-4">
+                <FormField
+                  control={form.control}
+                  name="date"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Date</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-[240px] pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value ? (
+                                format(field.value, "PPP")
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) =>
+                              date > new Date() || date < new Date("1900-01-01")
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={form.control}
+                  name="time"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Time (24h)</FormLabel>
+                       <div className="relative">
+                         <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-[240px] pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "PPP")
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
+                          <Input type="time" className="w-[120px] pl-10" {...field} />
                         </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                       </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={form.control}
                 name="elevation"
@@ -185,7 +210,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                     <TableBody>
                     {surveyPoints.map((point) => (
                         <TableRow key={point.id}>
-                        <TableCell>{format(new Date(point.timestamp), "PPP")}</TableCell>
+                        <TableCell>{format(new Date(point.timestamp), "Pp")}</TableCell>
                         <TableCell>{point.elevation.toFixed(2)}m</TableCell>
                         <TableCell className="text-right">
                              <Button 
