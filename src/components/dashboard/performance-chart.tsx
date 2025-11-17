@@ -18,7 +18,6 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart";
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine } from "recharts";
-import { useAssets } from "@/context/asset-context";
 import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 import * as React from "react";
 
@@ -42,7 +41,6 @@ export default function PerformanceChart({
   asset,
   dataVersion,
 }: PerformanceChartProps) {
-  const { loading: contextLoading } = useAssets();
   const [chartData, setChartData] = React.useState<DataPoint[]>([]);
   const [loading, setLoading] = React.useState(true);
 
@@ -85,7 +83,7 @@ export default function PerformanceChart({
     return () => { isMounted = false };
   }, [asset.id, dataVersion]);
 
-  if (loading || contextLoading) {
+  if (loading) {
     return (
        <Card className="col-span-1 lg:col-span-4 shadow-sm">
         <CardHeader>
