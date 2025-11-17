@@ -60,12 +60,7 @@ export default function PerformanceChart({
       setLoading(true);
       const data = await getProcessedData(asset.id);
       if (isMounted) {
-        // Convert timestamps from strings to numbers (Unix time)
-        const formattedData = data.map(d => ({
-          ...d,
-          timestamp: new Date(d.timestamp).getTime(),
-        }));
-        setChartData(formattedData);
+        setChartData(data);
         setLoading(false);
       }
     };
@@ -181,3 +176,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    

@@ -27,7 +27,7 @@ export type StagedFile = {
 }
 
 export type DataPoint = {
-  timestamp: Date;
+  timestamp: number;
   waterLevel: number;
 };
 
@@ -64,3 +64,5 @@ export type ActivityLog = {
 // This file now only contains type definitions.
 // The actual data is loaded and managed in AssetProvider.
 export const analysisResults: AnalysisResult[] = [];
+
+    

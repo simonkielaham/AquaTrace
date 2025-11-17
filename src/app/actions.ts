@@ -249,7 +249,7 @@ export async function assignDatafileToDeployment(formData: FormData) {
             }
         }
         return null;
-    }).filter(p => p !== null) as Omit<DataPoint, 'timestamp'> & { timestamp: string }[];
+    }).filter(p => p !== null) as { timestamp: string, waterLevel: number }[];
 
     if (processedData.length === 0) {
       throw new Error("No valid data points could be processed. Check column mapping and start row.");
@@ -312,10 +312,9 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
         for (const file of deployment.files) {
           const filePath = path.join(processedDir, `${file.id}.json`);
           try {
-            const fileData = await readJsonFile<Omit<DataPoint, 'timestamp'> & { timestamp: string }[]>(filePath);
+            const fileData = await readJsonFile<{ timestamp: string, waterLevel: number }[]>(filePath);
             const mappedData = fileData.map(d => ({
-                ...d, 
-                timestamp: new Date(d.timestamp),
+                timestamp: new Date(d.timestamp).getTime(),
                 waterLevel: d.waterLevel + deployment.sensorElevation
             }));
             allData = [...allData, ...mappedData];
@@ -330,11 +329,10 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
     
     const uniqueData = new Map<number, DataPoint>();
     allData.forEach(dp => {
-      const timestamp = new Date(dp.timestamp);
-      uniqueData.set(timestamp.getTime(), { ...dp, timestamp });
+      uniqueData.set(dp.timestamp, dp);
     });
 
-    const sortedData = Array.from(uniqueData.values()).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    const sortedData = Array.from(uniqueData.values()).sort((a, b) => a.timestamp - b.timestamp);
     
     return sortedData;
 
@@ -620,7 +618,5 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-
-    
 
     
