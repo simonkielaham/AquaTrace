@@ -34,26 +34,25 @@ interface AssetContextType {
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
 
 // Helper to get detailed error messages
-const getErrorMessage = async (error: any) => {
-  // Check if it's an error with a 'message' property
-  if (error && typeof error.message === 'string') {
-    return error.message;
-  }
-  // Check if it's a Response object (from a failed fetch in a server action)
-  if (error instanceof Response) {
-    const text = await error.text();
-    // This text is likely the HTML of the Next.js error overlay
-    return `An unexpected response was received from the server. This usually means the server action crashed. Response: ${text}`;
-  }
-  // Fallback for other unexpected error types
-  if (typeof error === 'object' && error !== null) {
-    try {
-      return JSON.stringify(error);
-    } catch {
-      // Ignore if not stringifiable
+const getErrorMessage = async (error: any): Promise<string> => {
+    if (error instanceof Error) {
+        return error.message;
     }
-  }
-  return "An unknown error occurred.";
+    if (error instanceof Response) {
+        const text = await error.text();
+        // This text is likely the HTML of the Next.js error overlay.
+        // We include it to provide maximum debugging information.
+        return `An unexpected response was received from the server. This usually indicates a server-side crash. \n\nFull Response:\n${text}`;
+    }
+    // Fallback for other unexpected error types
+    if (typeof error === 'object' && error !== null) {
+        try {
+            return `An unexpected error object was received: ${JSON.stringify(error, null, 2)}`;
+        } catch {
+            // Ignore if not stringifiable
+        }
+    }
+    return "An unknown error occurred.";
 };
 
 
