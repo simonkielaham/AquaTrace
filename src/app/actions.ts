@@ -261,7 +261,7 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
     // Save processed data to its own file
     await writeJsonFile(path.join(processedDir, `${newDataFile.id}.json`), processedData);
 
-    // Robustly update the files array
+    // Robustly update the files array by creating a new array
     deployment.files = [...(deployment.files || []), newDataFile];
 
     deployments[deploymentIndex] = deployment;
@@ -446,6 +446,8 @@ export async function createAsset(data: any) {
     
 
 
+
+    
 
     
 
