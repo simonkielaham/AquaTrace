@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 
@@ -77,20 +77,137 @@ const assetFormSchema = z.object({
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
 
-const editAssetFormSchema = z.object({
-  name: z.string().min(2, "Asset name must be at least 2 characters."),
-  location: z.string().min(2, "Location is required."),
-  permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
-  designElevations: z.array(designElevationSchema).min(1, "At least one design elevation is required."),
-});
-
-type EditAssetFormValues = z.infer<typeof editAssetFormSchema>;
-
 const statusVariantMap = {
   ok: "default",
   warning: "secondary",
   error: "destructive",
 } as const;
+
+
+// Reusable Asset Form Component
+interface AssetFormProps {
+  form: UseFormReturn<AssetFormValues>;
+  onSubmit: (data: AssetFormValues) => void;
+  isSubmitting: boolean;
+  children: React.ReactNode; // To allow for custom submit buttons
+}
+
+function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "designElevations",
+  });
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-8">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Asset Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Northwood Pond" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="location"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Location</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g, Springfield, ON" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="permanentPoolElevation"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Permanent Pool Elevation (meters)</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className="space-y-4">
+            <div>
+              <FormLabel>Design Elevations</FormLabel>
+              <FormDescription className="mb-4">
+                Specify design storm year and corresponding elevation.
+              </FormDescription>
+              <div className="space-y-4 max-h-[200px] overflow-y-auto pr-2">
+                {fields.map((field, index) => (
+                  <div key={field.id} className="flex items-end gap-4">
+                    <FormField
+                      control={form.control}
+                      name={`designElevations.${index}.year`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormLabel className="text-xs">Year</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="e.g., 10" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`designElevations.${index}.elevation`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormLabel className="text-xs">Elevation (m)</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.01" placeholder="e.g., 12.0" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => remove(index)}
+                      disabled={fields.length <= 1}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={() => append({ year: 0, elevation: 0 })}
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Elevation
+              </Button>
+            </div>
+          </div>
+        </div>
+        {children}
+      </form>
+    </Form>
+  );
+}
 
 
 function EditAssetDialog({ asset }: { asset: Asset }) {
@@ -99,8 +216,8 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
 
-  const form = useForm<EditAssetFormValues>({
-    resolver: zodResolver(editAssetFormSchema),
+  const form = useForm<AssetFormValues>({
+    resolver: zodResolver(assetFormSchema),
     defaultValues: {
       name: asset.name,
       location: asset.location,
@@ -109,12 +226,7 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "designElevations",
-  });
-
-  const handleEditSubmit = async (data: EditAssetFormValues) => {
+  const handleEditSubmit = async (data: AssetFormValues) => {
     setIsSubmitting(true);
     toast({
       title: "Updating Asset...",
@@ -127,7 +239,7 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
       toast({
         variant: "destructive",
         title: "Error Updating Asset",
-        description: <pre className="mt-2 w-full max-w-[550px] whitespace-pre-wrap break-all rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
+        description: <pre className="mt-2 w-full rounded-md bg-slate-950 p-4"><code className="text-white whitespace-pre-wrap break-all">{result.message}</code></pre>
       });
     } else {
       toast({
@@ -155,120 +267,16 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
             Update the details for this asset. Click save when you're done.
           </DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleEditSubmit)} className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-8">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Asset Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Northwood Pond" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="location"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Location</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g, Springfield, ON" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="permanentPoolElevation"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Permanent Pool Elevation (meters)</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="space-y-8">
-                <div>
-                  <FormLabel>Design Elevations</FormLabel>
-                  <FormDescription className="mb-4">
-                    Specify design storm year and corresponding elevation.
-                  </FormDescription>
-                  <div className="space-y-4 max-h-[200px] overflow-y-auto pr-2">
-                    {fields.map((field, index) => (
-                      <div key={field.id} className="flex items-end gap-4">
-                        <FormField
-                          control={form.control}
-                          name={`designElevations.${index}.year`}
-                          render={({ field }) => (
-                            <FormItem className="flex-1">
-                              <FormLabel className="text-xs">Year</FormLabel>
-                              <FormControl>
-                                <Input type="number" placeholder="e.g., 10" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`designElevations.${index}.elevation`}
-                          render={({ field }) => (
-                            <FormItem className="flex-1">
-                              <FormLabel className="text-xs">Elevation (m)</FormLabel>
-                              <FormControl>
-                                <Input type="number" step="0.01" placeholder="e.g., 12.0" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          onClick={() => remove(index)}
-                          disabled={fields.length <= 1}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-4"
-                    onClick={() => append({ year: 0, elevation: 0 })}
-                  >
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Add Elevation
-                  </Button>
-                </div>
-              </div>
-            </div>
-             <DialogFooter>
-              <DialogClose asChild>
-                <Button type="button" variant="secondary">Cancel</Button>
-              </DialogClose>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : "Save Changes"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+        <AssetForm form={form} onSubmit={handleEditSubmit} isSubmitting={isSubmitting}>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">Cancel</Button>
+            </DialogClose>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </AssetForm>
       </DialogContent>
     </Dialog>
   );
@@ -291,7 +299,7 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
       toast({
         variant: "destructive",
         title: "Error Deleting Asset",
-        description: <pre className="mt-2 w-full max-w-[550px] whitespace-pre-wrap break-all rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
+        description: <pre className="mt-2 w-full rounded-md bg-slate-950 p-4"><code className="text-white whitespace-pre-wrap break-all">{result.message}</code></pre>
       });
     } else {
       toast({
@@ -334,8 +342,9 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
 
 
 function AssetListTable() {
-  const { assets } = useAssets();
+  const { assets, deleteAsset } = useAssets();
   const [_, startTransition] = React.useTransition();
+  const router = useRouter();
 
   return (
      <Card>
@@ -367,7 +376,12 @@ function AssetListTable() {
                 </TableCell>
                 <TableCell className="text-right">
                   <EditAssetDialog asset={asset} />
-                  <DeleteAssetDialog asset={asset} onDeleted={() => startTransition(() => {})} />
+                  <DeleteAssetDialog asset={asset} onDeleted={() => {
+                     startTransition(() => {
+                        // This forces a state update to re-render the list
+                        router.refresh(); 
+                     })
+                  }} />
                 </TableCell>
               </TableRow>
             ))}
@@ -384,6 +398,7 @@ export default function AssetManagementPage() {
   const router = useRouter();
   const { assets, setSelectedAssetId, createAsset } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isAccordionOpen, setIsAccordionOpen] = React.useState(true);
 
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),
@@ -393,11 +408,6 @@ export default function AssetManagementPage() {
       permanentPoolElevation: 0,
       designElevations: [{ year: 2, elevation: 0 }],
     },
-  });
-
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "designElevations",
   });
   
   const handleSubmit = async (data: AssetFormValues) => {
@@ -413,7 +423,7 @@ export default function AssetManagementPage() {
         toast({
             variant: "destructive",
             title: "Error Creating Asset",
-            description: <pre className="mt-2 w-full max-w-[550px] whitespace-pre-wrap break-all rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
+            description: <pre className="mt-2 w-full rounded-md bg-slate-950 p-4"><code className="text-white whitespace-pre-wrap break-all">{result.message}</code></pre>
         });
     } else {
         toast({
@@ -421,6 +431,7 @@ export default function AssetManagementPage() {
           description: `${data.name} has been successfully created.`,
       });
       form.reset();
+      setIsAccordionOpen(false);
       router.push('/');
     }
     
@@ -444,131 +455,28 @@ export default function AssetManagementPage() {
           <PageHeader />
           <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <div className="space-y-6">
-              <Accordion type="single" collapsible className="w-full" defaultValue="item-1">
+              <Accordion type="single" collapsible className="w-full" value={isAccordionOpen ? "item-1" : ""} onValueChange={(value) => setIsAccordionOpen(value === "item-1")}>
                 <AccordionItem value="item-1">
                   <Card>
-                    <AccordionTrigger className="w-full p-6 [&[data-state=open]>svg]:rotate-180">
-                       <div className="flex w-full justify-between items-center">
+                    <AccordionTrigger className="w-full p-6 text-lg">
+                       <div className="flex items-center gap-4">
+                          <PlusCircle className="h-6 w-6 text-muted-foreground" />
                           <div>
-                            <CardTitle className="font-headline text-left">Add New Asset</CardTitle>
-                            <CardDescription className="text-left mt-1">
+                            <span className="font-headline">Add New Asset</span>
+                            <p className="text-sm font-normal text-muted-foreground mt-1">
                               Fill in the details below to create a new stormwater management asset.
-                            </CardDescription>
+                            </p>
                           </div>
-                          <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
                        </div>
+                       <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
                     </AccordionTrigger>
                     <AccordionContent>
                        <CardContent>
-                        <Form {...form}>
-                          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                              <div className="space-y-8">
-                                <FormField
-                                  control={form.control}
-                                  name="name"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Asset Name</FormLabel>
-                                      <FormControl>
-                                        <Input placeholder="e.g., Northwood Pond" {...field} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name="location"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Location</FormLabel>
-                                      <FormControl>
-                                        <Input placeholder="e.g, Springfield, ON" {...field} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name="permanentPoolElevation"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Permanent Pool Elevation (meters)</FormLabel>
-                                      <FormControl>
-                                        <Input type="number" step="0.01" {...field} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-                              <div className="space-y-8">
-                                <div>
-                                  <FormLabel>Design Elevations</FormLabel>
-                                  <FormDescription className="mb-4">
-                                    Specify design storm year and corresponding elevation.
-                                  </FormDescription>
-                                  <div className="space-y-4">
-                                    {fields.map((field, index) => (
-                                      <div key={field.id} className="flex items-end gap-4">
-                                        <FormField
-                                          control={form.control}
-                                          name={`designElevations.${index}.year`}
-                                          render={({ field }) => (
-                                            <FormItem className="flex-1">
-                                              <FormLabel className="text-xs">Year</FormLabel>
-                                              <FormControl>
-                                                <Input type="number" placeholder="e.g., 10" {...field} />
-                                              </FormControl>
-                                              <FormMessage />
-                                            </FormItem>
-                                          )}
-                                        />
-                                        <FormField
-                                          control={form.control}
-                                          name={`designElevations.${index}.elevation`}
-                                          render={({ field }) => (
-                                            <FormItem className="flex-1">
-                                              <FormLabel className="text-xs">Elevation (m)</FormLabel>
-                                              <FormControl>
-                                                <Input type="number" step="0.01" placeholder="e.g., 12.0" {...field} />
-                                              </FormControl>
-                                              <FormMessage />
-                                            </FormItem>
-                                          )}
-                                        />
-                                        <Button
-                                          type="button"
-                                          variant="destructive"
-                                          size="icon"
-                                          onClick={() => remove(index)}
-                                          disabled={fields.length <= 1}
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="mt-4"
-                                    onClick={() => append({ year: 0, elevation: 0 })}
-                                  >
-                                    <PlusCircle className="mr-2 h-4 w-4" />
-                                    Add Elevation
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                            <Button type="submit" disabled={isSubmitting}>
-                               {isSubmitting ? "Creating..." : "Create Asset"}
-                            </Button>
-                          </form>
-                        </Form>
+                        <AssetForm form={form} onSubmit={handleSubmit} isSubmitting={isSubmitting}>
+                          <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? "Creating..." : "Create Asset"}
+                          </Button>
+                        </AssetForm>
                        </CardContent>
                      </AccordionContent>
                   </Card>

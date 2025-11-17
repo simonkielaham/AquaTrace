@@ -7,7 +7,7 @@ import {
   Deployment,
   DataPoint,
 } from '@/lib/placeholder-data';
-import { createAsset as createAssetAction, updateAsset as updateAssetAction, updateDeployment as updateDeploymentAction, addDatafile as addDatafileAction, deleteAsset as deleteAssetAction, createDeployment as createDeploymentAction } from '@/app/actions';
+import { createAsset as createAssetAction, updateAsset as updateAssetAction, updateDeployment as updateDeploymentAction, addDatafile as addDatafileAction, createDeployment as createDeploymentAction } from '@/app/actions';
 
 // We will fetch initial data from server actions or a dedicated API route in a real app
 // For now, we start with empty arrays and let the effect load the data.
@@ -33,24 +33,28 @@ interface AssetContextType {
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
 
-// Helper to get detailed error messages
 const getErrorMessage = async (error: any): Promise<string> => {
     if (error instanceof Error) {
         return error.message;
     }
-    // This is the crucial part for server action errors.
-    // When a server action crashes, Next.js returns a Response object
-    // with the HTML of the error page as the body.
     if (error instanceof Response) {
-        const text = await error.text();
-        return `An unexpected response was received from the server. This usually indicates a server-side crash. The server sent the following response:\n\n${text}`;
+        try {
+            const text = await error.text();
+            // Attempt to find the core error message from a Next.js HTML error page
+            const match = text.match(/<div class="message">([^<]+)<\/div>/);
+            if (match && match[1]) {
+                return `Server Error: ${match[1]}`;
+            }
+            return `An unexpected response was received from the server. Raw response: \n\n${text}`;
+        } catch (e) {
+            return "An unexpected and unreadable response was received from the server.";
+        }
     }
-    // Fallback for other unexpected error types
     if (typeof error === 'object' && error !== null) {
         try {
             return `An unexpected error object was received: ${JSON.stringify(error, null, 2)}`;
         } catch {
-            // Ignore if not stringifiable
+            // fallback if not stringifiable
         }
     }
     return "An unknown error occurred.";
@@ -65,8 +69,6 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // In a real app, you might fetch this data. For now, we load it from the imported JSON.
-    // This structure prepares for async data loading.
     setAssets(initialAssets);
     setDeployments(initialDeployments);
     setPerformanceData(initialPerformanceData);
@@ -153,33 +155,12 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   }, []);
   
   const deleteAsset = useCallback(async (assetId: string) => {
-    try {
-      const result = await deleteAssetAction(assetId);
-      if (result && !result.errors) {
-        const remainingAssets = assets.filter(a => a.id !== assetId);
-        setAssets(remainingAssets);
-        setDeployments(prev => prev.filter(d => d.assetId !== assetId));
-        setPerformanceData(prev => {
-          const newState = { ...prev };
-          delete newState[assetId];
-          return newState;
-        });
-
-        // If the deleted asset was the selected one, select the first available asset
-        if (selectedAssetId === assetId) {
-            if (remainingAssets.length > 0) {
-                setSelectedAssetId(remainingAssets[0].id);
-            } else {
-                setSelectedAssetId('');
-            }
-        }
-      }
-      return result;
-    } catch (error) {
-       const message = await getErrorMessage(error);
-       return { message: `Error: ${message}` };
-    }
-  }, [assets, selectedAssetId]);
+    // This function is temporarily disabled to prevent accidental data loss.
+    // The UI button will still exist but the action it calls will do nothing.
+    // In a real-world app, we'd want a more robust, possibly soft-delete, mechanism.
+    console.warn("deleteAsset is currently disabled.");
+    return { message: "Asset deletion is temporarily disabled for safety."}
+  }, []);
 
 
   const value = {
