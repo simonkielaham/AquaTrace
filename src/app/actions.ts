@@ -329,7 +329,9 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
     
     const uniqueData = new Map<number, DataPoint>();
     allData.forEach(dp => {
-      uniqueData.set(dp.timestamp, dp);
+        if(dp.timestamp && !isNaN(dp.waterLevel)) {
+            uniqueData.set(dp.timestamp, dp);
+        }
     });
 
     const sortedData = Array.from(uniqueData.values()).sort((a, b) => a.timestamp - b.timestamp);
@@ -618,5 +620,3 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-
-    
