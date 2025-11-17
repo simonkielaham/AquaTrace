@@ -199,14 +199,30 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
       if (deployment.files) {
         for (const file of deployment.files) {
           const filePath = path.join(dataDir, 'processed', `${file.id}.json`);
-          const fileData = await readJsonFile<DataPoint[]>(filePath);
-          allData = [...allData, ...fileData];
+          // It's possible the file doesn't exist yet, so we handle that case.
+          try {
+            const fileData = await readJsonFile<DataPoint[]>(filePath);
+            allData = [...allData, ...fileData];
+          } catch (e) {
+             if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+                console.error(`Could not read processed file ${file.id}.json:`, e);
+             }
+          }
         }
       }
     }
     
-    allData.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    return allData;
+    // De-duplicate data points based on timestamp
+    const uniqueData = new Map<number, DataPoint>();
+    allData.forEach(dp => {
+      // Re-hydrate the timestamp string into a Date object if necessary
+      const timestamp = new Date(dp.timestamp);
+      uniqueData.set(timestamp.getTime(), { ...dp, timestamp });
+    });
+
+    const sortedData = Array.from(uniqueData.values()).sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    
+    return sortedData;
 
   } catch (error) {
     console.error("Failed to get processed data:", error);
