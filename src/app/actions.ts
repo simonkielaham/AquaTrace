@@ -65,9 +65,12 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
     return JSON.parse(fileContent);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      // If file doesn't exist, return a default empty state based on file name
+      // This prevents the app from crashing on first run or after data is cleared.
       if (filePath.endsWith('s.json') || filePath.endsWith('log.json')) return [] as T;
       if (filePath.endsWith('-data.json')) return {} as T;
     }
+    // For any other errors, or if the default empty state doesn't match, log and re-throw.
     console.error(`Error reading ${filePath}:`, error);
     throw new Error(`Could not read data file: ${path.basename(filePath)}`);
   }
@@ -211,7 +214,7 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
     const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
     
     // The user provides a 1-based start row. Papa parse with `header:true` returns an array
-    // where the first data row is at index 0. So we subtract 1 for the header, and 1 for 0-indexing.
+    // where the first data row is at index 0. Subtract 1 for header, 1 for 0-indexing.
     const sliceIndex = Math.max(0, validatedData.startRow - 2);
     const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
     
@@ -431,3 +434,5 @@ export async function createAsset(data: any) {
     return response;
   }
 }
+
+    
