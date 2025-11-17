@@ -84,12 +84,11 @@ const statusVariantMap = {
 } as const;
 
 
-// Reusable Asset Form Component
 interface AssetFormProps {
   form: UseFormReturn<AssetFormValues>;
   onSubmit: (data: AssetFormValues) => void;
   isSubmitting: boolean;
-  children: React.ReactNode; // To allow for custom submit buttons
+  children: React.ReactNode; 
 }
 
 function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
@@ -315,7 +314,7 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" title="Delete Asset (disabled)">
           <Trash2 className="h-4 w-4 text-destructive" />
           <span className="sr-only">Delete</span>
         </Button>
@@ -326,7 +325,7 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
           <AlertDialogDescription>
             This action cannot be undone. This will permanently delete the asset{" "}
             <span className="font-semibold">{asset.name}</span> and all of its
-            associated deployment and performance data.
+            associated deployment and performance data. (Note: This feature is currently disabled).
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -378,7 +377,6 @@ function AssetListTable() {
                   <EditAssetDialog asset={asset} />
                   <DeleteAssetDialog asset={asset} onDeleted={() => {
                      startTransition(() => {
-                        // This forces a state update to re-render the list
                         router.refresh(); 
                      })
                   }} />
@@ -461,11 +459,11 @@ export default function AssetManagementPage() {
               <Accordion type="single" collapsible className="w-full" value={isAccordionOpen ? "item-1" : ""} onValueChange={(value) => setIsAccordionOpen(value === "item-1")}>
                 <AccordionItem value="item-1">
                   <Card>
-                    <AccordionTrigger className="w-full p-6 text-lg">
-                       <div className="flex items-center gap-4">
+                    <AccordionTrigger className="w-full p-6">
+                       <div className="flex items-center gap-4 text-left">
                           <PlusCircle className="h-6 w-6 text-muted-foreground" />
                           <div>
-                            <span className="font-headline">Add New Asset</span>
+                            <span className="font-headline text-lg">Add New Asset</span>
                             <p className="text-sm font-normal text-muted-foreground mt-1">
                               Fill in the details below to create a new stormwater management asset.
                             </p>

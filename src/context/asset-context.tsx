@@ -5,16 +5,21 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { 
   Asset, 
   Deployment,
+  DataFile,
   DataPoint,
 } from '@/lib/placeholder-data';
-import { createAsset as createAssetAction, updateAsset as updateAssetAction, updateDeployment as updateDeploymentAction, addDatafile as addDatafileAction, createDeployment as createDeploymentAction, downloadLogs as downloadLogsAction } from '@/app/actions';
+import { 
+  createAsset as createAssetAction, 
+  updateAsset as updateAssetAction, 
+  updateDeployment as updateDeploymentAction, 
+  addDatafile as addDatafileAction, 
+  createDeployment as createDeploymentAction, 
+  downloadLogs as downloadLogsAction,
+  getProcessedData
+} from '@/app/actions';
 
-// We will fetch initial data from server actions or a dedicated API route in a real app
-// For now, we start with empty arrays and let the effect load the data.
 import initialAssets from '@/../data/assets.json';
 import initialDeployments from '@/../data/deployments.json';
-import initialPerformanceData from '@/../data/performance-data.json';
-
 
 interface AssetContextType {
   assets: Asset[];
@@ -41,7 +46,6 @@ const getErrorMessage = async (error: any): Promise<string> => {
     if (error instanceof Response) {
         try {
             const text = await error.text();
-            // Attempt to find the core error message from a Next.js HTML error page
             const match = text.match(/<div class="message">([^<]+)<\/div>/);
             if (match && match[1]) {
                 return `Server Error: ${match[1]}`;
@@ -54,9 +58,7 @@ const getErrorMessage = async (error: any): Promise<string> => {
     if (typeof error === 'object' && error !== null) {
         try {
             return `An unexpected error object was received: ${JSON.stringify(error, null, 2)}`;
-        } catch {
-            // fallback if not stringifiable
-        }
+        } catch {}
     }
     return "An unknown error occurred.";
 };
@@ -72,18 +74,49 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     setAssets(initialAssets);
     setDeployments(initialDeployments);
-    setPerformanceData(initialPerformanceData);
     
     if (initialAssets.length > 0) {
       const storedAssetId = localStorage.getItem('selectedAssetId');
-      if (storedAssetId && initialAssets.some(a => a.id === storedAssetId)) {
-        setSelectedAssetId(storedAssetId);
-      } else {
-        setSelectedAssetId(initialAssets[0].id);
-      }
+      const assetExists = initialAssets.some(a => a.id === storedAssetId);
+      const targetAssetId = storedAssetId && assetExists ? storedAssetId : initialAssets[0].id;
+      setSelectedAssetId(targetAssetId);
     }
     setLoading(false);
   }, []);
+
+  // Effect to load performance data when assets or deployments change
+  useEffect(() => {
+    const fetchAllData = async () => {
+      setLoading(true);
+      const allData: { [assetId: string]: DataPoint[] } = {};
+
+      for (const deployment of deployments) {
+        if (!allData[deployment.assetId]) {
+          allData[deployment.assetId] = [];
+        }
+        for (const file of deployment.files) {
+          const result = await getProcessedData(file.id);
+          if (result.data) {
+            allData[deployment.assetId].push(...result.data);
+          } else {
+            console.error(`Failed to load data for file ${file.id}: ${result.message}`);
+          }
+        }
+      }
+      
+      // Sort data for each asset
+      for (const assetId in allData) {
+        allData[assetId].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+      }
+      
+      setPerformanceData(allData);
+      setLoading(false);
+    };
+
+    if (deployments.length > 0) {
+      fetchAllData();
+    }
+  }, [deployments]);
 
   const handleSetSelectedAssetId = (id: string) => {
     localStorage.setItem('selectedAssetId', id);
@@ -93,10 +126,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const createAsset = useCallback(async (data: any) => {
     try {
       const result = await createAssetAction(data);
-      
       if (result && !result.errors && result.newAsset) {
         setAssets(prev => [...prev, result.newAsset]);
-        // Don't auto-select, let the user navigate
       }
       return result;
     } catch (error) {
@@ -121,11 +152,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const updateAsset = useCallback(async (assetId: string, data: any) => {
     try {
       const result = await updateAssetAction(assetId, data);
-      
-      if (result && !result.errors) {
-        if(result.updatedAsset) {
-          setAssets(prev => prev.map(a => a.id === assetId ? result.updatedAsset : a));
-        }
+      if (result && !result.errors && result.updatedAsset) {
+        setAssets(prev => prev.map(a => a.id === assetId ? result.updatedAsset : a));
       }
       return result;
     } catch (error) {
@@ -150,13 +178,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const addDatafile = useCallback(async (deploymentId: string, assetId: string, data: any, formData: FormData) => {
     try {
       const result = await addDatafileAction(deploymentId, assetId, data, formData);
-      if (result && !result.errors && result.updatedDeployment && result.updatedPerformanceData) {
-        const { updatedDeployment, updatedPerformanceData } = result;
-        setDeployments(prev => prev.map(d => d.id === deploymentId ? updatedDeployment : d));
-        setPerformanceData(prev => ({
-          ...prev,
-          ...updatedPerformanceData
-        }));
+      if (result && !result.errors && result.updatedDeployment) {
+        setDeployments(prev => prev.map(d => d.id === deploymentId ? result.updatedDeployment : d));
       }
       return result;
     } catch (error) {
@@ -166,12 +189,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   }, []);
   
   const deleteAsset = useCallback(async (assetId: string) => {
-    // This function is temporarily disabled to prevent accidental data loss.
-    // The UI button will still exist but the action it calls will do nothing.
-    // In a real-world app, we'd want a more robust, possibly soft-delete, mechanism.
     console.warn("deleteAsset is currently disabled.");
-    // This action would need to remove the asset, its deployments, and its performance data.
-    // For now, we return a message. A real implementation would modify the JSON files.
     return { message: "Asset deletion is temporarily disabled for safety."}
   }, []);
 
@@ -215,3 +233,4 @@ export const useAssets = () => {
   }
   return context;
 };
+

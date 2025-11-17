@@ -12,9 +12,9 @@ import { Asset, Deployment, DataPoint, DataFile, ActivityLog } from '@/lib/place
 const dataDir = path.join(process.cwd(), 'data');
 const assetsFilePath = path.join(dataDir, 'assets.json');
 const deploymentsFilePath = path.join(dataDir, 'deployments.json');
-const performanceDataFilePath = path.join(dataDir, 'performance-data.json');
 const activityLogFilePath = path.join(dataDir, 'activity-log.json');
 const uploadsDir = path.join(dataDir, 'uploads');
+const processedDir = path.join(dataDir, 'processed');
 
 
 // Define the schema for the form data
@@ -61,15 +61,14 @@ const addDatafileSchema = z.object({
 // Helper function to read and parse a JSON file
 async function readJsonFile<T>(filePath: string): Promise<T> {
   try {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
     const fileContent = await fs.readFile(filePath, 'utf-8');
     return JSON.parse(fileContent);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      // If file doesn't exist, return a default empty state based on file name
       if (filePath.endsWith('s.json') || filePath.endsWith('log.json')) return [] as T;
-      if (filePath.endsWith('-data.json')) return {} as T;
+      return {} as T;
     }
-    // For any other errors, or if the default empty state doesn't match, log and re-throw.
     console.error(`Error reading ${filePath}:`, error);
     throw new Error(`Could not read data file: ${path.basename(filePath)}`);
   }
@@ -99,7 +98,6 @@ async function writeLog(logEntry: Omit<ActivityLog, 'id' | 'timestamp'>) {
     await writeJsonFile(activityLogFilePath, logs);
   } catch (error) {
     console.error("Failed to write to activity log:", error);
-    // We don't throw here because logging failure should not fail the main operation
   }
 }
 
@@ -112,7 +110,6 @@ export async function downloadLogs(assetId: string): Promise<{logs?: string, mes
       return { logs: "No logs found for this asset.", message: "No logs found for this asset." };
     }
 
-    // Format logs for download
     const logString = assetLogs.map(log => {
       return `[${log.timestamp}] - [${log.status.toUpperCase()}] - Action: ${log.action}
 Payload: ${JSON.stringify(log.payload, null, 2)}
@@ -129,10 +126,22 @@ Response: ${JSON.stringify(log.response, null, 2)}
   }
 }
 
+export async function getProcessedData(fileId: string): Promise<{ data?: DataPoint[], message?: string }> {
+  const filePath = path.join(processedDir, `${fileId}.json`);
+  try {
+    const data = await readJsonFile<DataPoint[]>(filePath);
+    return { data };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    console.error(`Failed to get processed data for ${fileId}:`, error);
+    return { message: `Error: ${message}` };
+  }
+}
+
 
 export async function createDeployment(assetId: string, data: any) {
-  const validatedFields = deploymentFormSchema.safeParse(data);
   const logPayload = { assetId, data };
+  const validatedFields = deploymentFormSchema.safeParse(data);
   if (!validatedFields.success) {
     const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
     await writeLog({ action: 'createDeployment', status: 'failure', assetId, payload: logPayload, response });
@@ -167,7 +176,6 @@ export async function createDeployment(assetId: string, data: any) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
-    // Ensure failure is logged
     await writeLog({ action: 'createDeployment', status: 'failure', assetId, payload: logPayload, response });
     console.error('Failed to create deployment:', error);
     return response;
@@ -201,8 +209,6 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
     await fs.writeFile(filePath, Buffer.from(fileContent));
 
     let deployments: Deployment[] = await readJsonFile(deploymentsFilePath);
-    const performanceData: { [key: string]: DataPoint[] } = await readJsonFile(performanceDataFilePath);
-
     const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
     if (deploymentIndex === -1) {
       throw new Error("Deployment not found.");
@@ -211,8 +217,9 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
 
     const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
     
-    // The user provides a 1-based start row. Papa parse with `header:true` returns a 0-indexed array
-    // of data rows. Subtract 2 to correctly handle 1-based vs 0-based indexing and the header row.
+    // The user provides a 1-based start row. Papa parse with `header:true` uses row 1 as the header.
+    // The returned `data` array is 0-indexed. So, to get to the user's intended start row,
+    // we must slice from index `startRow - 2` (1 for header, 1 for 0-based index).
     const sliceIndex = Math.max(0, validatedData.startRow - 2);
     const dataRows = (parsedCsv.data as any[]).slice(sliceIndex);
     
@@ -249,24 +256,21 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
       startDate: minDate?.toISOString() || new Date().toISOString(),
       endDate: maxDate?.toISOString() || new Date().toISOString(),
     };
+    
+    // Save processed data to its own file
+    await writeJsonFile(path.join(processedDir, `${newDataFile.id}.json`), processedData);
 
     if (!deployment.files) deployment.files = [];
     deployment.files.push(newDataFile);
 
-    const existingData = performanceData[deployment.assetId] || [];
-    const combinedData = [...existingData, ...processedData];
-    combinedData.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-    performanceData[deployment.assetId] = combinedData;
-
     await writeJsonFile(deploymentsFilePath, deployments);
-    await writeJsonFile(performanceDataFilePath, performanceData);
 
     revalidatePath('/');
     
     const response = {
       message: 'Datafile added successfully',
       updatedDeployment: deployment,
-      updatedPerformanceData: { [deployment.assetId]: combinedData }
+      newDataFile: newDataFile, // send new file info back to client
     };
     await writeLog({ action: 'addDatafile', status: 'success', assetId, deploymentId, payload: logPayload, response: { message: response.message } });
     return response;
@@ -274,7 +278,6 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
   } catch (error) {
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
-    // LOG FAILURE FIRST
     await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
     console.error('Failed to add datafile:', error);
     return response;
@@ -282,8 +285,8 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
 }
 
 export async function updateDeployment(deploymentId: string, assetId: string, data: any) {
-  const validatedFields = editDeploymentSchema.safeParse(data);
   const logPayload = { deploymentId, assetId, data };
+  const validatedFields = editDeploymentSchema.safeParse(data);
 
   if (!validatedFields.success) {
     const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
@@ -319,7 +322,6 @@ export async function updateDeployment(deploymentId: string, assetId: string, da
   } catch (error) {
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
-    // Ensure failure is logged
     await writeLog({ action: 'updateDeployment', status: 'failure', assetId, deploymentId, payload: logPayload, response });
     console.error('Failed to update deployment:', error);
     return response;
@@ -327,8 +329,8 @@ export async function updateDeployment(deploymentId: string, assetId: string, da
 }
 
 export async function updateAsset(assetId: string, data: any) {
-  const validatedFields = editAssetFormSchema.safeParse(data);
   const logPayload = { assetId, data };
+  const validatedFields = editAssetFormSchema.safeParse(data);
 
   if (!validatedFields.success) {
     const response = {
@@ -375,7 +377,6 @@ export async function updateAsset(assetId: string, data: any) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
-    // Ensure failure is logged
     await writeLog({ action: 'updateAsset', status: 'failure', assetId, payload: logPayload, response });
     console.error('Failed to update asset:', error);
     return response;
@@ -386,8 +387,8 @@ export async function updateAsset(assetId: string, data: any) {
 
 // The main server action
 export async function createAsset(data: any) {
-  const validatedFields = assetFormSchema.safeParse(data);
   const logPayload = { data };
+  const validatedFields = assetFormSchema.safeParse(data);
 
   if (!validatedFields.success) {
     const response = {
@@ -401,10 +402,7 @@ export async function createAsset(data: any) {
   const validatedData = validatedFields.data;
 
   try {
-    // 1. Read existing data
     const assets: Asset[] = await readJsonFile<Asset[]>(assetsFilePath);
-
-    // 2. Create new asset record
     const newAssetId = `asset-${Date.now()}`;
     const newAsset: Asset = {
       id: newAssetId,
@@ -412,15 +410,13 @@ export async function createAsset(data: any) {
       location: validatedData.location,
       permanentPoolElevation: validatedData.permanentPoolElevation,
       designElevations: validatedData.designElevations,
-      status: 'ok', // Default status
+      status: 'ok', 
       imageId: ['pond', 'basin', 'creek'][Math.floor(Math.random() * 3)],
     };
     
-    // 3. Append new data and write back to file
     assets.push(newAsset);
     await writeJsonFile(assetsFilePath, assets);
 
-    // Revalidate paths to trigger data refetch on the client
     revalidatePath('/');
     revalidatePath('/asset-management');
 
@@ -434,7 +430,6 @@ export async function createAsset(data: any) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "An unknown error occurred during asset creation.";
     const response = { message: `Error: ${message}` };
-    // Ensure failure is logged
     await writeLog({ action: 'createAsset', status: 'failure', payload: logPayload, response });
     console.error('Failed to create asset:', error);
     return response;
@@ -444,3 +439,4 @@ export async function createAsset(data: any) {
     
 
     
+
