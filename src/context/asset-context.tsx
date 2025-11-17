@@ -46,11 +46,16 @@ const getErrorMessage = async (error: any): Promise<string> => {
     if (error instanceof Response) {
         try {
             const text = await error.text();
-            const match = text.match(/<div class="message">([^<]+)<\/div>/);
+            // Try to extract a specific error message from Next.js's HTML error page
+            const match = text.match(/<p class="sc-fPXMVe kUaGwp">([^<]+)<\/p>/);
             if (match && match[1]) {
                 return `Server Error: ${match[1]}`;
             }
-            return `An unexpected response was received from the server. Raw response: \n\n${text}`;
+            const genericMatch = text.match(/<div class="message">([^<]+)<\/div>/);
+            if (genericMatch && genericMatch[1]) {
+                return `Server Error: ${genericMatch[1]}`;
+            }
+            return `An unexpected response was received from the server.`;
         } catch (e) {
             return "An unexpected and unreadable response was received from the server.";
         }
@@ -235,3 +240,5 @@ export const useAssets = () => {
   }
   return context;
 };
+
+    

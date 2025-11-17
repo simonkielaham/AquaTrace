@@ -215,8 +215,17 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
     }
     const deployment = deployments[deploymentIndex];
 
-    const parsedCsv = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
-    
+    const parsedCsv = Papa.parse(fileContent, {
+      header: true,
+      skipEmptyLines: true,
+      // PapaParse's `data` array is 0-indexed and starts *after* the header row.
+      // The user's `startRow` is 1-based and *includes* the header row.
+      // So, to skip the correct number of rows from the top of the file, we must
+      // tell PapaParse to start parsing from `startRow - 1` (since it's 0-indexed).
+      // However, PapaParse doesn't have a direct "start from row" option with headers.
+      // The most robust way is to parse the whole file and then slice the data array.
+    });
+
     // The user provides a 1-based start row. Papa parse with `header:true` uses row 1 as the header.
     // The returned `data` array is 0-indexed. So, to get to the user's intended start row,
     // we must slice from index `startRow - 2` (1 for header, 1 for 0-based index).
@@ -246,7 +255,7 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
       }).filter((dp): dp is DataPoint => dp !== null);
 
     if (processedData.length === 0) {
-      throw new Error('No valid data points found in the CSV file after processing.');
+      throw new Error('No valid data points found in the CSV file after processing. Check start row and column names.');
     }
 
     const newDataFile: DataFile = {
@@ -440,3 +449,4 @@ export async function createAsset(data: any) {
 
     
 
+    
