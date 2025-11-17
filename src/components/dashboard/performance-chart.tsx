@@ -23,7 +23,6 @@ import * as React from "react";
 
 type PerformanceChartProps = {
   asset: Asset;
-  dataVersion: number;
 };
 
 const chartConfig = {
@@ -39,7 +38,6 @@ const chartConfig = {
 
 export default function PerformanceChart({
   asset,
-  dataVersion,
 }: PerformanceChartProps) {
   const { getProcessedData, loading: contextLoading } = useAssets();
   const [chartData, setChartData] = React.useState<DataPoint[]>([]);
@@ -52,13 +50,18 @@ export default function PerformanceChart({
       setLoading(true);
       const data = await getProcessedData(asset.id);
       if (isMounted) {
-        setChartData(data);
+        // Convert timestamps from strings to Date objects
+        const formattedData = data.map(d => ({
+          ...d,
+          timestamp: new Date(d.timestamp),
+        }));
+        setChartData(formattedData);
         setLoading(false);
       }
     };
     fetchData();
     return () => { isMounted = false };
-  }, [asset.id, getProcessedData, dataVersion]);
+  }, [asset.id, getProcessedData]);
 
   if (loading || contextLoading) {
     return (
@@ -118,6 +121,8 @@ export default function PerformanceChart({
               tickLine={false}
               axisLine={false}
               tickMargin={8}
+              type="number"
+              domain={['dataMin', 'dataMax']}
             />
             <YAxis
               unit="m"

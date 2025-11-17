@@ -229,15 +229,14 @@ export async function assignDatafileToDeployment(formData: FormData) {
               if (!results.meta.fields || results.meta.fields.length === 0) {
                  return reject(new Error("Could not determine headers from CSV."));
               }
-              resolve(results);
+              // Manually handle startRow logic
+              const data = startRow > 1 ? results.data.slice(startRow - 2) : results.data;
+              resolve({ ...results, data });
             },
-            // transformHeader is not reliable for this, so we handle data slicing manually
         });
     });
 
-    const dataRows = parsedCsv.data.slice(startRow > 1 ? startRow - 2 : 0);
-
-    const processedData = dataRows.map((row: any) => {
+    const processedData = parsedCsv.data.map((row: any) => {
         const dateValue = row[datetimeColumn];
         const levelValue = row[waterLevelColumn];
         
