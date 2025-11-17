@@ -38,11 +38,12 @@ const getErrorMessage = async (error: any): Promise<string> => {
     if (error instanceof Error) {
         return error.message;
     }
+    // This is the crucial part for server action errors.
+    // When a server action crashes, Next.js returns a Response object
+    // with the HTML of the error page as the body.
     if (error instanceof Response) {
         const text = await error.text();
-        // This text is likely the HTML of the Next.js error overlay.
-        // We include it to provide maximum debugging information.
-        return `An unexpected response was received from the server. This usually indicates a server-side crash. \n\nFull Response:\n${text}`;
+        return `An unexpected response was received from the server. This usually indicates a server-side crash. The server sent the following response:\n\n${text}`;
     }
     // Fallback for other unexpected error types
     if (typeof error === 'object' && error !== null) {
