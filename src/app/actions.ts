@@ -239,6 +239,10 @@ export async function addDatafile(deploymentId: string, assetId: string, data: a
         };
       }).filter((dp): dp is DataPoint => dp !== null);
 
+    if (processedData.length === 0) {
+      throw new Error('No valid data points found in the CSV file after processing.');
+    }
+
     const newDataFile: DataFile = {
       id: `file-${Date.now()}`,
       deploymentId: deploymentId,
