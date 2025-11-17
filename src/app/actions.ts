@@ -727,6 +727,3 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-
-
-    
