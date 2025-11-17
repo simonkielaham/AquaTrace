@@ -7,7 +7,7 @@ import {
   Deployment,
   DataPoint,
 } from '@/lib/placeholder-data';
-import { createAsset as createAssetAction, updateAsset as updateAssetAction, updateDeployment as updateDeploymentAction, addDatafile as addDatafileAction } from '@/app/actions';
+import { createAsset as createAssetAction, updateAsset as updateAssetAction, updateDeployment as updateDeploymentAction, addDatafile as addDatafileAction, deleteAsset as deleteAssetAction } from '@/app/actions';
 
 // We will fetch initial data from server actions or a dedicated API route in a real app
 // For now, we start with empty arrays and let the effect load the data.
@@ -26,6 +26,7 @@ interface AssetContextType {
   updateAsset: (assetId: string, data: any) => Promise<any>;
   updateDeployment: (deploymentId: string, data: any) => Promise<any>;
   addDatafile: (deploymentId: string, data: any, formData: FormData) => Promise<any>;
+  deleteAsset: (assetId: string) => Promise<any>;
   loading: boolean;
 }
 
@@ -105,6 +106,30 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
     return result;
   }, []);
+  
+  const deleteAsset = useCallback(async (assetId: string) => {
+    const result = await deleteAssetAction(assetId);
+    if (result && !result.errors) {
+      setAssets(prev => prev.filter(a => a.id !== assetId));
+      setDeployments(prev => prev.filter(d => d.assetId !== assetId));
+      setPerformanceData(prev => {
+        const newState = { ...prev };
+        delete newState[assetId];
+        return newState;
+      });
+
+      // If the deleted asset was the selected one, select the first available asset
+      if (selectedAssetId === assetId) {
+          const remainingAssets = assets.filter(a => a.id !== assetId);
+          if (remainingAssets.length > 0) {
+              setSelectedAssetId(remainingAssets[0].id);
+          } else {
+              setSelectedAssetId('');
+          }
+      }
+    }
+    return result;
+  }, [assets, selectedAssetId]);
 
 
   const value = {
@@ -117,6 +142,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     updateAsset,
     updateDeployment,
     addDatafile,
+    deleteAsset,
     loading,
   };
 
@@ -134,5 +160,3 @@ export const useAssets = () => {
   }
   return context;
 };
-
-    

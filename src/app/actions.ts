@@ -80,6 +80,49 @@ async function writeJsonFile<T>(filePath: string, data: T): Promise<void> {
   }
 }
 
+export async function deleteAsset(assetId: string) {
+  try {
+    let assets: Asset[] = await readJsonFile(assetsFilePath);
+    let deployments: Deployment[] = await readJsonFile(deploymentsFilePath);
+    let performanceData: { [key: string]: DataPoint[] } = await readJsonFile(performanceDataFilePath);
+
+    const assetIndex = assets.findIndex(a => a.id === assetId);
+    if (assetIndex === -1) {
+      return { message: 'Asset not found.' };
+    }
+
+    // Filter out the asset
+    const updatedAssets = assets.filter(a => a.id !== assetId);
+    
+    // Filter out deployments associated with the asset
+    const updatedDeployments = deployments.filter(d => d.assetId !== assetId);
+
+    // Delete performance data for the asset
+    if (performanceData[assetId]) {
+      delete performanceData[assetId];
+    }
+    
+    // Note: This does not delete uploaded CSV files from the /data/uploads directory
+    // as their paths are not currently stored in the data model.
+
+    await writeJsonFile(assetsFilePath, updatedAssets);
+    await writeJsonFile(deploymentsFilePath, updatedDeployments);
+    await writeJsonFile(performanceDataFilePath, performanceData);
+
+    revalidatePath('/');
+    revalidatePath('/asset-management');
+
+    return {
+      message: 'Asset deleted successfully',
+      deletedAssetId: assetId
+    };
+
+  } catch (error) {
+    console.error('Failed to delete asset:', error);
+    return { message: `An error occurred: ${(error as Error).message}` };
+  }
+}
+
 export async function addDatafile(deploymentId: string, data: any, formData: FormData) {
   const validatedFields = addDatafileSchema.safeParse(data);
   if (!validatedFields.success) {
@@ -370,5 +413,3 @@ export async function createAsset(data: any, formData: FormData) {
     return { message: `An error occurred: ${(error as Error).message}` };
   }
 }
-
-    

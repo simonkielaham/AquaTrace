@@ -20,6 +20,17 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Form,
   FormControl,
   FormDescription,
@@ -295,18 +306,77 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
   );
 }
 
+function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () => void }) {
+  const { toast } = useToast();
+  const { deleteAsset } = useAssets();
+  const [isDeleting, setIsDeleting] = React.useState(false);
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    toast({
+      title: `Deleting ${asset.name}...`,
+      description: "Please wait.",
+    });
+
+    try {
+      const result = await deleteAsset(asset.id);
+      if (result.errors) {
+        toast({
+          variant: "destructive",
+          title: "Error Deleting Asset",
+          description: result.message,
+        });
+      } else {
+        toast({
+          title: "Asset Deleted",
+          description: `${asset.name} and all its data have been removed.`,
+        });
+        onDeleted(); // Callback to potentially close dialog or refresh
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "An Unexpected Error Occurred",
+        description: "Could not delete the asset. Please try again.",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <Trash2 className="h-4 w-4 text-destructive" />
+          <span className="sr-only">Delete</span>
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the asset{" "}
+            <span className="font-semibold">{asset.name}</span> and all of its
+            associated deployment and performance data.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+            {isDeleting ? "Deleting..." : "Delete"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 
 function AssetListTable() {
   const { assets } = useAssets();
-  const { toast } = useToast();
+  const [_, startTransition] = React.useTransition();
 
-  const handleNotImplemented = () => {
-    toast({
-      title: "Feature not implemented",
-      description: "This functionality is not yet available.",
-    });
-  };
-  
   return (
      <Card>
       <CardHeader>
@@ -337,10 +407,7 @@ function AssetListTable() {
                 </TableCell>
                 <TableCell className="text-right">
                   <EditAssetDialog asset={asset} />
-                  <Button variant="ghost" size="icon" onClick={handleNotImplemented}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                     <span className="sr-only">Delete</span>
-                  </Button>
+                  <DeleteAssetDialog asset={asset} onDeleted={() => startTransition(() => {})} />
                 </TableCell>
               </TableRow>
             ))}
@@ -739,5 +806,3 @@ export default function AssetManagementPage() {
     </SidebarProvider>
   );
 }
-
-    
