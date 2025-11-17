@@ -181,7 +181,7 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
 
 function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, asset: Asset }) {
   const { toast } = useToast();
-  const { updateDeployment, addDatafile } = useAssets();
+  const { updateDeployment } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const form = useForm<EditDeploymentValues>({
@@ -277,16 +277,36 @@ function AddDatafileDialog({ deployment }: { deployment: Deployment }) {
   const [fileContent, setFileContent] = React.useState<string | null>(null);
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
   const [log, setLog] = React.useState<string[]>([]);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const form = useForm<AddDatafileValues>({
     resolver: zodResolver(addDatafileSchema),
-    defaultValues: { startRow: 2 },
+    defaultValues: { startRow: 2, datetimeColumn: undefined, waterLevelColumn: undefined },
   });
 
   const appendLog = (message: string) => {
     setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
   };
   
+  const resetDialogState = () => {
+    setFile(null);
+    setFileContent(null);
+    setCsvHeaders([]);
+    setLog([]);
+    form.reset({ startRow: 2, datetimeColumn: undefined, waterLevelColumn: undefined });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) {
+      // Use a timeout to prevent the state from being cleared before the dialog closes
+      setTimeout(resetDialogState, 200);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
@@ -299,6 +319,7 @@ function AddDatafileDialog({ deployment }: { deployment: Deployment }) {
         Papa.parse(content, {
           header: true,
           preview: 1,
+          skipEmptyLines: true,
           complete: (results) => {
             setCsvHeaders(results.meta.fields || []);
             appendLog(`Detected headers: ${results.meta.fields?.join(', ')}`);
@@ -343,13 +364,13 @@ function AddDatafileDialog({ deployment }: { deployment: Deployment }) {
     } else {
       appendLog("Upload successful!");
       toast({ title: "File Uploaded", description: `${file.name} has been processed.` });
-      setIsOpen(false);
+      handleOpenChange(false);
     }
     setIsSubmitting(false);
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm"><FileUp className="mr-2 h-4 w-4" /> Add Datafile</Button>
       </DialogTrigger>
@@ -364,7 +385,7 @@ function AddDatafileDialog({ deployment }: { deployment: Deployment }) {
                <FormItem>
                 <FormLabel>CSV File</FormLabel>
                 <FormControl>
-                  <Input type="file" accept=".csv" onChange={handleFileChange} />
+                  <Input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileChange} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -377,7 +398,7 @@ function AddDatafileDialog({ deployment }: { deployment: Deployment }) {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date/Time Column</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                            <FormControl>
                             <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                           </FormControl>
@@ -395,7 +416,7 @@ function AddDatafileDialog({ deployment }: { deployment: Deployment }) {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Water Level Column</FormLabel>
-                         <Select onValueChange={field.onChange} defaultValue={field.value}>
+                         <Select onValueChange={field.onChange} value={field.value}>
                            <FormControl>
                             <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                           </FormControl>
@@ -569,3 +590,5 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
+
+    
