@@ -193,6 +193,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
   const [file, setFile] = React.useState<File | null>(null);
   const [fileContent, setFileContent] = React.useState<string | null>(null);
+  const [logMessages, setLogMessages] = React.useState<string[]>([]);
 
   const form = useForm<AddDatafileValues>({
     resolver: zodResolver(addDatafileSchema),
@@ -208,6 +209,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
     setFile(null);
     setFileContent(null);
     setCsvHeaders([]);
+    setLogMessages([]);
     const fileInput = document.getElementById(`dropzone-file-${deployment.id}`) as HTMLInputElement;
     if (fileInput) {
       fileInput.value = "";
@@ -240,25 +242,40 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
   };
 
   const handleSubmit = async (data: AddDatafileValues) => {
+    const addLog = (message: string) => {
+      setLogMessages(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
+    };
+    
+    setLogMessages([]); // Clear logs on new submission
+    addLog("Initiating submission...");
+
     if (!file || !fileContent) {
+      addLog("ERROR: CSV file is missing.");
       toast({ variant: "destructive", title: "File Missing", description: "Please select a CSV file to upload." });
       return;
     }
+    
     setIsSubmitting(true);
+    addLog("Client-side validation complete.");
+    addLog(`File: ${file.name}, Start Row: ${data.startRow}`);
     
     const formData = new FormData();
     formData.append('csvFile', file);
     formData.append('csvContent', fileContent);
     
+    addLog("Sending data to server...");
     const result = await addDatafile(deployment.id, asset.id, data, formData);
+    addLog("Server responded.");
 
     if (result?.message && result.message.startsWith('Error:')) {
+      addLog(`SERVER ERROR: ${result.message}`);
       toast({ 
         variant: "destructive", 
         title: "Error Adding Datafile", 
         description: <pre className="mt-2 w-full max-w-[550px] whitespace-pre-wrap break-all rounded-md bg-slate-950 p-4"><code className="text-white">{result.message}</code></pre>
       });
     } else {
+      addLog("SUCCESS: Datafile added successfully.");
       toast({ title: "Success", description: "New datafile added." });
       setIsOpen(false);
       resetDialogState();
@@ -290,7 +307,7 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
             <div className="flex items-center justify-center w-full">
-              <label htmlFor={`dropzone-file-${deployment.id}`} className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted">
+              <label htmlFor={`dropzone-file-${deployment.id}`} className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted">
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
                   <UploadCloud className="w-8 h-8 mb-4 text-muted-foreground" />
                   <p className="mb-2 text-sm text-muted-foreground">
@@ -349,6 +366,18 @@ function AddDatafileDialog({ deployment, asset }: { deployment: Deployment, asse
                 />
               </div>
             )}
+             
+            {logMessages.length > 0 && (
+              <div className="space-y-2">
+                <FormLabel>Live Log</FormLabel>
+                <ScrollArea className="h-28 w-full rounded-md border p-4 font-mono text-xs">
+                  {logMessages.map((msg, i) => (
+                    <div key={i}>{msg}</div>
+                  ))}
+                </ScrollArea>
+              </div>
+            )}
+             
              <DialogFooter>
               <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
               <Button type="submit" disabled={isSubmitting || !file}>
