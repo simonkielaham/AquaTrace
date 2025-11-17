@@ -168,11 +168,9 @@ export async function addDatafile(formData: FormData) {
     const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
     if (deploymentIndex === -1) throw new Error('Deployment not found');
 
-    // ** THIS IS THE FIX **
-    // Robustly update the files array by creating a new array
-    // This avoids mutation issues with the object read from JSON.
-    const existingFiles = deployments[deploymentIndex].files || [];
-    deployments[deploymentIndex].files = [...existingFiles, newDataFile];
+    // ** THIS IS THE DEFINITIVE FIX **
+    // This robustly updates the files array by creating a new array, which avoids all mutation issues.
+    deployments[deploymentIndex].files = [...(deployments[deploymentIndex].files || []), newDataFile];
     
     await writeJsonFile(deploymentsFilePath, deployments);
     revalidatePath('/');
@@ -182,6 +180,7 @@ export async function addDatafile(formData: FormData) {
     return response;
 
   } catch(error) {
+    console.error("Full server error in addDatafile:", error);
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
     await writeLog({ action: 'addDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
@@ -527,5 +526,7 @@ export async function deleteAsset(assetId: string) {
     
 
 
+
+    
 
     
