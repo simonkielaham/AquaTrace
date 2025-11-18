@@ -65,6 +65,7 @@ export default function PerformanceChart({
   const [loading, setLoading] = React.useState(true);
 
   const yAxisDomain = React.useMemo(() => {
+    // Collect all vertical data points: water levels, survey points, PPE, and all design elevations.
     const allElevations = chartData.flatMap(d => {
         const values: number[] = [];
         if (d.waterLevel !== undefined && d.waterLevel !== null) values.push(d.waterLevel);
@@ -72,15 +73,24 @@ export default function PerformanceChart({
         return values;
     });
 
-    if (allElevations.length === 0) {
-      return [
+    allElevations.push(asset.permanentPoolElevation);
+    asset.designElevations.forEach(de => allElevations.push(de.elevation));
+    
+    if (allElevations.every(v => v === undefined || v === null)) {
+      return [0, 100]; // Default if no data at all
+    }
+
+    const filteredElevations = allElevations.filter(v => typeof v === 'number' && !isNaN(v));
+
+    if (filteredElevations.length === 0) {
+       return [
         asset.permanentPoolElevation - 2,
         asset.permanentPoolElevation + 2,
       ];
     }
     
-    const min = Math.min(...allElevations, asset.permanentPoolElevation);
-    const max = Math.max(...allElevations, asset.permanentPoolElevation, ...asset.designElevations.map(de => de.elevation));
+    const min = Math.min(...filteredElevations);
+    const max = Math.max(...filteredElevations);
     
     const range = max - min;
 
