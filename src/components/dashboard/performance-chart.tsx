@@ -65,11 +65,13 @@ export default function PerformanceChart({
   const [loading, setLoading] = React.useState(true);
   
   const yAxisDomain = React.useMemo(() => {
+    const validDesignElevations = asset.designElevations.filter(de => de.elevation > 0).map(de => de.elevation);
+    
     if (!chartData || chartData.length === 0) {
       // Use asset elevations as a fallback if no dynamic data exists
       const assetElevations = [
         asset.permanentPoolElevation,
-        ...asset.designElevations.map(de => de.elevation)
+        ...validDesignElevations
       ].filter(v => typeof v === 'number' && v > 0);
       
       if (assetElevations.length === 0) return [0, 10]; // Absolute fallback
@@ -81,7 +83,7 @@ export default function PerformanceChart({
     }
     
     const allElevations = chartData.flatMap(d => [d.waterLevel, d.elevation]).filter(v => typeof v === 'number') as number[];
-    allElevations.push(asset.permanentPoolElevation, ...asset.designElevations.map(de => de.elevation));
+    allElevations.push(asset.permanentPoolElevation, ...validDesignElevations);
 
     const validElevations = allElevations.filter(v => typeof v === 'number' && isFinite(v));
     if (validElevations.length === 0) return [0, 10];
