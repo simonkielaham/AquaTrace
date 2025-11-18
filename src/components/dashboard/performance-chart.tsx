@@ -148,8 +148,16 @@ export default function PerformanceChart({
     if (loading || chartData.length === 0) {
       return ['auto', 'auto'];
     }
+
+    const dataToConsider = selectedRange
+      ? chartData.slice(selectedRange.startIndex, selectedRange.endIndex + 1)
+      : chartData;
+
+    if (dataToConsider.length === 0) {
+        return ['auto', 'auto'];
+    }
       
-    const allElevations: number[] = chartData.flatMap(d => {
+    const allElevations: number[] = dataToConsider.flatMap(d => {
         const points = [];
         if (d.waterLevel !== undefined) points.push(d.waterLevel);
         if (d.elevation !== undefined) points.push(d.elevation);
@@ -161,17 +169,18 @@ export default function PerformanceChart({
         if (de.elevation > 0) allElevations.push(de.elevation);
     });
     
-    if (allElevations.length === 0) {
+    const validElevations = allElevations.filter(e => typeof e === 'number' && isFinite(e));
+    if (validElevations.length === 0) {
         return ['auto', 'auto'];
     }
 
-    const dataMin = Math.min(...allElevations);
-    const dataMax = Math.max(...allElevations);
+    const dataMin = Math.min(...validElevations);
+    const dataMax = Math.max(...validElevations);
     
     const padding = (dataMax - dataMin) * 0.1 || 1;
 
     return [dataMin - padding, dataMax + padding];
-  }, [chartData, asset, loading]);
+  }, [chartData, asset, loading, selectedRange]);
 
 
   React.useEffect(() => {
@@ -287,6 +296,7 @@ export default function PerformanceChart({
               type="number"
               domain={yAxisDomain}
               tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
+              allowDataOverflow={true}
             />
             <ChartTooltip
               cursor={false}
@@ -385,7 +395,7 @@ export default function PerformanceChart({
                 stroke="hsl(var(--chart-1))"
                 tickFormatter={(value) => new Date(value as number).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 y={350}
-                onChange={(range) => setSelectedRange(range)}
+                onChange={(range) => setSelectedRange(range as { startIndex: number; endIndex: number; })}
             />
             <ChartLegend content={<ChartLegendContent />} />
           </AreaChart>
@@ -436,3 +446,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
