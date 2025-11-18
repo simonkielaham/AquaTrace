@@ -36,6 +36,7 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider";
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter, Dot, Brush } from "recharts";
 import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
@@ -143,18 +144,19 @@ export default function PerformanceChart({
   const [loading, setLoading] = React.useState(true);
   const [selectedRange, setSelectedRange] = React.useState<{ startIndex: number; endIndex: number } | null>(null);
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
+  const [yZoomRange, setYZoomRange] = React.useState<[number, number] | null>(null);
 
-  const yAxisDomain = React.useMemo(() => {
+  const yAxisBounds = React.useMemo(() => {
     if (loading || chartData.length === 0) {
-      return ['auto', 'auto'];
+      return [0, 0];
     }
-
+    
     const dataToConsider = selectedRange
       ? chartData.slice(selectedRange.startIndex, selectedRange.endIndex + 1)
       : chartData;
 
     if (dataToConsider.length === 0) {
-        return ['auto', 'auto'];
+      return [0, 0];
     }
       
     const allElevations: number[] = dataToConsider.flatMap(d => {
@@ -171,7 +173,7 @@ export default function PerformanceChart({
     
     const validElevations = allElevations.filter(e => typeof e === 'number' && isFinite(e));
     if (validElevations.length === 0) {
-        return ['auto', 'auto'];
+        return [0, 0];
     }
 
     const dataMin = Math.min(...validElevations);
@@ -181,6 +183,12 @@ export default function PerformanceChart({
 
     return [dataMin - padding, dataMax + padding];
   }, [chartData, asset, loading, selectedRange]);
+
+  React.useEffect(() => {
+    if (!loading) {
+      setYZoomRange(yAxisBounds as [number, number]);
+    }
+  }, [yAxisBounds, loading]);
 
 
   React.useEffect(() => {
@@ -275,8 +283,8 @@ export default function PerformanceChart({
         </CardDescription>
       </CardHeader>
       <CardContent>
-       <div className="w-full">
-        <ChartContainer config={chartConfig} className="h-[400px] w-full">
+       <div className="w-full flex gap-4">
+        <ChartContainer config={chartConfig} className="h-[400px] w-full flex-1">
           <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
             <CartesianGrid vertical={false} />
             <XAxis
@@ -294,7 +302,7 @@ export default function PerformanceChart({
               axisLine={false}
               tickMargin={8}
               type="number"
-              domain={yAxisDomain}
+              domain={yZoomRange || yAxisBounds}
               tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
               allowDataOverflow={true}
             />
@@ -400,6 +408,19 @@ export default function PerformanceChart({
             <ChartLegend content={<ChartLegendContent />} />
           </AreaChart>
         </ChartContainer>
+        {yZoomRange && (
+          <div className="w-10 flex flex-col items-center">
+            <Slider
+              orientation="vertical"
+              min={yAxisBounds[0]}
+              max={yAxisBounds[1]}
+              step={(yAxisBounds[1] - yAxisBounds[0]) / 100}
+              value={[yZoomRange[0], yZoomRange[1]]}
+              onValueChange={(value) => setYZoomRange(value as [number, number])}
+              className="h-full"
+            />
+          </div>
+        )}
         </div>
         
         <div className="mt-8 flex flex-col items-end gap-4">
