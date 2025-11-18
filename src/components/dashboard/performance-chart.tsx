@@ -119,19 +119,14 @@ export default function PerformanceChart({
 
     const min = Math.min(...allElevations);
     const max = Math.max(...allElevations);
+    const padding = (max - min) * 0.1 || 1;
     
-    return [min, max];
+    return [min - padding, max + padding];
   }, [chartData, asset.permanentPoolElevation, asset.designElevations]);
 
   React.useEffect(() => {
     setYZoomRange(fullYDomain);
   }, [fullYDomain]);
-  
-  const yAxisDomain = React.useMemo(() => {
-    const [dataMin, dataMax] = yZoomRange;
-    const padding = (dataMax - dataMin) * 0.1 || 1;
-    return [dataMin - padding, dataMax + padding];
-  }, [yZoomRange]);
 
 
   if (loading) {
@@ -203,7 +198,7 @@ export default function PerformanceChart({
                   axisLine={false}
                   tickMargin={8}
                   type="number"
-                  domain={yAxisDomain}
+                  domain={yZoomRange}
                   allowDataOverflow
                 />
                 <ChartTooltip
@@ -312,7 +307,7 @@ export default function PerformanceChart({
               <Label htmlFor="y-zoom-slider" className="text-xs text-muted-foreground">Y-Axis Zoom</Label>
               <Slider
                   id="y-zoom-slider"
-                  defaultValue={[fullYDomain[0], fullYDomain[1]]}
+                  value={[yZoomRange[0], yZoomRange[1]]}
                   min={fullYDomain[0]}
                   max={fullYDomain[1]}
                   step={(fullYDomain[1] - fullYDomain[0]) / 100}
@@ -351,5 +346,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    
