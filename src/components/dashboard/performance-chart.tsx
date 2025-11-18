@@ -26,7 +26,7 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart";
-import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter, Dot } from "recharts";
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter, Dot, Brush } from "recharts";
 import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
@@ -102,6 +102,24 @@ export default function PerformanceChart({
     fetchData();
     return () => { isMounted = false };
   }, [asset.id, dataVersion]);
+
+  const yAxisDomain = React.useMemo(() => {
+    const allElevations: number[] = chartData.flatMap(d => [d.waterLevel, d.elevation]).filter(v => typeof v === 'number' && v > 0) as number[];
+    allElevations.push(asset.permanentPoolElevation);
+    asset.designElevations.forEach(de => {
+        if(de.elevation > 0) allElevations.push(de.elevation);
+    });
+
+    if (allElevations.length === 0) {
+      return ['auto', 'auto'];
+    }
+
+    const min = Math.min(...allElevations);
+    const max = Math.max(...allElevations);
+    const padding = (max - min) * 0.1 || 1; // Use 1m padding if range is 0
+
+    return [min - padding, max + padding];
+  }, [chartData, asset.permanentPoolElevation, asset.designElevations]);
   
 
   if (loading) {
@@ -149,12 +167,12 @@ export default function PerformanceChart({
       <CardHeader>
         <CardTitle className="font-headline">Performance Overview</CardTitle>
         <CardDescription>
-          Water elevation over time against design elevations.
+          Water elevation over time against design elevations. Use the slider to zoom and pan.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[300px] w-full">
-          <AreaChart data={chartData} margin={{ top: 5, right: 30, left: -10, bottom: 5 }}>
+        <ChartContainer config={chartConfig} className="h-[400px] w-full">
+          <AreaChart data={chartData} margin={{ top: 5, right: 30, left: -10, bottom: 50 }}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="timestamp"
@@ -171,6 +189,7 @@ export default function PerformanceChart({
               axisLine={false}
               tickMargin={8}
               type="number"
+              domain={yAxisDomain}
             />
             <ChartTooltip
               cursor={false}
@@ -264,7 +283,13 @@ export default function PerformanceChart({
                     strokeWidth={1}
                 />
              ))}
-
+             <Brush 
+                dataKey="timestamp" 
+                height={30} 
+                stroke="hsl(var(--chart-1))"
+                tickFormatter={(value) => new Date(value as number).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                y={350}
+             />
             <ChartLegend content={<ChartLegendContent />} />
           </AreaChart>
         </ChartContainer>
@@ -297,3 +322,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
