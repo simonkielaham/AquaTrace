@@ -418,7 +418,6 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
           try {
             const fileData = await readJsonFile<{ timestamp: string, waterLevel: number }[]>(filePath);
             const mappedData = fileData.map(d => {
-                // *** FIX: Ensure both operands are numbers before addition ***
                 const waterLevel = parseFloat(d.waterLevel.toString()) + parseFloat(deployment.sensorElevation.toString());
                 return {
                     timestamp: new Date(d.timestamp).getTime(),
