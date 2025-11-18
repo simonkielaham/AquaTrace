@@ -9,7 +9,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Info, BarChart } from "lucide-react";
+import { Info, BarChart, ZoomIn, ZoomOut } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -31,6 +31,9 @@ import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurve
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
+
 
 type ChartablePoint = {
     timestamp: number;
@@ -64,6 +67,8 @@ export default function PerformanceChart({
 }: PerformanceChartProps) {
   const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [yAxisBounds, setYAxisBounds] = React.useState<[number, number]>([0, 100]);
+  const [yZoomRange, setYZoomRange] = React.useState<[number, number]>([0, 100]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -95,14 +100,51 @@ export default function PerformanceChart({
         });
         
         const mergedData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
-
         setChartData(mergedData);
+        
+        // Calculate Y-axis bounds
+        const allElevations = [
+            asset.permanentPoolElevation,
+            ...asset.designElevations.map(de => de.elevation),
+            ...processedData.map(p => p.waterLevel),
+            ...surveyPoints.map(p => p.elevation)
+        ].filter(v => typeof v === 'number' && !isNaN(v) && v > 0);
+
+        if (allElevations.length > 0) {
+          const min = Math.min(...allElevations);
+          const max = Math.max(...allElevations);
+          const padding = (max - min) * 0.1 || 1;
+          const bounds: [number, number] = [min - padding, max + padding];
+          setYAxisBounds(bounds);
+          setYZoomRange(bounds);
+        } else {
+          const defaultBounds: [number, number] = [asset.permanentPoolElevation - 2, asset.permanentPoolElevation + 2];
+          setYAxisBounds(defaultBounds);
+          setYZoomRange(defaultBounds);
+        }
+
         setLoading(false);
       }
     };
     fetchData();
     return () => { isMounted = false };
-  }, [asset.id, dataVersion]);
+  }, [asset.id, dataVersion, asset.permanentPoolElevation, asset.designElevations]);
+
+  const handleZoom = (direction: 'in' | 'out') => {
+      const [min, max] = yZoomRange;
+      const range = max - min;
+      const center = (max + min) / 2;
+      const newRange = direction === 'in' ? range / 1.5 : range * 1.5;
+      
+      let newMin = center - newRange / 2;
+      let newMax = center + newRange / 2;
+
+      // Clamp to absolute bounds
+      newMin = Math.max(yAxisBounds[0], newMin);
+      newMax = Math.min(yAxisBounds[1], newMax);
+
+      setYZoomRange([newMin, newMax]);
+  };
 
 
   if (loading) {
@@ -154,127 +196,145 @@ export default function PerformanceChart({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="w-full">
-          <ChartContainer config={chartConfig} className="h-[400px] w-full">
-            <AreaChart data={chartData} margin={{ top: 5, right: 30, left: -10, bottom: 50 }}>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="timestamp"
-                tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                type="number"
-                domain={['dataMin', 'dataMax']}
-              />
-              <YAxis
-                unit="m"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                type="number"
-              />
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(label) => {
-                      if (typeof label === 'number') {
-                        return new Date(label).toLocaleString();
-                      }
-                      return 'Invalid Date';
-                    }}
-                    indicator="dot"
-                    formatter={(value, name, item) => {
-                      if (item.dataKey === 'waterLevel' && typeof value === 'number') {
-                        const diff = (value - asset.permanentPoolElevation);
-                        const isPositive = diff >= 0;
-                        const direction = isPositive ? 'above' : 'below';
-                        const diffText = `(${Math.abs(diff * 100).toFixed(1)}cm ${direction} permanent pool)`;
+       <div className="flex gap-4">
+          <div className="w-full">
+            <ChartContainer config={chartConfig} className="h-[400px] w-full">
+              <AreaChart data={chartData} margin={{ top: 5, right: 30, left: -10, bottom: 50 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="timestamp"
+                  tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  type="number"
+                  domain={['dataMin', 'dataMax']}
+                />
+                <YAxis
+                  unit="m"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  type="number"
+                  domain={yZoomRange}
+                  allowDataOverflow
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(label) => {
+                        if (typeof label === 'number') {
+                          return new Date(label).toLocaleString();
+                        }
+                        return 'Invalid Date';
+                      }}
+                      indicator="dot"
+                      formatter={(value, name, item) => {
+                        if (item.dataKey === 'waterLevel' && typeof value === 'number') {
+                          const diff = (value - asset.permanentPoolElevation);
+                          const isPositive = diff >= 0;
+                          const direction = isPositive ? 'above' : 'below';
+                          const diffText = `(${Math.abs(diff * 100).toFixed(1)}cm ${direction} permanent pool)`;
 
-                        return (
-                          <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-waterLevel)'}}/>
-                              <div className="flex flex-col items-start">
-                                  <span className="font-bold">WATER ELEVATION: {`${value.toFixed(2)}m`}</span>
-                                  <span className={cn(
-                                    "text-xs",
-                                    isPositive ? "text-green-600 dark:text-green-500" : "text-destructive"
-                                  )}>
-                                    {diffText}
-                                  </span>
-                              </div>
-                          </div>
-                        )
-                      }
-                      if (item.dataKey === 'elevation' && typeof value === 'number') {
-                        return (
-                          <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-surveyPoints)'}}/>
-                              <div className="flex flex-col items-start">
-                                  <span className="font-bold">SURVEY POINT: {`${value.toFixed(2)}m`}</span>
-                              </div>
-                          </div>
-                        )
-                      }
-                      return null;
-                    }}
-                  />
-                }
-              />
-              <Area
-                dataKey="waterLevel"
-                type="monotone"
-                fill="var(--color-waterLevel)"
-                fillOpacity={0.4}
-                stroke="var(--color-waterLevel)"
-                stackId="a"
-                name="Water Elevation"
-                connectNulls
-                dot={false}
-              />
-              <Scatter 
-                  dataKey="elevation" 
-                  fill="var(--color-surveyPoints)" 
-                  name="Survey Points" 
-                  shape={<Dot r={4} strokeWidth={2} stroke="var(--background)" />}
-              />
-              <ReferenceLine
-                y={asset.permanentPoolElevation}
-                label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}
-                stroke="var(--color-ppe)"
-                strokeWidth={2}
-                isFront
-              />
-              {asset.designElevations.filter(de => de.elevation > 0).map(de => (
+                          return (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-waterLevel)'}}/>
+                                <div className="flex flex-col items-start">
+                                    <span className="font-bold">WATER ELEVATION: {`${value.toFixed(2)}m`}</span>
+                                    <span className={cn(
+                                      "text-xs",
+                                      isPositive ? "text-green-600 dark:text-green-500" : "text-destructive"
+                                    )}>
+                                      {diffText}
+                                    </span>
+                                </div>
+                            </div>
+                          )
+                        }
+                        if (item.dataKey === 'elevation' && typeof value === 'number') {
+                          return (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-surveyPoints)'}}/>
+                                <div className="flex flex-col items-start">
+                                    <span className="font-bold">SURVEY POINT: {`${value.toFixed(2)}m`}</span>
+                                </div>
+                            </div>
+                          )
+                        }
+                        return null;
+                      }}
+                    />
+                  }
+                />
+                <Area
+                  dataKey="waterLevel"
+                  type="monotone"
+                  fill="var(--color-waterLevel)"
+                  fillOpacity={0.4}
+                  stroke="var(--color-waterLevel)"
+                  stackId="a"
+                  name="Water Elevation"
+                  connectNulls
+                  dot={false}
+                />
+                <Scatter 
+                    dataKey="elevation" 
+                    fill="var(--color-surveyPoints)" 
+                    name="Survey Points" 
+                    shape={<Dot r={4} strokeWidth={2} stroke="var(--background)" />}
+                />
                 <ReferenceLine
-                  key={de.year}
-                  y={de.elevation}
-                  label={{ value: `${de.year}-Year`, position: 'right', fill: 'hsl(var(--muted-foreground))', fontSize: '10px' }}
-                  stroke="hsl(var(--destructive))"
-                  strokeDasharray="3 3"
+                  y={asset.permanentPoolElevation}
+                  label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}
+                  stroke="var(--color-ppe)"
+                  strokeWidth={2}
                   isFront
                 />
-              ))}
-              {chartData.filter(d => d.elevation !== undefined).map(d => (
-                  <ReferenceLine 
-                      key={`dropline-${d.timestamp}`}
-                      x={d.timestamp}
-                      stroke="hsl(var(--accent))"
-                      strokeDasharray="3 3"
-                      strokeWidth={1}
+                {asset.designElevations.filter(de => de.elevation > 0).map(de => (
+                  <ReferenceLine
+                    key={de.year}
+                    y={de.elevation}
+                    label={{ value: `${de.year}-Year`, position: 'right', fill: 'hsl(var(--muted-foreground))', fontSize: '10px' }}
+                    stroke="hsl(var(--destructive))"
+                    strokeDasharray="3 3"
+                    isFront
                   />
-              ))}
-              <Brush 
-                  dataKey="timestamp" 
-                  height={30} 
-                  stroke="hsl(var(--chart-1))"
-                  tickFormatter={(value) => new Date(value as number).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  y={350}
-              />
-              <ChartLegend content={<ChartLegendContent />} />
-            </AreaChart>
-          </ChartContainer>
+                ))}
+                {chartData.filter(d => d.elevation !== undefined).map(d => (
+                    <ReferenceLine 
+                        key={`dropline-${d.timestamp}`}
+                        x={d.timestamp}
+                        stroke="hsl(var(--accent))"
+                        strokeDasharray="3 3"
+                        strokeWidth={1}
+                    />
+                ))}
+                <Brush 
+                    dataKey="timestamp" 
+                    height={30} 
+                    stroke="hsl(var(--chart-1))"
+                    tickFormatter={(value) => new Date(value as number).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    y={350}
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+              </AreaChart>
+            </ChartContainer>
+          </div>
+          <div className="flex flex-col items-center justify-center gap-4 pl-4 pr-8">
+            <Label className="text-xs text-muted-foreground">Y-Axis Zoom</Label>
+            <Button size="icon" variant="outline" onClick={() => handleZoom('in')}><ZoomIn className="h-4 w-4"/></Button>
+            <Slider
+              orientation="vertical"
+              className="h-[250px]"
+              value={yZoomRange}
+              onValueChange={setYZoomRange}
+              min={yAxisBounds[0]}
+              max={yAxisBounds[1]}
+              step={(yAxisBounds[1] - yAxisBounds[0]) / 100}
+            />
+             <Button size="icon" variant="outline" onClick={() => handleZoom('out')}><ZoomOut className="h-4 w-4"/></Button>
+          </div>
         </div>
 
         <div className="mt-6">
