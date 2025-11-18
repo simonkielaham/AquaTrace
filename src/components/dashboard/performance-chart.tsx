@@ -119,7 +119,7 @@ export default function PerformanceChart({
     const max = Math.max(...allElevations);
     const padding = (max - min) * 0.1 || 1;
     
-    return [min - padding, max + padding];
+    return [Math.max(0, min - padding), max + padding];
   }, [chartData, asset.permanentPoolElevation, asset.designElevations]);
 
 
@@ -325,3 +325,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
