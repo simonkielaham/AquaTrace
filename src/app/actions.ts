@@ -140,7 +140,7 @@ export async function addSurveyPoint(assetId: string, data: any) {
       id: `survey-${Date.now()}`,
       assetId,
       timestamp: finalTimestamp,
-      elevation,
+      elevation: parseFloat(elevation.toString()),
     };
     
     surveyPoints.push(newPoint);
@@ -493,7 +493,7 @@ export async function createDeployment(assetId: string, data: any) {
       id: `dep-${Date.now()}`,
       assetId: assetId,
       sensorId: validatedData.sensorId,
-      sensorElevation: validatedData.sensorElevation,
+      sensorElevation: parseFloat(validatedData.sensorElevation.toString()),
       name: validatedData.name || `Deployment ${new Date().toLocaleDateString()}`,
       files: [],
     };
@@ -540,7 +540,9 @@ export async function updateDeployment(deploymentId: string, assetId: string, da
 
     deployments[deploymentIndex] = {
       ...deployments[deploymentIndex],
-      ...validatedFields.data,
+      name: validatedFields.data.name,
+      sensorId: validatedFields.data.sensorId,
+      sensorElevation: parseFloat(validatedFields.data.sensorElevation.toString()),
     };
     
     await writeJsonFile(deploymentsFilePath, deployments);
@@ -593,8 +595,11 @@ export async function updateAsset(assetId: string, data: any) {
       ...assets[assetIndex],
       name: validatedData.name,
       location: validatedData.location,
-      permanentPoolElevation: validatedData.permanentPoolElevation,
-      designElevations: validatedData.designElevations,
+      permanentPoolElevation: parseFloat(validatedData.permanentPoolElevation.toString()),
+      designElevations: validatedData.designElevations.map(de => ({
+          year: de.year,
+          elevation: parseFloat(de.elevation.toString())
+      })),
     };
     
     await writeJsonFile(assetsFilePath, assets);
@@ -643,8 +648,11 @@ export async function createAsset(data: any) {
       id: newAssetId,
       name: validatedData.name,
       location: validatedData.location,
-      permanentPoolElevation: validatedData.permanentPoolElevation,
-      designElevations: validatedData.designElevations,
+      permanentPoolElevation: parseFloat(validatedData.permanentPoolElevation.toString()),
+      designElevations: validatedData.designElevations.map(de => ({
+          year: de.year,
+          elevation: parseFloat(de.elevation.toString())
+      })),
       status: 'ok', 
       imageId: ['pond', 'basin', 'creek'][Math.floor(Math.random() * 3)],
     };
@@ -727,3 +735,5 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
+
+    
