@@ -11,6 +11,15 @@ import {
 } from "@/components/ui/card";
 import { Info, BarChart } from "lucide-react";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -296,6 +305,31 @@ export default function PerformanceChart({
             <ChartLegend content={<ChartLegendContent />} />
           </AreaChart>
         </ChartContainer>
+
+        <div className="mt-6">
+            <h4 className="font-medium mb-2">Chart Data</h4>
+            <ScrollArea className="h-[200px] border rounded-md">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Timestamp</TableHead>
+                            <TableHead>Calculated Water Elevation</TableHead>
+                            <TableHead>Survey Point Elevation</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {chartData.map((d, i) => (
+                            <TableRow key={i}>
+                                <TableCell>{new Date(d.timestamp).toLocaleString()}</TableCell>
+                                <TableCell>{d.waterLevel !== undefined ? d.waterLevel.toFixed(4) : 'N/A'}</TableCell>
+                                <TableCell>{d.elevation !== undefined ? d.elevation.toFixed(4) : 'N/A'}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </ScrollArea>
+        </div>
+
       </CardContent>
     </Card>
   );
