@@ -102,6 +102,27 @@ export default function PerformanceChart({
     fetchData();
     return () => { isMounted = false };
   }, [asset.id, dataVersion]);
+  
+  const yAxisDomain = React.useMemo(() => {
+    if (chartData.length === 0) {
+      return [asset.permanentPoolElevation - 1, asset.permanentPoolElevation + 1];
+    }
+    const allElevations = chartData.flatMap(d => [d.waterLevel, d.elevation]).filter(v => typeof v === 'number') as number[];
+    allElevations.push(asset.permanentPoolElevation);
+    asset.designElevations.forEach(de => allElevations.push(de.elevation));
+
+    if (allElevations.length === 0) {
+       return [asset.permanentPoolElevation - 1, asset.permanentPoolElevation + 1];
+    }
+
+    const minVal = Math.min(...allElevations);
+    const maxVal = Math.max(...allElevations);
+
+    const padding = (maxVal - minVal) * 0.1 || 1; // Add padding, default to 1m if no range
+
+    return [Math.floor((minVal - padding) * 10) / 10, Math.ceil((maxVal + padding) * 10) / 10];
+  }, [chartData, asset]);
+
 
   if (loading) {
     return (
@@ -169,8 +190,8 @@ export default function PerformanceChart({
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              allowDataOverflow={true}
               type="number"
+              domain={yAxisDomain}
             />
             <ChartTooltip
               cursor={false}
