@@ -195,6 +195,7 @@ export default function PerformanceChart({
                   type="number"
                   domain={yZoomRange}
                   allowDataOverflow
+                  tickFormatter={(value) => value.toFixed(2)}
                 />
                 <ChartTooltip
                   cursor={false}
