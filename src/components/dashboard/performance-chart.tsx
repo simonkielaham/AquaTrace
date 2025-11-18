@@ -193,7 +193,6 @@ export default function PerformanceChart({
               tickMargin={8}
               type="number"
               domain={['dataMin', 'dataMax']}
-              id={0}
             />
             <YAxis
               unit="m"
@@ -203,7 +202,6 @@ export default function PerformanceChart({
               domain={yAxisDomain}
               allowDataOverflow={true}
               type="number"
-              id={0}
             />
             <ChartTooltip
               cursor={false}
@@ -263,16 +261,12 @@ export default function PerformanceChart({
               name="Water Elevation"
               connectNulls
               dot={false}
-              xAxisId={0}
-              yAxisId={0}
             />
              <Scatter 
                 dataKey="elevation" 
                 fill="var(--color-surveyPoints)" 
                 name="Survey Points" 
                 shape={<Dot r={4} strokeWidth={2} stroke="var(--background)" />}
-                xAxisId={0}
-                yAxisId={0}
              />
             <ReferenceLine
               y={asset.permanentPoolElevation}
@@ -334,3 +328,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
