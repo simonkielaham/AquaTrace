@@ -67,9 +67,7 @@ export default function PerformanceChart({
 }: PerformanceChartProps) {
   const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [yAxisBounds, setYAxisBounds] = React.useState<[number, number]>([0, 100]);
-  const [yZoomRange, setYZoomRange] = React.useState<[number, number]>([0, 100]);
-
+  
   React.useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
@@ -101,51 +99,12 @@ export default function PerformanceChart({
         
         const mergedData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
         setChartData(mergedData);
-        
-        // Calculate Y-axis bounds
-        const allElevations = [
-            asset.permanentPoolElevation,
-            ...asset.designElevations.map(de => de.elevation),
-            ...processedData.map(p => p.waterLevel),
-            ...surveyPoints.map(p => p.elevation)
-        ].filter(v => typeof v === 'number' && !isNaN(v) && v > 0);
-
-        if (allElevations.length > 0) {
-          const min = Math.min(...allElevations);
-          const max = Math.max(...allElevations);
-          const padding = (max - min) * 0.1 || 1;
-          const bounds: [number, number] = [min - padding, max + padding];
-          setYAxisBounds(bounds);
-          setYZoomRange(bounds);
-        } else {
-          const defaultBounds: [number, number] = [asset.permanentPoolElevation - 2, asset.permanentPoolElevation + 2];
-          setYAxisBounds(defaultBounds);
-          setYZoomRange(defaultBounds);
-        }
-
         setLoading(false);
       }
     };
     fetchData();
     return () => { isMounted = false };
   }, [asset.id, dataVersion, asset.permanentPoolElevation, asset.designElevations]);
-
-  const handleZoom = (direction: 'in' | 'out') => {
-      const [min, max] = yZoomRange;
-      const range = max - min;
-      const center = (max + min) / 2;
-      const newRange = direction === 'in' ? range / 1.5 : range * 1.5;
-      
-      let newMin = center - newRange / 2;
-      let newMax = center + newRange / 2;
-
-      // Clamp to absolute bounds
-      newMin = Math.max(yAxisBounds[0], newMin);
-      newMax = Math.min(yAxisBounds[1], newMax);
-
-      setYZoomRange([newMin, newMax]);
-  };
-
 
   if (loading) {
     return (
@@ -216,8 +175,6 @@ export default function PerformanceChart({
                   axisLine={false}
                   tickMargin={8}
                   type="number"
-                  domain={yZoomRange}
-                  allowDataOverflow
                 />
                 <ChartTooltip
                   cursor={false}
@@ -321,20 +278,6 @@ export default function PerformanceChart({
               </AreaChart>
             </ChartContainer>
           </div>
-          <div className="flex flex-col items-center justify-center gap-4 pl-4 pr-8">
-            <Label className="text-xs text-muted-foreground">Y-Axis Zoom</Label>
-            <Button size="icon" variant="outline" onClick={() => handleZoom('in')}><ZoomIn className="h-4 w-4"/></Button>
-            <Slider
-              orientation="vertical"
-              className="h-[250px]"
-              value={yZoomRange}
-              onValueChange={setYZoomRange}
-              min={yAxisBounds[0]}
-              max={yAxisBounds[1]}
-              step={(yAxisBounds[1] - yAxisBounds[0]) / 100}
-            />
-             <Button size="icon" variant="outline" onClick={() => handleZoom('out')}><ZoomOut className="h-4 w-4"/></Button>
-          </div>
         </div>
 
         <div className="mt-6">
@@ -365,3 +308,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
