@@ -67,13 +67,27 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
             ]);
 
             if (isMounted) {
-                const processedDataMap = new Map<number, number>();
-                processedData.forEach(p => {
-                    processedDataMap.set(p.timestamp, p.waterLevel);
-                });
+                 const enrichedPoints: EnrichedSurveyPoint[] = points.map(point => {
+                    if (processedData.length === 0) {
+                        return { ...point, difference: undefined };
+                    }
+                    
+                    // Find the nearest processed data point
+                    let nearestPoint = processedData[0];
+                    let smallestDiff = Math.abs(point.timestamp - nearestPoint.timestamp);
 
-                const enrichedPoints: EnrichedSurveyPoint[] = points.map(point => {
-                    const waterLevel = processedDataMap.get(point.timestamp);
+                    for (const p of processedData) {
+                        const diff = Math.abs(point.timestamp - p.timestamp);
+                        if (diff < smallestDiff) {
+                            smallestDiff = diff;
+                            nearestPoint = p;
+                        }
+                    }
+
+                    // Now that we have the true nearest point, we check if the timestamp matches
+                    // because the backend snaps it.
+                    const waterLevel = nearestPoint.timestamp === point.timestamp ? nearestPoint.waterLevel : undefined;
+                    
                     return {
                         ...point,
                         difference: waterLevel !== undefined ? point.elevation - waterLevel : undefined
