@@ -106,7 +106,7 @@ export default function PerformanceChart({
     return () => { isMounted = false };
   }, [asset.id, dataVersion]);
 
-  const fullYDomain = React.useMemo(() => {
+  const yAxisDomain = React.useMemo(() => {
     const allElevations: number[] = chartData.flatMap(d => [d.waterLevel, d.elevation]).filter(v => typeof v === 'number' && !isNaN(v)) as number[];
     allElevations.push(asset.permanentPoolElevation);
     asset.designElevations.forEach(de => {
@@ -125,8 +125,8 @@ export default function PerformanceChart({
   }, [chartData, asset.permanentPoolElevation, asset.designElevations]);
 
   React.useEffect(() => {
-    setYZoomRange(fullYDomain);
-  }, [fullYDomain]);
+    setYZoomRange(yAxisDomain);
+  }, [yAxisDomain]);
 
 
   if (loading) {
@@ -308,9 +308,9 @@ export default function PerformanceChart({
               <Slider
                   id="y-zoom-slider"
                   value={[yZoomRange[0], yZoomRange[1]]}
-                  min={fullYDomain[0]}
-                  max={fullYDomain[1]}
-                  step={(fullYDomain[1] - fullYDomain[0]) / 100}
+                  min={yAxisDomain[0]}
+                  max={yAxisDomain[1]}
+                  step={(yAxisDomain[1] - yAxisDomain[0]) / 100}
                   onValueChange={(value) => setYZoomRange([value[0], value[1]])}
                   orientation="vertical"
                   className="h-[350px]"
