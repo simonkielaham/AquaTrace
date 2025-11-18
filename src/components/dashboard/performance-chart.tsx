@@ -180,7 +180,7 @@ export default function PerformanceChart({
        <div className="flex gap-4">
           <div className="w-full">
             <ChartContainer config={chartConfig} className="h-[400px] w-full">
-              <AreaChart data={chartData} margin={{ top: 5, right: 30, left: -10, bottom: 50 }}>
+              <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
                 <CartesianGrid vertical={false} />
                 <XAxis
                   dataKey="timestamp"
