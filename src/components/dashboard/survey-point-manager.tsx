@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Asset, SurveyPoint } from "@/lib/placeholder-data";
+import type { Asset, SurveyPoint, DataPoint } from "@/lib/placeholder-data";
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
 import { cn } from "@/lib/utils";
 import { CalendarIcon, PlusCircle, Trash2, Loader2, Clock } from "lucide-react";
+import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 
 const surveyPointSchema = z.object({
   date: z.date({ required_error: "A date is required." }),
@@ -36,12 +37,16 @@ const surveyPointSchema = z.object({
 
 type SurveyPointFormValues = z.infer<typeof surveyPointSchema>;
 
+type EnrichedSurveyPoint = SurveyPoint & {
+    difference?: number;
+}
+
 export default function SurveyPointManager({ asset, dataVersion }: { asset: Asset; dataVersion: number }) {
   const { toast } = useToast();
   const { addSurveyPoint, getSurveyPoints, deleteSurveyPoint } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState('');
-  const [surveyPoints, setSurveyPoints] = React.useState<SurveyPoint[]>([]);
+  const [surveyPoints, setSurveyPoints] = React.useState<EnrichedSurveyPoint[]>([]);
   const [loadingPoints, setLoadingPoints] = React.useState(true);
 
   const form = useForm<SurveyPointFormValues>({
@@ -53,13 +58,43 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
 
   React.useEffect(() => {
     let isMounted = true;
-    setLoadingPoints(true);
-    getSurveyPoints(asset.id).then(points => {
-      if (isMounted) {
-        setSurveyPoints(points);
-        setLoadingPoints(false);
-      }
-    });
+    const fetchAndEnrichPoints = async () => {
+        setLoadingPoints(true);
+        try {
+            const [points, processedData] = await Promise.all([
+                getSurveyPoints(asset.id),
+                getProcessedDataAction(asset.id)
+            ]);
+
+            if (isMounted) {
+                const processedDataMap = new Map<number, number>();
+                processedData.forEach(p => {
+                    processedDataMap.set(p.timestamp, p.waterLevel);
+                });
+
+                const enrichedPoints: EnrichedSurveyPoint[] = points.map(point => {
+                    const waterLevel = processedDataMap.get(point.timestamp);
+                    return {
+                        ...point,
+                        difference: waterLevel !== undefined ? point.elevation - waterLevel : undefined
+                    };
+                });
+                
+                setSurveyPoints(enrichedPoints);
+            }
+        } catch (error) {
+            console.error("Failed to fetch or enrich survey points:", error);
+            if (isMounted) {
+                // If it fails, at least try to show the raw points
+                getSurveyPoints(asset.id).then(points => setSurveyPoints(points));
+            }
+        } finally {
+             if (isMounted) setLoadingPoints(false);
+        }
+    }
+
+    fetchAndEnrichPoints();
+    
     return () => { isMounted = false; };
   }, [asset.id, dataVersion, getSurveyPoints]);
 
@@ -204,6 +239,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                     <TableRow>
                         <TableHead>Date</TableHead>
                         <TableHead>Elevation</TableHead>
+                        <TableHead>Difference</TableHead>
                         <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                     </TableHeader>
@@ -212,6 +248,20 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                         <TableRow key={point.id}>
                         <TableCell>{format(new Date(point.timestamp), "Pp")}</TableCell>
                         <TableCell>{point.elevation.toFixed(2)}m</TableCell>
+                        <TableCell>
+                            {point.difference !== undefined ? (
+                                <span className={cn(
+                                    "font-mono text-xs",
+                                    point.difference > 0.01 ? "text-green-600" :
+                                    point.difference < -0.01 ? "text-red-600" :
+                                    "text-muted-foreground"
+                                )}>
+                                    {point.difference > 0 ? '+' : ''}{point.difference.toFixed(2)}m
+                                </span>
+                            ) : (
+                                <span className="text-muted-foreground text-xs">N/A</span>
+                            )}
+                        </TableCell>
                         <TableCell className="text-right">
                              <Button 
                                 variant="ghost" 
@@ -234,5 +284,3 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
     </Card>
   );
 }
-
-    
