@@ -66,16 +66,28 @@ export default function PerformanceChart({
   
   const yAxisDomain = React.useMemo(() => {
     if (!chartData || chartData.length === 0) {
-      return [0, 100];
+      // Use asset elevations as a fallback if no dynamic data exists
+      const assetElevations = [
+        asset.permanentPoolElevation,
+        ...asset.designElevations.map(de => de.elevation)
+      ].filter(v => typeof v === 'number' && v > 0);
+      
+      if (assetElevations.length === 0) return [0, 10]; // Absolute fallback
+
+      const min = Math.min(...assetElevations);
+      const max = Math.max(...assetElevations);
+      const padding = (max - min) * 0.2 || 1;
+      return [min - padding, max + padding];
     }
     
     const allElevations = chartData.flatMap(d => [d.waterLevel, d.elevation]).filter(v => typeof v === 'number') as number[];
     allElevations.push(asset.permanentPoolElevation, ...asset.designElevations.map(de => de.elevation));
 
-    if (allElevations.length === 0) return [0, 100];
+    const validElevations = allElevations.filter(v => typeof v === 'number' && isFinite(v));
+    if (validElevations.length === 0) return [0, 10];
 
-    const dataMin = Math.min(...allElevations);
-    const dataMax = Math.max(...allElevations);
+    const dataMin = Math.min(...validElevations);
+    const dataMax = Math.max(...validElevations);
     
     // Add 10% padding
     const padding = (dataMax - dataMin) * 0.1 || 1;
@@ -90,6 +102,8 @@ export default function PerformanceChart({
     const fetchData = async () => {
       if (!asset.id) return;
       setLoading(true);
+      setChartData([]); // Reset data on asset change to prevent showing old data
+      
       const [processedData, surveyPoints] = await Promise.all([
         getProcessedDataAction(asset.id),
         getSurveyPointsAction(asset.id)
@@ -136,7 +150,7 @@ export default function PerformanceChart({
         </CardHeader>
         <CardContent>
           <div className="h-[400px] flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">
-            <p>Loading chart data...</p>
+            <p>Loading chart data for {asset.name}...</p>
           </div>
         </CardContent>
       </Card>
