@@ -104,23 +104,19 @@ export default function PerformanceChart({
   }, [asset.id, dataVersion]);
   
   const yAxisDomain = React.useMemo(() => {
-    if (chartData.length === 0) {
-      return [asset.permanentPoolElevation - 1, asset.permanentPoolElevation + 1];
-    }
-    const allElevations = chartData.flatMap(d => [d.waterLevel, d.elevation]).filter(v => typeof v === 'number') as number[];
-    allElevations.push(asset.permanentPoolElevation);
-    asset.designElevations.forEach(de => allElevations.push(de.elevation));
+    const allDataElevations = chartData.flatMap(d => [d.waterLevel, d.elevation]).filter(v => typeof v === 'number') as number[];
+    const designElevations = asset.designElevations.map(de => de.elevation).filter(e => e > 0);
+    const allElevations = [...allDataElevations, asset.permanentPoolElevation, ...designElevations];
 
     if (allElevations.length === 0) {
-       return [asset.permanentPoolElevation - 1, asset.permanentPoolElevation + 1];
+      return ['auto', 'auto'];
     }
 
     const minVal = Math.min(...allElevations);
     const maxVal = Math.max(...allElevations);
+    const padding = (maxVal - minVal) * 0.1 || 1;
 
-    const padding = (maxVal - minVal) * 0.1 || 1; // Add padding, default to 1m if no range
-
-    return [Math.floor((minVal - padding) * 10) / 10, Math.ceil((maxVal + padding) * 10) / 10];
+    return [Math.floor((minVal - padding)), Math.ceil((maxVal + padding))];
   }, [chartData, asset]);
 
 
@@ -265,7 +261,7 @@ export default function PerformanceChart({
               strokeWidth={2}
               isFront
             />
-             {asset.designElevations.map(de => (
+             {asset.designElevations.filter(de => de.elevation > 0).map(de => (
                <ReferenceLine
                 key={de.year}
                 y={de.elevation}
