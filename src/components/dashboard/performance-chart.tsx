@@ -145,15 +145,19 @@ export default function PerformanceChart({
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
 
   const yAxisDomain = React.useMemo(() => {
-    const allElevations: number[] = [];
-
-    chartData.forEach(d => {
-        if(d.waterLevel) allElevations.push(d.waterLevel);
-        if(d.elevation) allElevations.push(d.elevation);
+    if (chartData.length === 0) return ['auto', 'auto'];
+      
+    const allElevations: number[] = chartData.flatMap(d => {
+        const points = [];
+        if (d.waterLevel !== undefined) points.push(d.waterLevel);
+        if (d.elevation !== undefined) points.push(d.elevation);
+        return points;
     });
 
     allElevations.push(asset.permanentPoolElevation);
-    asset.designElevations.filter(de => de.elevation > 0).forEach(de => allElevations.push(de.elevation));
+    asset.designElevations.forEach(de => {
+        if (de.elevation > 0) allElevations.push(de.elevation);
+    });
     
     if (allElevations.length === 0) return ['auto', 'auto'];
 
@@ -428,4 +432,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
