@@ -30,6 +30,8 @@ import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter, D
 import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
 
 type ChartablePoint = {
     timestamp: number;
@@ -63,6 +65,7 @@ export default function PerformanceChart({
 }: PerformanceChartProps) {
   const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [yZoomRange, setYZoomRange] = React.useState<[number, number]>([0, 100]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -103,24 +106,33 @@ export default function PerformanceChart({
     return () => { isMounted = false };
   }, [asset.id, dataVersion]);
 
-  const yAxisDomain = React.useMemo(() => {
-    const allElevations: number[] = chartData.flatMap(d => [d.waterLevel, d.elevation]).filter(v => typeof v === 'number' && v > 0) as number[];
+  const fullYDomain = React.useMemo(() => {
+    const allElevations: number[] = chartData.flatMap(d => [d.waterLevel, d.elevation]).filter(v => typeof v === 'number' && !isNaN(v)) as number[];
     allElevations.push(asset.permanentPoolElevation);
     asset.designElevations.forEach(de => {
         if(de.elevation > 0) allElevations.push(de.elevation);
     });
 
     if (allElevations.length === 0) {
-      return ['auto', 'auto'];
+      return [0, 100];
     }
 
     const min = Math.min(...allElevations);
     const max = Math.max(...allElevations);
-    const padding = (max - min) * 0.1 || 1; // Use 1m padding if range is 0
-
-    return [min - padding, max + padding];
+    
+    return [min, max];
   }, [chartData, asset.permanentPoolElevation, asset.designElevations]);
+
+  React.useEffect(() => {
+    setYZoomRange(fullYDomain);
+  }, [fullYDomain]);
   
+  const yAxisDomain = React.useMemo(() => {
+    const [dataMin, dataMax] = yZoomRange;
+    const padding = (dataMax - dataMin) * 0.1 || 1;
+    return [dataMin - padding, dataMax + padding];
+  }, [yZoomRange]);
+
 
   if (loading) {
     return (
@@ -167,132 +179,149 @@ export default function PerformanceChart({
       <CardHeader>
         <CardTitle className="font-headline">Performance Overview</CardTitle>
         <CardDescription>
-          Water elevation over time against design elevations. Use the slider to zoom and pan.
+          Water elevation over time against design elevations. Use the sliders to zoom and pan.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[400px] w-full">
-          <AreaChart data={chartData} margin={{ top: 5, right: 30, left: -10, bottom: 50 }}>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="timestamp"
-              tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              type="number"
-              domain={['dataMin', 'dataMax']}
-            />
-            <YAxis
-              unit="m"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              type="number"
-              domain={yAxisDomain}
-            />
-            <ChartTooltip
-              cursor={false}
-              content={
-                <ChartTooltipContent
-                  labelFormatter={(label) => {
-                    if (typeof label === 'number') {
-                      return new Date(label).toLocaleString();
-                    }
-                    return 'Invalid Date';
-                  }}
-                  indicator="dot"
-                  formatter={(value, name, item) => {
-                    if (item.dataKey === 'waterLevel' && typeof value === 'number') {
-                      const diff = (value - asset.permanentPoolElevation);
-                      const isPositive = diff >= 0;
-                      const direction = isPositive ? 'above' : 'below';
-                      const diffText = `(${Math.abs(diff * 100).toFixed(1)}cm ${direction} permanent pool)`;
+        <div className="flex gap-4">
+          <div className="w-full">
+            <ChartContainer config={chartConfig} className="h-[400px] w-full">
+              <AreaChart data={chartData} margin={{ top: 5, right: 30, left: -10, bottom: 50 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="timestamp"
+                  tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  type="number"
+                  domain={['dataMin', 'dataMax']}
+                />
+                <YAxis
+                  unit="m"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  type="number"
+                  domain={yAxisDomain}
+                  allowDataOverflow
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(label) => {
+                        if (typeof label === 'number') {
+                          return new Date(label).toLocaleString();
+                        }
+                        return 'Invalid Date';
+                      }}
+                      indicator="dot"
+                      formatter={(value, name, item) => {
+                        if (item.dataKey === 'waterLevel' && typeof value === 'number') {
+                          const diff = (value - asset.permanentPoolElevation);
+                          const isPositive = diff >= 0;
+                          const direction = isPositive ? 'above' : 'below';
+                          const diffText = `(${Math.abs(diff * 100).toFixed(1)}cm ${direction} permanent pool)`;
 
-                      return (
-                        <div className="flex items-center gap-2">
-                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-waterLevel)'}}/>
-                            <div className="flex flex-col items-start">
-                                <span className="font-bold">WATER ELEVATION: {`${value.toFixed(2)}m`}</span>
-                                <span className={cn(
-                                  "text-xs",
-                                   isPositive ? "text-green-600 dark:text-green-500" : "text-destructive"
-                                )}>
-                                  {diffText}
-                                </span>
+                          return (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-waterLevel)'}}/>
+                                <div className="flex flex-col items-start">
+                                    <span className="font-bold">WATER ELEVATION: {`${value.toFixed(2)}m`}</span>
+                                    <span className={cn(
+                                      "text-xs",
+                                      isPositive ? "text-green-600 dark:text-green-500" : "text-destructive"
+                                    )}>
+                                      {diffText}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                      )
-                    }
-                    if (item.dataKey === 'elevation' && typeof value === 'number') {
-                       return (
-                         <div className="flex items-center gap-2">
-                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-surveyPoints)'}}/>
-                            <div className="flex flex-col items-start">
-                                <span className="font-bold">SURVEY POINT: {`${value.toFixed(2)}m`}</span>
+                          )
+                        }
+                        if (item.dataKey === 'elevation' && typeof value === 'number') {
+                          return (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-surveyPoints)'}}/>
+                                <div className="flex flex-col items-start">
+                                    <span className="font-bold">SURVEY POINT: {`${value.toFixed(2)}m`}</span>
+                                </div>
                             </div>
-                        </div>
-                       )
-                    }
-                    return null;
-                  }}
+                          )
+                        }
+                        return null;
+                      }}
+                    />
+                  }
                 />
-              }
-            />
-            <Area
-              dataKey="waterLevel"
-              type="monotone"
-              fill="var(--color-waterLevel)"
-              fillOpacity={0.4}
-              stroke="var(--color-waterLevel)"
-              stackId="a"
-              name="Water Elevation"
-              connectNulls
-              dot={false}
-            />
-             <Scatter 
-                dataKey="elevation" 
-                fill="var(--color-surveyPoints)" 
-                name="Survey Points" 
-                shape={<Dot r={4} strokeWidth={2} stroke="var(--background)" />}
-             />
-            <ReferenceLine
-              y={asset.permanentPoolElevation}
-              label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}
-              stroke="var(--color-ppe)"
-              strokeWidth={2}
-              isFront
-            />
-             {asset.designElevations.filter(de => de.elevation > 0).map(de => (
-               <ReferenceLine
-                key={de.year}
-                y={de.elevation}
-                label={{ value: `${de.year}-Year`, position: 'right', fill: 'hsl(var(--muted-foreground))', fontSize: '10px' }}
-                stroke="hsl(var(--destructive))"
-                strokeDasharray="3 3"
-                isFront
-              />
-             ))}
-             {/* Add droplines for each survey point */}
-             {chartData.filter(d => d.elevation !== undefined).map(d => (
-                <ReferenceLine 
-                    key={`dropline-${d.timestamp}`}
-                    x={d.timestamp}
-                    stroke="hsl(var(--accent))"
+                <Area
+                  dataKey="waterLevel"
+                  type="monotone"
+                  fill="var(--color-waterLevel)"
+                  fillOpacity={0.4}
+                  stroke="var(--color-waterLevel)"
+                  stackId="a"
+                  name="Water Elevation"
+                  connectNulls
+                  dot={false}
+                />
+                <Scatter 
+                    dataKey="elevation" 
+                    fill="var(--color-surveyPoints)" 
+                    name="Survey Points" 
+                    shape={<Dot r={4} strokeWidth={2} stroke="var(--background)" />}
+                />
+                <ReferenceLine
+                  y={asset.permanentPoolElevation}
+                  label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}
+                  stroke="var(--color-ppe)"
+                  strokeWidth={2}
+                  isFront
+                />
+                {asset.designElevations.filter(de => de.elevation > 0).map(de => (
+                  <ReferenceLine
+                    key={de.year}
+                    y={de.elevation}
+                    label={{ value: `${de.year}-Year`, position: 'right', fill: 'hsl(var(--muted-foreground))', fontSize: '10px' }}
+                    stroke="hsl(var(--destructive))"
                     strokeDasharray="3 3"
-                    strokeWidth={1}
+                    isFront
+                  />
+                ))}
+                {chartData.filter(d => d.elevation !== undefined).map(d => (
+                    <ReferenceLine 
+                        key={`dropline-${d.timestamp}`}
+                        x={d.timestamp}
+                        stroke="hsl(var(--accent))"
+                        strokeDasharray="3 3"
+                        strokeWidth={1}
+                    />
+                ))}
+                <Brush 
+                    dataKey="timestamp" 
+                    height={30} 
+                    stroke="hsl(var(--chart-1))"
+                    tickFormatter={(value) => new Date(value as number).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    y={350}
                 />
-             ))}
-             <Brush 
-                dataKey="timestamp" 
-                height={30} 
-                stroke="hsl(var(--chart-1))"
-                tickFormatter={(value) => new Date(value as number).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                y={350}
-             />
-            <ChartLegend content={<ChartLegendContent />} />
-          </AreaChart>
-        </ChartContainer>
+                <ChartLegend content={<ChartLegendContent />} />
+              </AreaChart>
+            </ChartContainer>
+          </div>
+          <div className="flex flex-col items-center justify-center space-y-4 pr-4">
+              <Label htmlFor="y-zoom-slider" className="text-xs text-muted-foreground">Y-Axis Zoom</Label>
+              <Slider
+                  id="y-zoom-slider"
+                  defaultValue={[fullYDomain[0], fullYDomain[1]]}
+                  min={fullYDomain[0]}
+                  max={fullYDomain[1]}
+                  step={(fullYDomain[1] - fullYDomain[0]) / 100}
+                  onValueChange={(value) => setYZoomRange([value[0], value[1]])}
+                  orientation="vertical"
+                  className="h-[350px]"
+              />
+          </div>
+        </div>
 
         <div className="mt-6">
             <h4 className="font-medium mb-2">Chart Data</h4>
