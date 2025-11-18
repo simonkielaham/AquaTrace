@@ -67,6 +67,25 @@ export type ActivityLog = {
   response: any;
 };
 
+export type AnalysisPeriod = {
+    id: string;
+    assetId: string;
+    startDate: number;
+    endDate: number;
+    dataPoints: ChartablePoint[];
+    analysis: {
+        peak: ChartablePoint | null;
+        trough: ChartablePoint | null;
+        drawdownHours: number | null;
+    }
+}
+
+export type ChartablePoint = {
+    timestamp: number;
+    waterLevel?: number;
+    elevation?: number;
+}
+
 
 // This file now only contains type definitions.
 // The actual data is loaded and managed in AssetProvider.

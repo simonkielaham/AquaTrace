@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Asset, DataPoint, SurveyPoint } from "@/lib/placeholder-data";
+import type { Asset, ChartablePoint } from "@/lib/placeholder-data";
 import {
   Card,
   CardContent,
@@ -9,7 +9,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Info, BarChart } from "lucide-react";
+import { Info, BarChart, AreaChart as AreaChartIcon, Save } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -26,16 +26,20 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter, Dot, Brush } from "recharts";
 import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
-
-type ChartablePoint = {
-    timestamp: number;
-    waterLevel?: number;
-    elevation?: number;
-}
 
 type PerformanceChartProps = {
   asset: Asset;
@@ -57,45 +61,108 @@ const chartConfig = {
   },
 };
 
+const AnalysisDialog = ({ 
+    asset,
+    data, 
+    range,
+    isOpen,
+    onOpenChange
+}: { 
+    asset: Asset,
+    data: ChartablePoint[], 
+    range: { startIndex: number, endIndex: number },
+    isOpen: boolean,
+    onOpenChange: (open: boolean) => void,
+}) => {
+    
+    const analysisData = data.slice(range.startIndex, range.endIndex + 1);
+    const startDate = new Date(data[range.startIndex]?.timestamp);
+    const endDate = new Date(data[range.endIndex]?.timestamp);
+    
+    // Placeholder for analysis logic
+    const analysisResult = React.useMemo(() => {
+        // This is where future logic for slope change will go.
+        return "Analysis has not been run yet."
+    }, [analysisData]);
+    
+    return (
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-[825px]">
+                 <DialogHeader>
+                    <DialogTitle>Drawdown Analysis for {asset.name}</DialogTitle>
+                    <DialogDescription>
+                        Analyzing data from {startDate.toLocaleString()} to {endDate.toLocaleString()}.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto pr-4">
+                    <div className="space-y-4">
+                        <h4 className="font-semibold">Analysis Results</h4>
+                        <Card>
+                            <CardContent className="pt-6">
+                                <p className="text-sm text-muted-foreground">{analysisResult}</p>
+                            </CardContent>
+                        </Card>
+                    </div>
+                    <div className="space-y-4">
+                        <h4 className="font-semibold">Data Points in Range ({analysisData.length})</h4>
+                        <ScrollArea className="h-[400px] border rounded-md">
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Timestamp</TableHead>
+                                        <TableHead>Water Level</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {analysisData.map((d, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell>{new Date(d.timestamp).toLocaleString()}</TableCell>
+                                            <TableCell>{d.waterLevel ? d.waterLevel.toFixed(4) + 'm' : 'N/A'}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </ScrollArea>
+                    </div>
+                </div>
+                 <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button><Save className="mr-2 h-4 w-4"/> Save Analysis</Button>
+                 </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+
 export default function PerformanceChart({
   asset,
   dataVersion,
 }: PerformanceChartProps) {
   const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
   const [loading, setLoading] = React.useState(true);
-  
+  const [selectedRange, setSelectedRange] = React.useState<{ startIndex: number; endIndex: number } | null>(null);
+  const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
+
   const yAxisDomain = React.useMemo(() => {
-    const validDesignElevations = asset.designElevations.filter(de => de.elevation > 0).map(de => de.elevation);
-    
-    if (!chartData || chartData.length === 0) {
-      // Use asset elevations as a fallback if no dynamic data exists
-      const assetElevations = [
-        asset.permanentPoolElevation,
-        ...validDesignElevations
-      ].filter(v => typeof v === 'number' && v > 0);
-      
-      if (assetElevations.length === 0) return [0, 10]; // Absolute fallback
+    const allElevations: number[] = [];
 
-      const min = Math.min(...assetElevations);
-      const max = Math.max(...assetElevations);
-      const padding = (max - min) * 0.2 || 1;
-      return [min - padding, max + padding];
-    }
-    
-    const allElevations = chartData.flatMap(d => [d.waterLevel, d.elevation]).filter(v => typeof v === 'number') as number[];
-    allElevations.push(asset.permanentPoolElevation, ...validDesignElevations);
+    chartData.forEach(d => {
+        if(d.waterLevel) allElevations.push(d.waterLevel);
+        if(d.elevation) allElevations.push(d.elevation);
+    });
 
-    const validElevations = allElevations.filter(v => typeof v === 'number' && isFinite(v));
-    if (validElevations.length === 0) return [0, 10];
-
-    const dataMin = Math.min(...validElevations);
-    const dataMax = Math.max(...validElevations);
+    allElevations.push(asset.permanentPoolElevation);
+    asset.designElevations.filter(de => de.elevation > 0).forEach(de => allElevations.push(de.elevation));
     
-    // Add 10% padding
+    if (allElevations.length === 0) return ['auto', 'auto'];
+
+    const dataMin = Math.min(...allElevations);
+    const dataMax = Math.max(...allElevations);
+    
     const padding = (dataMax - dataMin) * 0.1 || 1;
 
     return [dataMin - padding, dataMax + padding];
-
   }, [chartData, asset]);
 
 
@@ -104,7 +171,7 @@ export default function PerformanceChart({
     const fetchData = async () => {
       if (!asset.id) return;
       setLoading(true);
-      setChartData([]); // Reset data on asset change to prevent showing old data
+      setChartData([]); // Reset data on asset change
       
       const [processedData, surveyPoints] = await Promise.all([
         getProcessedDataAction(asset.id),
@@ -134,6 +201,7 @@ export default function PerformanceChart({
         
         setChartData(mergedData);
         setLoading(false);
+        setSelectedRange(null); // Reset selection on data change
       }
     };
     fetchData();
@@ -210,7 +278,6 @@ export default function PerformanceChart({
               tickMargin={8}
               type="number"
               domain={yAxisDomain}
-              allowDataOverflow
               tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
             />
             <ChartTooltip
@@ -310,15 +377,24 @@ export default function PerformanceChart({
                 stroke="hsl(var(--chart-1))"
                 tickFormatter={(value) => new Date(value as number).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 y={350}
+                onChange={(range) => setSelectedRange(range)}
             />
             <ChartLegend content={<ChartLegendContent />} />
           </AreaChart>
         </ChartContainer>
         </div>
         
-        <div className="mt-6">
-            <h4 className="font-medium mb-2">Chart Data</h4>
-            <ScrollArea className="h-[200px] border rounded-md">
+        <div className="mt-8 flex flex-col items-end gap-4">
+             <Button 
+                onClick={() => setIsAnalysisDialogOpen(true)}
+                disabled={!selectedRange || selectedRange.startIndex === undefined || selectedRange.endIndex === undefined}
+             >
+                <AreaChartIcon className="mr-2 h-4 w-4" />
+                Analyze Selected Range
+            </Button>
+
+            <h4 className="font-medium mb-2 self-start">Chart Data</h4>
+            <ScrollArea className="h-[200px] border rounded-md w-full">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -339,8 +415,17 @@ export default function PerformanceChart({
                 </Table>
             </ScrollArea>
         </div>
+        
+        {selectedRange && <AnalysisDialog 
+            asset={asset}
+            isOpen={isAnalysisDialogOpen}
+            onOpenChange={setIsAnalysisDialogOpen}
+            data={chartData}
+            range={selectedRange}
+        />}
 
       </CardContent>
     </Card>
   );
 }
+
