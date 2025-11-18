@@ -67,6 +67,9 @@ export default function PerformanceChart({
 }: PerformanceChartProps) {
   const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
   const [loading, setLoading] = React.useState(true);
+
+  const [yZoomRange, setYZoomRange] = React.useState<[number, number]>([0, 100]);
+  const [yAxisBounds, setYAxisBounds] = React.useState<[number, number]>([0, 100]);
   
   React.useEffect(() => {
     let isMounted = true;
@@ -98,13 +101,27 @@ export default function PerformanceChart({
         });
         
         const mergedData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
+        
+        if(mergedData.length > 0) {
+            const allElevations = mergedData.flatMap(d => [d.waterLevel, d.elevation]).filter(v => typeof v === 'number') as number[];
+            allElevations.push(asset.permanentPoolElevation, ...asset.designElevations.map(de => de.elevation));
+
+            const dataMin = Math.min(...allElevations);
+            const dataMax = Math.max(...allElevations);
+            const padding = (dataMax - dataMin) * 0.1 || 1;
+            
+            const bounds: [number, number] = [dataMin - padding, dataMax + padding];
+            setYAxisBounds(bounds);
+            setYZoomRange(bounds);
+        }
+
         setChartData(mergedData);
         setLoading(false);
       }
     };
     fetchData();
     return () => { isMounted = false };
-  }, [asset.id, dataVersion]);
+  }, [asset, dataVersion]);
 
 
   if (loading) {
@@ -117,7 +134,7 @@ export default function PerformanceChart({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">
+          <div className="h-[400px] flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">
             <p>Loading chart data...</p>
           </div>
         </CardContent>
@@ -135,7 +152,7 @@ export default function PerformanceChart({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">
+          <div className="h-[400px] flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">
               <div className="text-center">
                   <BarChart className="mx-auto h-8 w-8 mb-2" />
                   <p>No performance data available.</p>
@@ -176,7 +193,7 @@ export default function PerformanceChart({
                   axisLine={false}
                   tickMargin={8}
                   type="number"
-                  domain={['dataMin - 1', 'dataMax + 1']}
+                  domain={yZoomRange}
                   allowDataOverflow
                 />
                 <ChartTooltip
@@ -281,6 +298,23 @@ export default function PerformanceChart({
               </AreaChart>
             </ChartContainer>
           </div>
+          <div className="flex flex-col items-center gap-4 w-16">
+              <Button variant="outline" size="icon" onClick={() => setYZoomRange(yAxisBounds)}><ZoomOut className="h-4 w-4"/></Button>
+              <Slider
+                orientation="vertical"
+                min={yAxisBounds[0]}
+                max={yAxisBounds[1]}
+                step={(yAxisBounds[1] - yAxisBounds[0]) / 100}
+                value={[...yZoomRange].reverse()}
+                onValueChange={(newRange) => setYZoomRange([...newRange].reverse() as [number, number])}
+                className="h-[300px]"
+              />
+               <Button variant="outline" size="icon" onClick={() => {
+                   const mid = (yZoomRange[0] + yZoomRange[1]) / 2;
+                   const range = (yZoomRange[1] - yZoomRange[0]) / 4;
+                   setYZoomRange([mid - range, mid + range]);
+               }}><ZoomIn className="h-4 w-4"/></Button>
+            </div>
         </div>
 
         <div className="mt-6">
