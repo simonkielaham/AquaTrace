@@ -64,46 +64,6 @@ export default function PerformanceChart({
   const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  const yAxisDomain = React.useMemo(() => {
-    // Collect all vertical data points: water levels, survey points, PPE, and all design elevations.
-    const allElevations = chartData.flatMap(d => {
-        const values: number[] = [];
-        if (d.waterLevel !== undefined && d.waterLevel !== null) values.push(d.waterLevel);
-        if (d.elevation !== undefined && d.elevation !== null) values.push(d.elevation);
-        return values;
-    });
-
-    allElevations.push(asset.permanentPoolElevation);
-    asset.designElevations.forEach(de => allElevations.push(de.elevation));
-    
-    if (allElevations.every(v => v === undefined || v === null)) {
-      return [0, 100]; // Default if no data at all
-    }
-
-    const filteredElevations = allElevations.filter(v => typeof v === 'number' && !isNaN(v));
-
-    if (filteredElevations.length === 0) {
-       return [
-        asset.permanentPoolElevation - 2,
-        asset.permanentPoolElevation + 2,
-      ];
-    }
-    
-    const min = Math.min(...filteredElevations);
-    const max = Math.max(...filteredElevations);
-    
-    const range = max - min;
-
-    if (range === 0) {
-        return [min - 1, max + 1];
-    }
-    
-    const buffer = range * 0.1; // 10% buffer
-    
-    return [min - buffer, max + buffer];
-  }, [chartData, asset.permanentPoolElevation, asset.designElevations]);
-
-
   React.useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
@@ -209,7 +169,6 @@ export default function PerformanceChart({
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              domain={yAxisDomain}
               allowDataOverflow={true}
               type="number"
             />
