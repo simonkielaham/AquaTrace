@@ -145,7 +145,9 @@ export default function PerformanceChart({
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
 
   const yAxisDomain = React.useMemo(() => {
-    if (chartData.length === 0) return ['auto', 'auto'];
+    if (loading || chartData.length === 0) {
+      return ['auto', 'auto'];
+    }
       
     const allElevations: number[] = chartData.flatMap(d => {
         const points = [];
@@ -159,7 +161,9 @@ export default function PerformanceChart({
         if (de.elevation > 0) allElevations.push(de.elevation);
     });
     
-    if (allElevations.length === 0) return ['auto', 'auto'];
+    if (allElevations.length === 0) {
+        return ['auto', 'auto'];
+    }
 
     const dataMin = Math.min(...allElevations);
     const dataMax = Math.max(...allElevations);
@@ -167,7 +171,7 @@ export default function PerformanceChart({
     const padding = (dataMax - dataMin) * 0.1 || 1;
 
     return [dataMin - padding, dataMax + padding];
-  }, [chartData, asset]);
+  }, [chartData, asset, loading]);
 
 
   React.useEffect(() => {
