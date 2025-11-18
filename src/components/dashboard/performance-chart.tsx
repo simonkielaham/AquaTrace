@@ -287,9 +287,9 @@ export default function PerformanceChart({
             />
             {asset.designElevations.filter(de => de.elevation > 0).map(de => (
               <ReferenceLine
-                key={de.year}
+                key={de.name}
                 y={de.elevation}
-                label={{ value: `${de.year}-Year`, position: 'right', fill: 'hsl(var(--muted-foreground))', fontSize: '10px' }}
+                label={{ value: de.name, position: 'right', fill: 'hsl(var(--muted-foreground))', fontSize: '10px' }}
                 stroke="hsl(var(--destructive))"
                 strokeDasharray="3 3"
                 isFront

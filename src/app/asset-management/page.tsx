@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray, UseFormReturn } from "react-hook-form";
+import { useForm, useFieldArray, UseFormReturn, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 
@@ -36,6 +36,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PlusCircle, Trash2, FilePenLine, ChevronDown } from "lucide-react";
@@ -64,7 +71,7 @@ import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 
 
 const designElevationSchema = z.object({
-  year: z.coerce.number().min(1, "Year is required"),
+  name: z.string().min(1, "Name is required."),
   elevation: z.coerce.number().min(0, "Elevation is required"),
 });
 
@@ -72,7 +79,7 @@ const assetFormSchema = z.object({
   name: z.string().min(2, "Asset name must be at least 2 characters."),
   location: z.string().min(2, "Location is required."),
   permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
-  designElevations: z.array(designElevationSchema).min(1, "At least one design elevation is required."),
+  designElevations: z.array(designElevationSchema),
 });
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
@@ -83,6 +90,90 @@ const statusVariantMap = {
   error: "destructive",
 } as const;
 
+const elevationOptions = [
+    "2 year",
+    "5 year",
+    "10 year",
+    "25 year",
+    "100 year",
+    "Emergency Spillway",
+    "Surveyed Outlet",
+    "Pond Bottom",
+    "Custom"
+];
+
+function DesignElevationRow({ control, index, remove }: { control: any, index: number, remove: (index: number) => void }) {
+    const watchName = useWatch({
+        control,
+        name: `designElevations.${index}.name`
+    });
+
+    const isCustom = watchName === 'Custom';
+
+    return (
+      <div className="flex items-end gap-2">
+        <div className="flex-1 space-y-2">
+          <FormField
+            control={control}
+            name={`designElevations.${index}.name`}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs">Type</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a type" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {elevationOptions.map(option => (
+                      <SelectItem key={option} value={option}>{option}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          {isCustom && (
+            <FormField
+              control={control}
+              name={`designElevations.${index}.name`}
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input placeholder="Enter custom name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+        </div>
+        <FormField
+          control={control}
+          name={`designElevations.${index}.elevation`}
+          render={({ field }) => (
+            <FormItem className="w-1/3">
+              <FormLabel className="text-xs">Elevation (m)</FormLabel>
+              <FormControl>
+                <Input type="number" step="0.01" placeholder="e.g., 12.0" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button
+          type="button"
+          variant="destructive"
+          size="icon"
+          onClick={() => remove(index)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+}
 
 interface AssetFormProps {
   form: UseFormReturn<AssetFormValues>;
@@ -144,49 +235,18 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
           </div>
           <div className="space-y-4">
             <div>
-              <FormLabel>Design Elevations</FormLabel>
+              <FormLabel>Optional Design Elevations</FormLabel>
               <FormDescription className="mb-4">
-                Specify design storm year and corresponding elevation.
+                Add any other relevant design elevations.
               </FormDescription>
-              <div className="space-y-4 max-h-[200px] overflow-y-auto pr-2">
+              <div className="space-y-4 max-h-[250px] overflow-y-auto pr-2">
                 {fields.map((field, index) => (
-                  <div key={field.id} className="flex items-end gap-4">
-                    <FormField
-                      control={form.control}
-                      name={`designElevations.${index}.year`}
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
-                          <FormLabel className="text-xs">Year</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="e.g., 10" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`designElevations.${index}.elevation`}
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
-                          <FormLabel className="text-xs">Elevation (m)</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" placeholder="e.g., 12.0" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      onClick={() => remove(index)}
-                      disabled={fields.length <= 1}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <DesignElevationRow
+                    key={field.id}
+                    control={form.control}
+                    index={index}
+                    remove={remove}
+                  />
                 ))}
               </div>
               <Button
@@ -194,7 +254,7 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
                 variant="outline"
                 size="sm"
                 className="mt-4"
-                onClick={() => append({ year: 0, elevation: 0 })}
+                onClick={() => append({ name: "", elevation: 0 })}
               >
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Elevation
@@ -259,7 +319,7 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
           <span className="sr-only">Edit</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[625px]">
+      <DialogContent className="sm:max-w-[725px]">
         <DialogHeader>
           <DialogTitle>Edit Asset: {asset.name}</DialogTitle>
           <DialogDescription>
@@ -404,7 +464,7 @@ export default function AssetManagementPage() {
       name: "",
       location: "",
       permanentPoolElevation: 0,
-      designElevations: [{ year: 2, elevation: 0 }],
+      designElevations: [],
     },
   });
   

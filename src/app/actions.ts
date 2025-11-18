@@ -24,7 +24,7 @@ const assetFormSchema = z.object({
   location: z.string().min(2),
   permanentPoolElevation: z.coerce.number().min(0),
   designElevations: z.array(z.object({
-    year: z.coerce.number(),
+    name: z.string().min(1),
     elevation: z.coerce.number()
   })),
 });
@@ -34,7 +34,7 @@ const editAssetFormSchema = z.object({
   location: z.string().min(2),
   permanentPoolElevation: z.coerce.number().min(0),
   designElevations: z.array(z.object({
-    year: z.coerce.number(),
+    name: z.string().min(1),
     elevation: z.coerce.number()
   })),
 });
@@ -597,7 +597,7 @@ export async function updateAsset(assetId: string, data: any) {
       location: validatedData.location,
       permanentPoolElevation: parseFloat(validatedData.permanentPoolElevation.toString()),
       designElevations: validatedData.designElevations.map(de => ({
-          year: de.year,
+          name: de.name,
           elevation: parseFloat(de.elevation.toString())
       })),
     };
@@ -650,7 +650,7 @@ export async function createAsset(data: any) {
       location: validatedData.location,
       permanentPoolElevation: parseFloat(validatedData.permanentPoolElevation.toString()),
       designElevations: validatedData.designElevations.map(de => ({
-          year: de.year,
+          name: de.name,
           elevation: parseFloat(de.elevation.toString())
       })),
       status: 'ok', 

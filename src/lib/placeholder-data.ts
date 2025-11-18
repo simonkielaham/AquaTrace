@@ -4,7 +4,7 @@ export type Asset = {
   name: string;
   location: string;
   permanentPoolElevation: number; // in meters
-  designElevations: { year: number; elevation: number }[];
+  designElevations: { name: string; elevation: number }[];
   status: "ok" | "warning" | "error";
   imageId: string;
 };

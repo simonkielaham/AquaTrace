@@ -62,8 +62,8 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
               <h4 className="font-semibold text-sm">Design Elevations</h4>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {asset.designElevations.map((de) => (
-                  <div key={de.year} className="flex justify-between rounded-md bg-muted/50 p-2">
-                    <span className="text-muted-foreground">{de.year}-Year:</span>
+                  <div key={de.name} className="flex justify-between rounded-md bg-muted/50 p-2">
+                    <span className="text-muted-foreground">{de.name}:</span>
                     <span className="font-semibold">{de.elevation.toFixed(2)}m</span>
                   </div>
                 ))}
