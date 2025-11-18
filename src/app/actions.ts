@@ -14,7 +14,7 @@ const assetsFilePath = path.join(dataDir, 'assets.json');
 const deploymentsFilePath = path.join(dataDir, 'deployments.json');
 const activityLogFilePath = path.join(dataDir, 'activity-log.json');
 const surveyPointsFilePath = path.join(dataDir, 'survey-points.json');
-const stagedDir = path.join(dataDir, 'staged');
+const stagedDir = path.join(process.cwd(), 'staged');
 const processedDir = path.join(dataDir, 'processed');
 
 
@@ -418,6 +418,7 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
           try {
             const fileData = await readJsonFile<{ timestamp: string, waterLevel: number }[]>(filePath);
             const mappedData = fileData.map(d => {
+                // *** FIX: Ensure both operands are numbers before addition ***
                 const waterLevel = parseFloat(d.waterLevel.toString()) + parseFloat(deployment.sensorElevation.toString());
                 return {
                     timestamp: new Date(d.timestamp).getTime(),
@@ -727,5 +728,3 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-
-    
