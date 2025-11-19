@@ -163,7 +163,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
           Add and manage manual survey elevation points for this asset.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <CardContent className="space-y-8">
         <div>
           <h4 className="font-medium mb-4">Add New Point</h4>
           <Form {...form}>
@@ -313,5 +313,3 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
     </Card>
   );
 }
-
-    
