@@ -79,6 +79,8 @@ const designElevationSchema = z.object({
 const assetFormSchema = z.object({
   name: z.string().min(2, "Asset name must be at least 2 characters."),
   location: z.string().min(2, "Location is required."),
+  latitude: z.coerce.number().min(-90, "Invalid latitude.").max(90, "Invalid latitude."),
+  longitude: z.coerce.number().min(-180, "Invalid longitude.").max(180, "Invalid longitude."),
   permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
   designElevations: z.array(designElevationSchema),
 });
@@ -226,6 +228,34 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
                 </FormItem>
               )}
             />
+             <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="latitude"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Latitude</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" placeholder="e.g., 43.6532" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="longitude"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Longitude</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" placeholder="e.g., -79.3832" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             <FormField
               control={form.control}
               name="permanentPoolElevation"
@@ -287,6 +317,8 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
     defaultValues: {
       name: asset.name,
       location: asset.location,
+      latitude: asset.latitude,
+      longitude: asset.longitude,
       permanentPoolElevation: asset.permanentPoolElevation,
       designElevations: asset.designElevations.map(de => {
         const isStandard = elevationOptions.includes(de.name);
@@ -485,6 +517,8 @@ export default function AssetManagementPage() {
     defaultValues: {
       name: "",
       location: "",
+      latitude: 0,
+      longitude: 0,
       permanentPoolElevation: 0,
       designElevations: [],
     },

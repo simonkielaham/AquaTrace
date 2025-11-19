@@ -2,7 +2,7 @@ import type { Asset } from "@/lib/placeholder-data";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Target } from "lucide-react";
+import { MapPin, Target, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 
@@ -28,9 +28,15 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
         </Badge>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
-          <MapPin className="h-4 w-4" />
-          <span>{asset.location}</span>
+        <div className="flex items-center space-x-4 text-sm text-muted-foreground mb-4">
+            <div className="flex items-center space-x-2">
+              <MapPin className="h-4 w-4" />
+              <span>{asset.location}</span>
+            </div>
+             <div className="flex items-center space-x-2">
+                <Globe className="h-4 w-4" />
+                <span>{asset.latitude.toFixed(4)}, {asset.longitude.toFixed(4)}</span>
+            </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {image && (

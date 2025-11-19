@@ -3,6 +3,8 @@ export type Asset = {
   id: string;
   name: string;
   location: string;
+  latitude: number;
+  longitude: number;
   permanentPoolElevation: number; // in meters
   designElevations: { name: string; elevation: number }[];
   status: "ok" | "warning" | "error";

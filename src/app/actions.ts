@@ -22,6 +22,8 @@ const processedDir = path.join(dataDir, 'processed');
 const assetFormSchema = z.object({
   name: z.string().min(2),
   location: z.string().min(2),
+  latitude: z.coerce.number(),
+  longitude: z.coerce.number(),
   permanentPoolElevation: z.coerce.number().min(0),
   designElevations: z.array(z.object({
     name: z.string().min(1),
@@ -32,6 +34,8 @@ const assetFormSchema = z.object({
 const editAssetFormSchema = z.object({
   name: z.string().min(2),
   location: z.string().min(2),
+  latitude: z.coerce.number(),
+  longitude: z.coerce.number(),
   permanentPoolElevation: z.coerce.number().min(0),
   designElevations: z.array(z.object({
     name: z.string().min(1),
@@ -605,6 +609,8 @@ export async function updateAsset(assetId: string, data: any) {
       ...assets[assetIndex],
       name: validatedData.name,
       location: validatedData.location,
+      latitude: parseFloat(validatedData.latitude.toString()),
+      longitude: parseFloat(validatedData.longitude.toString()),
       permanentPoolElevation: parseFloat(validatedData.permanentPoolElevation.toString()),
       designElevations: validatedData.designElevations.map(de => ({
           name: de.name,
@@ -658,6 +664,8 @@ export async function createAsset(data: any) {
       id: newAssetId,
       name: validatedData.name,
       location: validatedData.location,
+      latitude: parseFloat(validatedData.latitude.toString()),
+      longitude: parseFloat(validatedData.longitude.toString()),
       permanentPoolElevation: parseFloat(validatedData.permanentPoolElevation.toString()),
       designElevations: validatedData.designElevations.map(de => ({
           name: de.name,
