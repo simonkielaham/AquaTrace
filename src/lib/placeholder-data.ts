@@ -46,6 +46,7 @@ export type Deployment = {
   assetId: string;
   sensorId: string;
   sensorElevation: number;
+  stillwellTop?: number;
   name?: string;
   files?: DataFile[];
 };

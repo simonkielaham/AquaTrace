@@ -46,6 +46,7 @@ const editAssetFormSchema = z.object({
 const deploymentFormSchema = z.object({
   sensorId: z.string().min(1),
   sensorElevation: z.coerce.number(),
+  stillwellTop: z.coerce.number().optional(),
   name: z.string().optional(),
 });
 
@@ -54,6 +55,7 @@ const editDeploymentSchema = z.object({
   name: z.string().optional(),
   sensorId: z.string().min(1),
   sensorElevation: z.coerce.number(),
+  stillwellTop: z.coerce.number().optional(),
 });
 
 const surveyPointSchema = z.object({
@@ -564,6 +566,7 @@ export async function createDeployment(assetId: string, data: any) {
       assetId: assetId,
       sensorId: validatedData.sensorId,
       sensorElevation: parseFloat(validatedData.sensorElevation.toString()),
+      stillwellTop: validatedData.stillwellTop ? parseFloat(validatedData.stillwellTop.toString()) : undefined,
       name: validatedData.name || `Deployment ${new Date().toLocaleDateString()}`,
       files: [],
     };
@@ -613,6 +616,7 @@ export async function updateDeployment(deploymentId: string, assetId: string, da
       name: validatedFields.data.name,
       sensorId: validatedFields.data.sensorId,
       sensorElevation: parseFloat(validatedFields.data.sensorElevation.toString()),
+      stillwellTop: validatedFields.data.stillwellTop ? parseFloat(validatedFields.data.stillwellTop.toString()) : undefined,
     };
     
     await writeJsonFile(deploymentsFilePath, deployments);

@@ -79,6 +79,7 @@ const editDeploymentSchema = z.object({
   name: z.string().optional(),
   sensorId: z.string().min(1, "Sensor ID is required."),
   sensorElevation: z.coerce.number(),
+  stillwellTop: z.coerce.number().optional(),
 });
 
 type EditDeploymentValues = z.infer<typeof editDeploymentSchema>;
@@ -86,6 +87,7 @@ type EditDeploymentValues = z.infer<typeof editDeploymentSchema>;
 const deploymentFormSchema = z.object({
   sensorId: z.string().min(1, "Sensor ID is required."),
   sensorElevation: z.coerce.number(),
+  stillwellTop: z.coerce.number().optional(),
   name: z.string().optional(),
 });
 type DeploymentFormValues = z.infer<typeof deploymentFormSchema>;
@@ -111,6 +113,7 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
     defaultValues: {
       sensorId: "",
       sensorElevation: 0,
+      stillwellTop: undefined,
       name: "",
     }
   });
@@ -167,17 +170,30 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="sensorElevation"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Sensor Elevation (m)</FormLabel>
-                  <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+             <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="sensorElevation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sensor Elevation (m)</FormLabel>
+                      <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={form.control}
+                  name="stillwellTop"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stillwell Top (m)</FormLabel>
+                      <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+            </div>
             <DialogFooter>
               <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
               <Button type="submit" disabled={isSubmitting}>
@@ -203,6 +219,7 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
       name: deployment.name || "",
       sensorId: deployment.sensorId,
       sensorElevation: deployment.sensorElevation,
+      stillwellTop: deployment.stillwellTop || undefined,
     },
   });
 
@@ -256,6 +273,17 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Sensor Elevation (m)</FormLabel>
+                  <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="stillwellTop"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Stillwell Top (m)</FormLabel>
                   <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -426,7 +454,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                             <CardDescription>First 10 rows of data from {selectedFilename}.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="h-48 rounded-md border overflow-x-auto">
+                           <div className="overflow-x-auto h-48 rounded-md border">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
