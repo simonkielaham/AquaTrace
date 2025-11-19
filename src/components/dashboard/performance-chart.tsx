@@ -380,12 +380,6 @@ export default function PerformanceChart({
               connectNulls
               dot={false}
             />
-            <Scatter 
-                dataKey="elevation" 
-                fill="var(--color-elevation)" 
-                name="Survey Points" 
-                shape={<Symbols type="diamond" size={64} stroke="var(--background)" strokeWidth={2} />}
-            />
             <ReferenceLine
               y={asset.permanentPoolElevation}
               label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}
@@ -412,6 +406,13 @@ export default function PerformanceChart({
                     strokeWidth={1}
                 />
             ))}
+            <Scatter 
+                dataKey="elevation" 
+                fill="var(--color-elevation)" 
+                name="Survey Points" 
+                shape={<Symbols type="diamond" size={64} stroke="var(--background)" strokeWidth={2} />}
+                z={100}
+            />
             <Brush 
                 dataKey="timestamp" 
                 height={30} 
@@ -499,3 +500,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
