@@ -194,6 +194,7 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
   });
   
   const selectedDeploymentId = form.watch('deploymentId');
+  const measurementValue = form.watch('measurement');
   const selectedDeployment = eligibleDeployments.find(d => d.id === selectedDeploymentId);
 
   const handleSubmit = async (data: TapeDownFormValues) => {
@@ -252,110 +253,114 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
                 <div className="space-y-4">
                     <h4 className="font-medium">Add New Tape-Down</h4>
                     <Form {...form}>
-                      <form onSubmit={form.handleSubmit(handleSubmit)} className="flex items-end gap-4">
-                        <FormField
-                          control={form.control}
-                          name="deploymentId"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                              <FormLabel>Stillwell / Deployment</FormLabel>
-                              <Select onValueChange={field.onChange} value={field.value} disabled={eligibleDeployments.length === 0}>
-                                <FormControl>
-                                    <SelectTrigger className="w-[240px]">
-                                    <SelectValue placeholder={eligibleDeployments.length > 0 ? "Select a stillwell..." : "No stillwells available"} />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {eligibleDeployments.map(d => (
-                                        <SelectItem key={d.id} value={d.id}>
-                                            {d.name} (Top: {d.stillwellTop?.toFixed(2)}m)
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="date"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                              <FormLabel>Date</FormLabel>
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <FormControl>
-                                    <Button
-                                      variant={"outline"}
-                                      className={cn(
-                                        "w-[240px] pl-3 text-left font-normal",
-                                        !field.value && "text-muted-foreground"
-                                      )}
-                                    >
-                                      {field.value ? (
-                                        format(field.value, "PPP")
-                                      ) : (
-                                        <span>Pick a date</span>
-                                      )}
-                                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                    </Button>
-                                  </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                  <Calendar
-                                    mode="single"
-                                    selected={field.value}
-                                    onSelect={field.onChange}
-                                    disabled={(date) =>
-                                      date > new Date() || date < new Date("1900-01-01")
-                                    }
-                                    initialFocus
-                                  />
-                                </PopoverContent>
-                              </Popover>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="time"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                              <FormLabel>Time (24h)</FormLabel>
-                              <div className="relative">
-                                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <FormControl>
-                                  <Input type="text" placeholder="HH:MM" className="w-[130px] pl-10" {...field} />
-                                </FormControl>
-                              </div>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="measurement"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Tape-Down (m)</FormLabel>
-                              <FormControl>
-                                <Input type="number" step="0.01" placeholder="e.g., 0.8" className="w-[180px]" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button type="submit" disabled={isSubmitting || !form.formState.isValid}>
-                          <PlusCircle className="mr-2 h-4 w-4" />
-                          {isSubmitting ? "Adding..." : "Add Checkpoint"}
-                        </Button>
+                      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <FormField
+                              control={form.control}
+                              name="deploymentId"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Stillwell / Deployment</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value} disabled={eligibleDeployments.length === 0}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                        <SelectValue placeholder={eligibleDeployments.length > 0 ? "Select a stillwell..." : "No stillwells available"} />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {eligibleDeployments.map(d => (
+                                            <SelectItem key={d.id} value={d.id}>
+                                                {d.name} (Top: {d.stillwellTop?.toFixed(2)}m)
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="date"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Date</FormLabel>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <FormControl>
+                                        <Button
+                                          variant={"outline"}
+                                          className={cn(
+                                            "w-full pl-3 text-left font-normal",
+                                            !field.value && "text-muted-foreground"
+                                          )}
+                                        >
+                                          {field.value ? (
+                                            format(field.value, "PPP")
+                                          ) : (
+                                            <span>Pick a date</span>
+                                          )}
+                                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                        </Button>
+                                      </FormControl>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <Calendar
+                                        mode="single"
+                                        selected={field.value}
+                                        onSelect={field.onChange}
+                                        disabled={(date) =>
+                                          date > new Date() || date < new Date("1900-01-01")
+                                        }
+                                        initialFocus
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="time"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Time (24h)</FormLabel>
+                                  <div className="relative">
+                                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <FormControl>
+                                      <Input type="text" placeholder="HH:MM" className="pl-10" {...field} />
+                                    </FormControl>
+                                  </div>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                        </div>
+                        <div className="flex items-end gap-4">
+                             <FormField
+                                control={form.control}
+                                name="measurement"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Tape-Down (m)</FormLabel>
+                                    <FormControl>
+                                        <Input type="number" step="0.01" placeholder="e.g., 0.8" className="w-[180px]" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                                />
+                            <Button type="submit" disabled={isSubmitting || !form.formState.isValid}>
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                {isSubmitting ? "Adding..." : "Add Checkpoint"}
+                            </Button>
+                        </div>
                       </form>
                     </Form>
                      {selectedDeploymentId && (
-                        <div className="mt-4 text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-                            Calculation Preview: Water Elevation = {selectedDeployment?.stillwellTop?.toFixed(2) || '...'}m (Stillwell Top) - {form.getValues('measurement') || 0}m (Tape-Down) = <span className="font-bold text-foreground">{((selectedDeployment?.stillwellTop || 0) - (form.getValues('measurement') || 0)).toFixed(2)}m</span>
+                        <div className="mt-4 text-sm text-muted-foreground bg-muted/50 p-3 rounded-md max-w-lg">
+                            Calculation Preview: Water Elevation = {selectedDeployment?.stillwellTop?.toFixed(2) || '...'}m (Stillwell Top) - {(measurementValue || 0).toFixed(2)}m (Tape-Down) = <span className="font-bold text-foreground">{((selectedDeployment?.stillwellTop || 0) - (measurementValue || 0)).toFixed(2)}m</span>
                         </div>
                     )}
                 </div>
