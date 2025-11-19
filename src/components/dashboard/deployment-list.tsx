@@ -426,8 +426,8 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                             <CardDescription>First 10 rows of data from {selectedFilename}.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ScrollArea className="h-48 w-full rounded-md border">
-                                <Table className="w-full">
+                            <ScrollArea className="h-48 rounded-md border">
+                                <Table>
                                     <TableHeader>
                                         <TableRow>
                                             {csvHeaders.map((header, i) => (
@@ -819,17 +819,19 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
               <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
             </AccordionTrigger>
             <div className="flex-shrink-0 flex items-center gap-2 pl-4">
-              <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
+              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadLogs(e); }}>
                 <Download className="mr-2 h-4 w-4" />
                 Log
               </Button>
               <DataFileManager>
-                <Button variant="outline" size="sm">
-                  <Files className="mr-2 h-4 w-4" />
-                  Manage Files
+                 <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
+                    <Files className="mr-2 h-4 w-4" />
+                    Manage Files
                 </Button>
               </DataFileManager>
-              <NewDeploymentDialog asset={asset} />
+               <div onClick={(e) => e.stopPropagation()}>
+                <NewDeploymentDialog asset={asset} />
+              </div>
             </div>
           </div>
           <AccordionContent>
