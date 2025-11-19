@@ -657,8 +657,7 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
   const { toast } = useToast();
   const { downloadLogs } = useAssets();
   
-  const handleDownloadLogs = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDownloadLogs = async () => {
     toast({ title: "Generating log file..." });
     const result = await downloadLogs(asset.id);
 
@@ -681,15 +680,6 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     }
   };
 
-  const handleNewDeployment = (e: React.MouseEvent) => {
-    e.stopPropagation();
-  }
-
-  const handleManageFiles = (e: React.MouseEvent) => {
-    e.stopPropagation();
-  }
-
-
   const formattedDeployments = React.useMemo(() => {
     return deployments.map(d => {
       const dateRange = d.files && d.files.length > 0
@@ -707,37 +697,33 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     <Card className="col-span-1 lg:col-span-4 shadow-sm flex flex-col">
        <Accordion type="single" collapsible defaultValue="item-1">
         <AccordionItem value="item-1" className="border-b-0">
-          <AccordionTrigger className="p-6">
-            <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-4 text-left">
-                  <CalendarIcon className="h-6 w-6 shrink-0 text-muted-foreground" />
-                  <div>
-                    <CardTitle className="font-headline text-2xl">Deployments</CardTitle>
-                    <CardDescription className="mt-1">
-                      Manage sensor deployments and their associated datafiles.
-                    </CardDescription>
-                  </div>
+          <div className="flex items-center p-6">
+            <AccordionTrigger className="flex-1 p-0">
+              <div className="flex items-center gap-4 text-left">
+                <CalendarIcon className="h-6 w-6 shrink-0 text-muted-foreground" />
+                <div>
+                  <CardTitle className="font-headline text-2xl">Deployments</CardTitle>
+                  <CardDescription className="mt-1">
+                    Manage sensor deployments and their associated datafiles.
+                  </CardDescription>
                 </div>
-                 <div className="flex-shrink-0 flex items-center gap-2 pr-4">
-                  <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Log
-                  </Button>
-                  <div onClick={handleManageFiles}>
-                    <DataFileManager>
-                      <Button variant="outline" size="sm">
-                        <Files className="mr-2 h-4 w-4" />
-                        Manage Files
-                      </Button>
-                    </DataFileManager>
-                  </div>
-                  <div onClick={handleNewDeployment}>
-                    <NewDeploymentDialog asset={asset} />
-                  </div>
-                </div>
+              </div>
+              <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
+            </AccordionTrigger>
+             <div className="flex-shrink-0 flex items-center gap-2 pl-4">
+              <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
+                <Download className="mr-2 h-4 w-4" />
+                Log
+              </Button>
+              <DataFileManager>
+                <Button variant="outline" size="sm">
+                  <Files className="mr-2 h-4 w-4" />
+                  Manage Files
+                </Button>
+              </DataFileManager>
+              <NewDeploymentDialog asset={asset} />
             </div>
-            <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
-          </AccordionTrigger>
+          </div>
           <AccordionContent>
             <CardContent>
               <ScrollArea className="h-[280px]">
@@ -772,5 +758,7 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
+
+    
 
     
