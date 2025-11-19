@@ -219,7 +219,7 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
       name: deployment.name || "",
       sensorId: deployment.sensorId,
       sensorElevation: deployment.sensorElevation,
-      stillwellTop: deployment.stillwellTop || undefined,
+      stillwellTop: deployment.stillwellTop === null || deployment.stillwellTop === undefined ? '' : deployment.stillwellTop,
     },
   });
 
@@ -449,32 +449,39 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                  
                   {csvPreview.length > 0 && (
                     <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base">Data Preview</CardTitle>
-                            <CardDescription>First 10 rows of data from {selectedFilename}.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                           <div className="overflow-x-auto h-48 rounded-md border">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            {csvHeaders.map((header, i) => (
-                                                <TableHead key={i}>{header}</TableHead>
-                                            ))}
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {csvPreview.map((row, i) => (
-                                            <TableRow key={i}>
-                                                {row.map((cell, j) => (
-                                                    <TableCell key={j} className="whitespace-nowrap">{cell}</TableCell>
-                                                ))}
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </CardContent>
+                      <CardHeader>
+                        <CardTitle className="text-base">Data Preview</CardTitle>
+                        <CardDescription>
+                          First 10 rows of data from {selectedFilename}.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="overflow-x-auto h-48 rounded-md border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                {csvHeaders.map((header, i) => (
+                                  <TableHead key={i}>{header}</TableHead>
+                                ))}
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {csvPreview.map((row, i) => (
+                                <TableRow key={i}>
+                                  {row.map((cell, j) => (
+                                    <TableCell
+                                      key={j}
+                                      className="whitespace-nowrap"
+                                    >
+                                      {cell}
+                                    </TableCell>
+                                  ))}
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
                     </Card>
                   )}
 
