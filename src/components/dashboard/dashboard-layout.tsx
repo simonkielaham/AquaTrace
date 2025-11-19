@@ -82,11 +82,9 @@ export default function DashboardLayout() {
           <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <div className="flex flex-col gap-6">
               <AssetOverview asset={selectedAsset} />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
-                <AnalysisResults results={assetAnalysisResults} />
-              </div>
               <PerformanceChart asset={selectedAsset} dataVersion={dataVersion}/>
+              <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
+              <AnalysisResults results={assetAnalysisResults} />
               <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
             </div>
           </main>
