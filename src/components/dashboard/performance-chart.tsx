@@ -9,7 +9,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Info, BarChart, AreaChart as AreaChartIcon, Save } from "lucide-react";
+import { Info, BarChart, AreaChart as AreaChartIcon, Save, TableIcon } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -52,7 +52,7 @@ const chartConfig = {
     label: "Water Elevation",
     color: "hsl(var(--chart-1))",
   },
-  surveyPoints: {
+  elevation: {
     label: "Survey Points",
     color: "hsl(var(--accent))",
   },
@@ -144,6 +144,7 @@ export default function PerformanceChart({
   const [loading, setLoading] = React.useState(true);
   const [selectedRange, setSelectedRange] = React.useState<{ startIndex: number; endIndex: number } | null>(null);
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
+  const [isDataTableOpen, setIsDataTableOpen] = React.useState(false);
   const [yZoomRange, setYZoomRange] = React.useState<[number, number] | null>(null);
 
   const yAxisBounds = React.useMemo(() => {
@@ -356,7 +357,7 @@ export default function PerformanceChart({
                     if (item.dataKey === 'elevation' && typeof value === 'number') {
                       return (
                         <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-surveyPoints)'}}/>
+                          <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-elevation)'}}/>
                             <div className="flex flex-col items-start">
                                 <span className="font-bold">SURVEY POINT: {`${value.toFixed(2)}m`}</span>
                             </div>
@@ -381,7 +382,7 @@ export default function PerformanceChart({
             />
             <Scatter 
                 dataKey="elevation" 
-                fill="var(--color-surveyPoints)" 
+                fill="var(--color-elevation)" 
                 name="Survey Points" 
                 shape={<Symbols type="diamond" size={64} stroke="var(--background)" strokeWidth={2} />}
             />
@@ -438,7 +439,14 @@ export default function PerformanceChart({
         )}
         </div>
         
-        <div className="mt-8 flex flex-col items-end gap-4">
+        <div className="mt-8 flex items-center justify-end gap-2">
+             <Button 
+                variant="outline"
+                onClick={() => setIsDataTableOpen(true)}
+             >
+                <TableIcon className="mr-2 h-4 w-4" />
+                View Data
+            </Button>
              <Button 
                 onClick={() => setIsAnalysisDialogOpen(true)}
                 disabled={!selectedRange || selectedRange.startIndex === undefined || selectedRange.endIndex === undefined}
@@ -446,28 +454,6 @@ export default function PerformanceChart({
                 <AreaChartIcon className="mr-2 h-4 w-4" />
                 Analyze Selected Range
             </Button>
-
-            <h4 className="font-medium mb-2 self-start">Chart Data</h4>
-            <ScrollArea className="h-[200px] border rounded-md w-full">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Timestamp</TableHead>
-                            <TableHead>Calculated Water Elevation</TableHead>
-                            <TableHead>Survey Point Elevation</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {chartData.map((d, i) => (
-                            <TableRow key={i}>
-                                <TableCell>{new Date(d.timestamp).toLocaleString()}</TableCell>
-                                <TableCell>{d.waterLevel !== undefined ? d.waterLevel.toFixed(4) : 'N/A'}</TableCell>
-                                <TableCell>{d.elevation !== undefined ? d.elevation.toFixed(4) : 'N/A'}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </ScrollArea>
         </div>
         
         {selectedRange && <AnalysisDialog 
@@ -477,6 +463,37 @@ export default function PerformanceChart({
             data={chartData}
             range={selectedRange}
         />}
+
+        <Dialog open={isDataTableOpen} onOpenChange={setIsDataTableOpen}>
+            <DialogContent className="sm:max-w-[725px]">
+                <DialogHeader>
+                    <DialogTitle>Chart Data for {asset.name}</DialogTitle>
+                    <DialogDescription>
+                        Raw data points used to generate the performance chart.
+                    </DialogDescription>
+                </DialogHeader>
+                 <ScrollArea className="h-[60vh] border rounded-md">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Timestamp</TableHead>
+                                <TableHead>Water Elevation</TableHead>
+                                <TableHead>Survey Elevation</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {chartData.map((d, i) => (
+                                <TableRow key={i}>
+                                    <TableCell>{new Date(d.timestamp).toLocaleString()}</TableCell>
+                                    <TableCell>{d.waterLevel !== undefined ? d.waterLevel.toFixed(4) : 'N/A'}</TableCell>
+                                    <TableCell>{d.elevation !== undefined ? d.elevation.toFixed(4) : 'N/A'}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
+            </DialogContent>
+        </Dialog>
 
       </CardContent>
     </Card>
