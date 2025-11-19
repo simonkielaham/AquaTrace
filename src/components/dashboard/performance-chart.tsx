@@ -226,7 +226,9 @@ export default function PerformanceChart({
           if (!dataMap.has(timestamp)) {
             dataMap.set(timestamp, { timestamp });
           }
-          dataMap.get(timestamp)!.waterLevel = p.waterLevel;
+          const point = dataMap.get(timestamp)!;
+          point.waterLevel = p.waterLevel;
+          point.rawWaterLevel = p.rawWaterLevel;
         });
 
         surveyPoints.forEach(p => {
@@ -333,6 +335,7 @@ export default function PerformanceChart({
                   }}
                   indicator="dot"
                   formatter={(value, name, item) => {
+                    const payload = item.payload as ChartablePoint;
                     if (item.dataKey === 'waterLevel' && typeof value === 'number') {
                       const diff = (value - asset.permanentPoolElevation);
                       const isPositive = diff >= 0;
@@ -342,8 +345,11 @@ export default function PerformanceChart({
                       return (
                         <div className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-waterLevel)'}}/>
-                            <div className="flex flex-col items-start">
-                                <span className="font-bold">WATER ELEVATION: {`${value.toFixed(2)}m`}</span>
+                            <div className="flex flex-col items-start gap-1">
+                                <span className="font-bold">WATER ELEVATION: {`${value.toFixed(3)}m`}</span>
+                                {payload.rawWaterLevel !== undefined && (
+                                  <span className="text-xs text-muted-foreground">Raw Reading: {payload.rawWaterLevel.toFixed(3)}m</span>
+                                )}
                                 <span className={cn(
                                   "text-xs",
                                   isPositive ? "text-green-600 dark:text-green-500" : "text-destructive"
@@ -359,7 +365,7 @@ export default function PerformanceChart({
                         <div className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-elevation)'}}/>
                             <div className="flex flex-col items-start">
-                                <span className="font-bold">SURVEY POINT: {`${value.toFixed(2)}m`}</span>
+                                <span className="font-bold">SURVEY POINT: {`${value.toFixed(3)}m`}</span>
                             </div>
                         </div>
                       )
@@ -380,6 +386,22 @@ export default function PerformanceChart({
               connectNulls
               dot={false}
             />
+            {chartData.filter(d => d.elevation !== undefined).map(d => (
+                <ReferenceLine 
+                    key={`dropline-${d.timestamp}`}
+                    x={d.timestamp}
+                    stroke="hsl(var(--accent))"
+                    strokeDasharray="3 3"
+                    strokeWidth={1}
+                />
+            ))}
+            <Scatter 
+                dataKey="elevation" 
+                fill="var(--color-elevation)" 
+                name="Survey Points" 
+                shape={<Symbols type="diamond" size={64} stroke="var(--background)" strokeWidth={2} />}
+                z={100}
+            />
             <ReferenceLine
               y={asset.permanentPoolElevation}
               label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}
@@ -397,22 +419,6 @@ export default function PerformanceChart({
                 isFront
               />
             ))}
-            {chartData.filter(d => d.elevation !== undefined).map(d => (
-                <ReferenceLine 
-                    key={`dropline-${d.timestamp}`}
-                    x={d.timestamp}
-                    stroke="hsl(var(--accent))"
-                    strokeDasharray="3 3"
-                    strokeWidth={1}
-                />
-            ))}
-            <Scatter 
-                dataKey="elevation" 
-                fill="var(--color-elevation)" 
-                name="Survey Points" 
-                shape={<Symbols type="diamond" size={64} stroke="var(--background)" strokeWidth={2} />}
-                z={100}
-            />
             <Brush 
                 dataKey="timestamp" 
                 height={30} 

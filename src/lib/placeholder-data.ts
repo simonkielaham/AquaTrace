@@ -86,6 +86,7 @@ export type AnalysisPeriod = {
 export type ChartablePoint = {
     timestamp: number;
     waterLevel?: number;
+    rawWaterLevel?: number;
     elevation?: number;
     precipitation?: number;
 }

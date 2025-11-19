@@ -487,8 +487,12 @@ export async function getProcessedData(assetId: string): Promise<ChartablePoint[
                 
                 if (file.dataType === 'water-level') {
                     const waterLevel = parseFloat(d.value.toString()) + parseFloat(deployment.sensorElevation.toString());
+                    const rawWaterLevel = parseFloat(d.value.toString());
                     if(!isNaN(waterLevel)) {
                         point.waterLevel = waterLevel;
+                    }
+                    if(!isNaN(rawWaterLevel)) {
+                        point.rawWaterLevel = rawWaterLevel;
                     }
                 } else if (file.dataType === 'precipitation') {
                      const precipitation = parseFloat(d.value.toString());
