@@ -385,7 +385,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm"><FileUp className="mr-2 h-4 w-4" /> Assign Datafile</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[80vw] md:max-w-[725px]">
+      <DialogContent className="sm:max-w-[725px]">
         <DialogHeader>
           <DialogTitle>Assign Datafile to {deployment.name}</DialogTitle>
           <DialogDescription>Select a staged file and map the columns for processing.</DialogDescription>
@@ -426,7 +426,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                             <CardDescription>First 10 rows of data from {selectedFilename}.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ScrollArea className="h-48 rounded-md border">
+                            <div className="h-48 rounded-md border overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -445,7 +445,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                                         ))}
                                     </TableBody>
                                 </Table>
-                            </ScrollArea>
+                            </div>
                         </CardContent>
                     </Card>
                   )}
