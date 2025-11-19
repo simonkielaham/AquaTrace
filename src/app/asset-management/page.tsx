@@ -72,6 +72,7 @@ import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 
 const designElevationSchema = z.object({
   name: z.string().min(1, "Name is required."),
+  customName: z.string().optional(),
   elevation: z.coerce.number().min(0, "Elevation is required"),
 });
 
@@ -83,6 +84,12 @@ const assetFormSchema = z.object({
 });
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
+
+// This is the type that will be sent to the server actions
+type AssetPayload = Omit<AssetFormValues, 'designElevations'> & {
+  designElevations: { name: string; elevation: number }[];
+};
+
 
 const statusVariantMap = {
   ok: "default",
@@ -138,11 +145,11 @@ function DesignElevationRow({ control, index, remove }: { control: any, index: n
           {isCustom && (
             <FormField
               control={control}
-              name={`designElevations.${index}.name`}
+              name={`designElevations.${index}.customName`}
               render={({ field }) => (
                 <FormItem>
-                  <FormControl>
-                    <Input placeholder="Enter custom name" {...field} />
+                   <FormControl>
+                     <Input placeholder="Enter custom name" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -254,7 +261,7 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
                 variant="outline"
                 size="sm"
                 className="mt-4"
-                onClick={() => append({ name: "", elevation: 0 })}
+                onClick={() => append({ name: "", elevation: 0, customName: "" })}
               >
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Elevation
@@ -281,7 +288,14 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
       name: asset.name,
       location: asset.location,
       permanentPoolElevation: asset.permanentPoolElevation,
-      designElevations: asset.designElevations,
+      designElevations: asset.designElevations.map(de => {
+        const isStandard = elevationOptions.includes(de.name);
+        return {
+          name: isStandard ? de.name : "Custom",
+          customName: isStandard ? "" : de.name,
+          elevation: de.elevation
+        }
+      }),
     },
   });
 
@@ -292,7 +306,15 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
       description: "Please wait while we save your changes.",
     });
 
-    const result = await updateAsset(asset.id, data);
+    const payload: AssetPayload = {
+      ...data,
+      designElevations: data.designElevations.map(de => ({
+        name: de.name === 'Custom' ? de.customName || 'Custom' : de.name,
+        elevation: de.elevation,
+      })).filter(de => de.name), // Filter out empty ones
+    };
+
+    const result = await updateAsset(asset.id, payload);
     
     if (result?.message && result.message.startsWith('Error:')) {
       toast({
@@ -475,7 +497,15 @@ export default function AssetManagementPage() {
         description: 'Please wait while we create the asset.',
     });
 
-    const result = await createAsset(data);
+    const payload: AssetPayload = {
+      ...data,
+      designElevations: data.designElevations.map(de => ({
+        name: de.name === 'Custom' ? de.customName || 'Custom' : de.name,
+        elevation: de.elevation,
+      })).filter(de => de.name),
+    };
+
+    const result = await createAsset(payload);
 
     if (result?.message && result.message.startsWith('Error:')) {
         toast({
