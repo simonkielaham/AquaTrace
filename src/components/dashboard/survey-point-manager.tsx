@@ -167,66 +167,64 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
         <div>
           <h4 className="font-medium mb-4">Add New Point</h4>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-              <div className="flex gap-4">
-                <FormField
-                  control={form.control}
-                  name="date"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Date</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-[240px] pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) =>
-                              date > new Date() || date < new Date("1900-01-01")
-                            }
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={form.control}
-                  name="time"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Time (24h)</FormLabel>
-                       <div className="relative">
-                         <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="flex items-end gap-4">
+              <FormField
+                control={form.control}
+                name="date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
                         <FormControl>
-                          <Input type="time" className="w-[120px] pl-10" {...field} />
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-[240px] pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
                         </FormControl>
-                       </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="time"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Time (24h)</FormLabel>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <FormControl>
+                        <Input type="time" className="w-[120px] pl-10" {...field} />
+                      </FormControl>
+                      </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="elevation"
@@ -234,7 +232,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                   <FormItem>
                     <FormLabel>Elevation (m)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="e.g., 125.42" className="w-[240px]" {...field} />
+                      <Input type="number" step="0.01" placeholder="e.g., 125.42" className="w-[180px]" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -250,11 +248,11 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
         <div>
           <h4 className="font-medium mb-4">Existing Points</h4>
           <ScrollArea className="h-[250px] rounded-md border">
-             {loadingPoints ? (
+              {loadingPoints ? (
                 <div className="p-4 text-center text-muted-foreground">Loading points...</div>
-             ) : surveyPoints.length === 0 ? (
+              ) : surveyPoints.length === 0 ? (
                 <p className="p-4 text-center text-sm text-muted-foreground">No manual points added yet.</p>
-             ) : (
+              ) : (
                 <Table>
                     <TableHeader>
                     <TableRow>
@@ -274,7 +272,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                         <TableCell>
                           {point.sensorTimestamp ? format(new Date(point.sensorTimestamp), "Pp") : <span className="text-muted-foreground text-xs">N/A</span>}
                         </TableCell>
-                         <TableCell>
+                          <TableCell>
                           {point.sensorElevation !== undefined ? `${point.sensorElevation.toFixed(2)}m` : <span className="text-muted-foreground text-xs">N/A</span>}
                         </TableCell>
                         <TableCell>
@@ -292,7 +290,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                             )}
                         </TableCell>
                         <TableCell className="text-right">
-                             <Button 
+                              <Button 
                                 variant="ghost" 
                                 size="icon" 
                                 onClick={() => handleDelete(point.id)}
@@ -306,7 +304,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                     ))}
                     </TableBody>
                 </Table>
-             )}
+              )}
           </ScrollArea>
         </div>
       </CardContent>
