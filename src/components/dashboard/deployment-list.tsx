@@ -657,7 +657,8 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
   const { toast } = useToast();
   const { downloadLogs } = useAssets();
   
-  const handleDownloadLogs = async () => {
+  const handleDownloadLogs = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     toast({ title: "Generating log file..." });
     const result = await downloadLogs(asset.id);
 
@@ -680,6 +681,15 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     }
   };
 
+  const handleNewDeployment = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  }
+
+  const handleManageFiles = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  }
+
+
   const formattedDeployments = React.useMemo(() => {
     return deployments.map(d => {
       const dateRange = d.files && d.files.length > 0
@@ -695,56 +705,67 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
 
   return (
     <Card className="col-span-1 lg:col-span-4 shadow-sm flex flex-col">
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-          <div>
-            <CardTitle className="font-headline">Deployments</CardTitle>
-            <CardDescription>
-              Manage sensor deployments and their associated datafiles.
-            </CardDescription>
-          </div>
-          <div className="flex-shrink-0 flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
-              <Download className="mr-2 h-4 w-4" />
-              Log
-            </Button>
-            <DataFileManager>
-              <Button variant="outline" size="sm">
-                <Files className="mr-2 h-4 w-4" />
-                Manage Files
-              </Button>
-            </DataFileManager>
-            <NewDeploymentDialog asset={asset} />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-grow">
-        <ScrollArea className="h-[280px]">
-          <Accordion type="multiple" className="w-full">
-            {formattedDeployments.map((deployment) => (
-              <AccordionItem value={deployment.id} key={deployment.id}>
-                <AccordionTrigger>
-                   <div className="flex items-center gap-2 text-left">
-                    <CalendarIcon className="h-4 w-4 shrink-0" />
-                    <span className="font-semibold">{deployment.dateRangeLabel}</span>
-                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
-                   </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="space-y-6 pl-2">
-                    <EditDeploymentForm deployment={deployment} asset={asset} />
+       <Accordion type="single" collapsible defaultValue="item-1">
+        <AccordionItem value="item-1" className="border-b-0">
+          <AccordionTrigger className="p-6">
+            <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-4 text-left">
+                  <CalendarIcon className="h-6 w-6 shrink-0 text-muted-foreground" />
+                  <div>
+                    <CardTitle className="font-headline text-2xl">Deployments</CardTitle>
+                    <CardDescription className="mt-1">
+                      Manage sensor deployments and their associated datafiles.
+                    </CardDescription>
                   </div>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-             {formattedDeployments.length === 0 && (
-                <div className="text-center text-muted-foreground pt-8">
-                    No deployments for this asset yet.
                 </div>
-            )}
-          </Accordion>
-        </ScrollArea>
-      </CardContent>
+                 <div className="flex-shrink-0 flex items-center gap-2 pr-4">
+                  <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Log
+                  </Button>
+                  <DataFileManager>
+                    <Button variant="outline" size="sm" onClick={handleManageFiles}>
+                      <Files className="mr-2 h-4 w-4" />
+                      Manage Files
+                    </Button>
+                  </DataFileManager>
+                  <div onClick={handleNewDeployment}>
+                    <NewDeploymentDialog asset={asset} />
+                  </div>
+                </div>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent>
+            <CardContent>
+              <ScrollArea className="h-[280px]">
+                <Accordion type="multiple" className="w-full">
+                  {formattedDeployments.map((deployment) => (
+                    <AccordionItem value={deployment.id} key={deployment.id}>
+                      <AccordionTrigger>
+                         <div className="flex items-center gap-2 text-left">
+                          <CalendarIcon className="h-4 w-4 shrink-0" />
+                          <span className="font-semibold">{deployment.dateRangeLabel}</span>
+                          <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                         </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-6 pl-2">
+                          <EditDeploymentForm deployment={deployment} asset={asset} />
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                   {formattedDeployments.length === 0 && (
+                      <div className="text-center text-muted-foreground pt-8">
+                          No deployments for this asset yet.
+                      </div>
+                  )}
+                </Accordion>
+              </ScrollArea>
+            </CardContent>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </Card>
   );
 }
