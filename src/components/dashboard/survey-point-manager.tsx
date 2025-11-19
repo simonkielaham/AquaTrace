@@ -233,7 +233,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                             <div className="relative">
                               <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <FormControl>
-                              <Input type="time" className="w-[120px] pl-10" {...field} />
+                              <Input type="text" placeholder="HH:MM" className="w-[130px] pl-10" {...field} />
                             </FormControl>
                             </div>
                           <FormMessage />
