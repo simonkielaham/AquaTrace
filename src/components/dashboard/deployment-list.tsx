@@ -514,7 +514,11 @@ function DatafileList({ files }: { files?: DataFile[] }) {
               <TableCell>
                 <div className="flex items-center gap-2">
                     {file.dataType === 'water-level' ? <Database className="h-4 w-4 text-muted-foreground" /> : <Droplets className="h-4 w-4 text-muted-foreground" />}
-                    <span className="capitalize">{file.dataType.replace('-', ' ')}</span>
+                    {file.dataType ? (
+                      <span className="capitalize">{file.dataType.replace('-', ' ')}</span>
+                    ) : (
+                      <span className="text-muted-foreground">N/A</span>
+                    )}
                 </div>
               </TableCell>
               <TableCell>{new Date(file.startDate).toLocaleDateString()} - {new Date(file.endDate).toLocaleDateString()}</TableCell>
@@ -690,7 +694,7 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
   }, [deployments]);
 
   return (
-    <Card className="col-span-1 lg:col-span-2 shadow-sm flex flex-col">
+    <Card className="col-span-1 lg:col-span-4 shadow-sm flex flex-col">
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
           <div>
@@ -744,3 +748,5 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
+
+    
