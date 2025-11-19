@@ -84,6 +84,7 @@ export type ChartablePoint = {
     timestamp: number;
     waterLevel?: number;
     elevation?: number;
+    precipitation?: number;
 }
 
 
