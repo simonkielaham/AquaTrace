@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlusCircle, Save, ChevronDown, CalendarIcon, Download, FileUp, Files, Trash2, Loader2 } from "lucide-react";
+import { PlusCircle, Save, ChevronDown, CalendarIcon, Download, FileUp, Files, Trash2, Loader2, Database, Droplets } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
@@ -80,8 +80,9 @@ type DeploymentFormValues = z.infer<typeof deploymentFormSchema>;
 
 const assignDatafileSchema = z.object({
   filename: z.string({ required_error: "Please select a file to assign."}).min(1, "Please select a file to assign."),
+  dataType: z.enum(['water-level', 'precipitation'], { required_error: "Please select a data type."}),
   datetimeColumn: z.string({ required_error: "Please select the date/time column."}).min(1, "Please select the date/time column."),
-  waterLevelColumn: z.string({ required_error: "Please select the water level column."}).min(1, "Please select the water level column."),
+  valueColumn: z.string({ required_error: "Please select the value column."}).min(1, "Please select the value column."),
   startRow: z.coerce.number().min(1, "Start row must be at least 1."),
 });
 type AssignDatafileValues = z.infer<typeof assignDatafileSchema>;
@@ -278,13 +279,13 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   
   const form = useForm<AssignDatafileValues>({
     resolver: zodResolver(assignDatafileSchema),
-    defaultValues: { startRow: 2, filename: undefined, datetimeColumn: undefined, waterLevelColumn: undefined },
+    defaultValues: { startRow: 2, filename: undefined, datetimeColumn: undefined, valueColumn: undefined },
   });
   
   const selectedFilename = form.watch("filename");
 
   const resetDialogState = React.useCallback(() => {
-    form.reset({ startRow: 2, filename: undefined, datetimeColumn: undefined, waterLevelColumn: undefined });
+    form.reset({ startRow: 2, filename: undefined, datetimeColumn: undefined, valueColumn: undefined, dataType: undefined });
     setCsvHeaders([]);
     setIsSubmitting(false);
     setIsParsing(false);
@@ -319,7 +320,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
 
     form.setValue("filename", filename);
     form.setValue("datetimeColumn", undefined);
-    form.setValue("waterLevelColumn", undefined);
+    form.setValue("valueColumn", undefined);
     setCsvHeaders([]);
 
     setIsParsing(true);
@@ -402,34 +403,17 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
-                      name="datetimeColumn"
+                      name="dataType"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Date/Time Column</FormLabel>
+                          <FormLabel>Data Type</FormLabel>
                           <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
                              <FormControl>
-                              <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
+                              <SelectTrigger><SelectValue placeholder="Select a type..." /></SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="waterLevelColumn"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Water Level Column</FormLabel>
-                           <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
-                             <FormControl>
-                              <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                               <SelectItem value="water-level">Water Level</SelectItem>
+                               <SelectItem value="precipitation">Precipitation</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -448,6 +432,42 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                           </FormItem>
                         )}
                       />
+                    <FormField
+                      control={form.control}
+                      name="datetimeColumn"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Date/Time Column</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
+                             <FormControl>
+                              <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="valueColumn"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Value Column</FormLabel>
+                           <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
+                             <FormControl>
+                              <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 </>
               )}
@@ -482,6 +502,7 @@ function DatafileList({ files }: { files?: DataFile[] }) {
         <TableHeader>
           <TableRow>
             <TableHead>Filename</TableHead>
+            <TableHead>Data Type</TableHead>
             <TableHead>Date Range</TableHead>
             <TableHead className="text-right">Rows</TableHead>
           </TableRow>
@@ -490,6 +511,12 @@ function DatafileList({ files }: { files?: DataFile[] }) {
           {files.map(file => (
             <TableRow key={file.id}>
               <TableCell className="font-medium">{file.filename}</TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                    {file.dataType === 'water-level' ? <Database className="h-4 w-4 text-muted-foreground" /> : <Droplets className="h-4 w-4 text-muted-foreground" />}
+                    <span className="capitalize">{file.dataType.replace('-', ' ')}</span>
+                </div>
+              </TableCell>
               <TableCell>{new Date(file.startDate).toLocaleDateString()} - {new Date(file.endDate).toLocaleDateString()}</TableCell>
               <TableCell className="text-right">{file.rowCount}</TableCell>
             </TableRow>

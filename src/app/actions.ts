@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile, SurveyPoint } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile, SurveyPoint, ChartablePoint } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 
 // Define paths to data files
@@ -299,15 +299,17 @@ export async function assignDatafileToDeployment(formData: FormData) {
   const filename = formData.get('filename') as string;
   
   const rawData = {
+    dataType: formData.get('dataType'),
     datetimeColumn: formData.get('datetimeColumn'),
-    waterLevelColumn: formData.get('waterLevelColumn'),
+    valueColumn: formData.get('valueColumn'),
     startRow: formData.get('startRow'),
   };
   const logPayload = { assetId, deploymentId, filename, ...rawData };
 
   const addDatafileSchema = z.object({
+    dataType: z.enum(['water-level', 'precipitation']),
     datetimeColumn: z.string(),
-    waterLevelColumn: z.string(),
+    valueColumn: z.string(),
     startRow: z.coerce.number().min(1),
   });
 
@@ -317,7 +319,7 @@ export async function assignDatafileToDeployment(formData: FormData) {
      await writeLog({ action: 'assignDatafile', status: 'failure', payload: logPayload, response });
      return response;
   }
-  const { datetimeColumn, waterLevelColumn, startRow } = validatedFields.data;
+  const { dataType, datetimeColumn, valueColumn, startRow } = validatedFields.data;
 
   const stagedFilePath = path.join(stagedDir, filename);
 
@@ -325,7 +327,6 @@ export async function assignDatafileToDeployment(formData: FormData) {
     const fileContent = await fs.readFile(stagedFilePath, 'utf-8');
     
     const parsedCsv = await new Promise<Papa.ParseResult<any>>((resolve, reject) => {
-        let headerFound = false;
         Papa.parse(fileContent, {
             header: true,
             skipEmptyLines: true,
@@ -342,18 +343,18 @@ export async function assignDatafileToDeployment(formData: FormData) {
 
     const processedData = parsedCsv.data.map((row: any) => {
         const dateValue = row[datetimeColumn];
-        const levelValue = row[waterLevelColumn];
+        const val = row[valueColumn];
         
-        if (dateValue && (levelValue !== null && levelValue !== undefined && levelValue !== '')) {
+        if (dateValue && (val !== null && val !== undefined && val !== '')) {
             const timestamp = new Date(dateValue);
-            const waterLevel = parseFloat(levelValue);
+            const value = parseFloat(val);
 
-            if (!isNaN(timestamp.getTime()) && !isNaN(waterLevel)) {
-                return { timestamp: timestamp.toISOString(), waterLevel };
+            if (!isNaN(timestamp.getTime()) && !isNaN(value)) {
+                return { timestamp: timestamp.toISOString(), value };
             }
         }
         return null;
-    }).filter(p => p !== null) as { timestamp: string, waterLevel: number }[];
+    }).filter(p => p !== null) as { timestamp: string, value: number }[];
 
     if (processedData.length === 0) {
       throw new Error("No valid data points could be processed. Check column mapping and start row.");
@@ -366,6 +367,7 @@ export async function assignDatafileToDeployment(formData: FormData) {
     const newDataFile: DataFile = {
       id: `file-${Date.now()}`,
       filename: filename,
+      dataType: dataType,
       uploadDate: new Date().toISOString(),
       startDate: minDate.toISOString(),
       endDate: maxDate.toISOString(),
@@ -404,27 +406,42 @@ export async function assignDatafileToDeployment(formData: FormData) {
   }
 }
 
-export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
+export async function getProcessedData(assetId: string): Promise<ChartablePoint[]> {
   try {
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
     const assetDeployments = deployments.filter(d => d.assetId === assetId);
 
-    let allData: DataPoint[] = [];
+    const dataMap = new Map<number, ChartablePoint>();
 
     for (const deployment of assetDeployments) {
       if (deployment.files) {
         for (const file of deployment.files) {
           const filePath = path.join(processedDir, `${file.id}.json`);
           try {
-            const fileData = await readJsonFile<{ timestamp: string, waterLevel: number }[]>(filePath);
-            const mappedData = fileData.map(d => {
-                const waterLevel = parseFloat(d.waterLevel.toString()) + parseFloat(deployment.sensorElevation.toString());
-                return {
-                    timestamp: new Date(d.timestamp).getTime(),
-                    waterLevel: waterLevel
+            const fileData = await readJsonFile<{ timestamp: string, value: number }[]>(filePath);
+            
+            fileData.forEach(d => {
+                const timestamp = new Date(d.timestamp).getTime();
+                if (isNaN(timestamp)) return;
+
+                if (!dataMap.has(timestamp)) {
+                    dataMap.set(timestamp, { timestamp });
                 }
-            }).filter(d => d.timestamp && !isNaN(d.waterLevel));
-            allData = [...allData, ...mappedData];
+                const point = dataMap.get(timestamp)!;
+                
+                if (file.dataType === 'water-level') {
+                    const waterLevel = parseFloat(d.value.toString()) + parseFloat(deployment.sensorElevation.toString());
+                    if(!isNaN(waterLevel)) {
+                        point.waterLevel = waterLevel;
+                    }
+                } else if (file.dataType === 'precipitation') {
+                     const precipitation = parseFloat(d.value.toString());
+                     if(!isNaN(precipitation)) {
+                        point.precipitation = precipitation;
+                     }
+                }
+            });
+
           } catch (e) {
              if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
                 console.error(`Could not read processed file ${file.id}.json:`, e);
@@ -433,15 +450,8 @@ export async function getProcessedData(assetId: string): Promise<DataPoint[]> {
         }
       }
     }
-    
-    const uniqueData = new Map<number, DataPoint>();
-    allData.forEach(dp => {
-        if(dp.timestamp && !isNaN(dp.waterLevel)) {
-            uniqueData.set(dp.timestamp, dp);
-        }
-    });
 
-    const sortedData = Array.from(uniqueData.values()).sort((a, b) => a.timestamp - b.timestamp);
+    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
     
     return sortedData;
 

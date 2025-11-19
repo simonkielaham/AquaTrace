@@ -12,6 +12,7 @@ export type Asset = {
 export type DataFile = {
   id: string;
   filename: string;
+  dataType: 'water-level' | 'precipitation';
   uploadDate: string;
   startDate: string;
   endDate: string;
