@@ -84,8 +84,8 @@ export default function DashboardLayout() {
               <AssetOverview asset={selectedAsset} />
               <PerformanceChart asset={selectedAsset} dataVersion={dataVersion}/>
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
-              <AnalysisResults results={assetAnalysisResults} />
               <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
+              <AnalysisResults results={assetAnalysisResults} />
             </div>
           </main>
         </div>
