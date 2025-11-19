@@ -410,6 +410,58 @@ export async function assignDatafileToDeployment(formData: FormData) {
   }
 }
 
+
+export async function unassignDatafile(deploymentId: string, fileId: string) {
+    const logPayload = { deploymentId, fileId };
+    try {
+        const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+        const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
+
+        if (deploymentIndex === -1) {
+            throw new Error("Deployment not found.");
+        }
+        
+        const deployment = deployments[deploymentIndex];
+        const file = deployment.files?.find(f => f.id === fileId);
+        
+        if (!file) {
+            throw new Error("Datafile not found in this deployment.");
+        }
+
+        // Remove file from deployment
+        deployments[deploymentIndex].files = deployment.files?.filter(f => f.id !== fileId);
+        await writeJsonFile(deploymentsFilePath, deployments);
+
+        // Delete processed file
+        const processedFilePath = path.join(processedDir, `${fileId}.json`);
+        try {
+            await fs.unlink(processedFilePath);
+        } catch (e) {
+            if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+                console.error(`Could not delete processed file ${processedFilePath}:`, e);
+                // Continue even if file deletion fails to ensure metadata is updated
+            }
+        }
+        
+        revalidatePath('/');
+        const response = { message: `File ${file.filename} unassigned successfully.` };
+        await writeLog({ action: 'unassignDatafile', status: 'success', assetId: deployment.assetId, deploymentId, payload: logPayload, response });
+        return response;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "An unknown error occurred.";
+        const response = { message: `Error: ${message}` };
+        await writeLog({ action: 'unassignDatafile', status: 'failure', payload: logPayload, response });
+        return response;
+    }
+}
+
+export async function deleteDatafile(deploymentId: string, fileId: string) {
+    // This action is identical to unassign for now, as unassign already deletes the processed file.
+    // If "unassign" logic changes to move the file back to staging, this action will remain as a permanent delete.
+    return await unassignDatafile(deploymentId, fileId);
+}
+
+
 export async function getProcessedData(assetId: string): Promise<ChartablePoint[]> {
   try {
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
@@ -753,5 +805,7 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
+
+    
 
     

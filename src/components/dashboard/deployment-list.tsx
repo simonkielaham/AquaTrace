@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlusCircle, Save, ChevronDown, CalendarIcon, Download, FileUp, Files, Trash2, Loader2, Database, Droplets } from "lucide-react";
+import { PlusCircle, Save, ChevronDown, CalendarIcon, Download, FileUp, Files, Trash2, Loader2, Database, Droplets, Undo2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
@@ -53,6 +53,17 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -262,7 +273,7 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
             <h4 className="font-medium">Datafiles</h4>
             <AssignDatafileDialog deployment={deployment} />
         </div>
-        <DatafileList files={deployment.files} />
+        <DatafileList deployment={deployment} />
       </div>
     </div>
   );
@@ -525,14 +536,41 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
 }
 
 
-function DatafileList({ files }: { files?: DataFile[] }) {
-  if (!files || files.length === 0) {
-    return (
-      <div className="text-center text-sm text-muted-foreground border-dashed border-2 rounded-lg p-6">
-        <p>No datafiles have been assigned to this deployment yet.</p>
-      </div>
-    );
-  }
+function DatafileList({ deployment }: { deployment: Deployment }) {
+    const { toast } = useToast();
+    const { unassignDatafile, deleteDatafile } = useAssets();
+    const [isActing, setIsActing] = React.useState<string | null>(null);
+
+    if (!deployment.files || deployment.files.length === 0) {
+        return (
+        <div className="text-center text-sm text-muted-foreground border-dashed border-2 rounded-lg p-6">
+            <p>No datafiles have been assigned to this deployment yet.</p>
+        </div>
+        );
+    }
+    
+    const handleUnassign = async (fileId: string) => {
+        setIsActing(`unassign-${fileId}`);
+        const result = await unassignDatafile(deployment.id, fileId);
+        if (result?.message && result.message.startsWith('Error:')) {
+            toast({ variant: "destructive", title: "Error", description: result.message });
+        } else {
+            toast({ title: "Success", description: "File unassigned." });
+        }
+        setIsActing(null);
+    }
+    
+    const handleDelete = async (fileId: string) => {
+        setIsActing(`delete-${fileId}`);
+        const result = await deleteDatafile(deployment.id, fileId);
+         if (result?.message && result.message.startsWith('Error:')) {
+            toast({ variant: "destructive", title: "Error", description: result.message });
+        } else {
+            toast({ title: "Success", description: "File permanently deleted." });
+        }
+        setIsActing(null);
+    }
+
 
   return (
     <div className="rounded-lg border">
@@ -543,10 +581,11 @@ function DatafileList({ files }: { files?: DataFile[] }) {
             <TableHead>Data Type</TableHead>
             <TableHead>Date Range</TableHead>
             <TableHead className="text-right">Rows</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {files.map(file => (
+          {deployment.files.map(file => (
             <TableRow key={file.id}>
               <TableCell className="font-medium">{file.filename}</TableCell>
               <TableCell>
@@ -561,6 +600,35 @@ function DatafileList({ files }: { files?: DataFile[] }) {
               </TableCell>
               <TableCell>{new Date(file.startDate).toLocaleDateString()} - {new Date(file.endDate).toLocaleDateString()}</TableCell>
               <TableCell className="text-right">{file.rowCount}</TableCell>
+              <TableCell className="text-right">
+                  <Button variant="ghost" size="sm" onClick={() => handleUnassign(file.id)} disabled={!!isActing} className="text-blue-600 hover:text-blue-700">
+                    {isActing === `unassign-${file.id}` ? <Loader2 className="h-4 w-4 animate-spin"/> : <Undo2 className="mr-2 h-4 w-4" />}
+                    Unassign
+                  </Button>
+                  
+                  <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" disabled={!!isActing} className="text-destructive hover:text-destructive">
+                            {isActing === `delete-${file.id}` ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4" />}
+                            Delete
+                          </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                          <AlertDialogHeader>
+                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete the file <span className="font-bold">{file.filename}</span> and all its processed data. This action cannot be undone.
+                              </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(file.id)} className="bg-destructive hover:bg-destructive/90">
+                                  Delete Permanently
+                              </AlertDialogAction>
+                          </AlertDialogFooter>
+                      </AlertDialogContent>
+                  </AlertDialog>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -736,7 +804,7 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     <Card className="col-span-1 lg:col-span-4 shadow-sm flex flex-col">
        <Accordion type="single" collapsible defaultValue="item-1">
         <AccordionItem value="item-1" className="border-b-0">
-          <div className="flex items-center p-6">
+           <div className="flex items-center p-6">
             <AccordionTrigger className="flex-1 p-0">
               <div className="flex items-center gap-4 text-left">
                 <CalendarIcon className="h-6 w-6 shrink-0 text-muted-foreground" />
@@ -750,11 +818,11 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
                <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
             </AccordionTrigger>
              <div className="flex-shrink-0 flex items-center gap-2 pl-4">
-              <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
+              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadLogs(e); }}>
                 <Download className="mr-2 h-4 w-4" />
                 Log
               </Button>
-               <DataFileManager>
+              <DataFileManager>
                 <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
                   <Files className="mr-2 h-4 w-4" />
                   Manage Files
@@ -801,5 +869,8 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
 }
 
     
+
+    
+
 
     

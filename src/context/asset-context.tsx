@@ -24,6 +24,8 @@ import {
   addSurveyPoint as addSurveyPointAction,
   deleteSurveyPoint as deleteSurveyPointAction,
   getSurveyPoints as getSurveyPointsAction,
+  unassignDatafile as unassignDatafileAction,
+  deleteDatafile as deleteDatafileAction,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -41,6 +43,8 @@ interface AssetContextType {
   createDeployment: (assetId: string, data: any) => Promise<any>;
   downloadLogs: (assetId: string) => Promise<any>;
   assignDatafileToDeployment: (formData: FormData) => Promise<any>;
+  unassignDatafile: (deploymentId: string, fileId: string) => Promise<any>;
+  deleteDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   loading: boolean;
   stagedFiles: StagedFile[];
   loadingStagedFiles: boolean;
@@ -245,6 +249,44 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [fetchStagedFiles, incrementDataVersion]);
 
+  const unassignDatafile = useCallback(async (deploymentId: string, fileId: string) => {
+    try {
+        const result = await unassignDatafileAction(deploymentId, fileId);
+        if (!result.message.startsWith('Error:')) {
+            setDeployments(prev => prev.map(d => {
+                if (d.id === deploymentId) {
+                    return { ...d, files: d.files?.filter(f => f.id !== fileId) };
+                }
+                return d;
+            }));
+            incrementDataVersion();
+        }
+        return result;
+    } catch (error) {
+        const message = await getErrorMessage(error);
+        return { message: `Error: ${message}` };
+    }
+  }, [incrementDataVersion]);
+
+  const deleteDatafile = useCallback(async (deploymentId: string, fileId: string) => {
+    try {
+        const result = await deleteDatafileAction(deploymentId, fileId);
+        if (!result.message.startsWith('Error:')) {
+            setDeployments(prev => prev.map(d => {
+                if (d.id === deploymentId) {
+                    return { ...d, files: d.files?.filter(f => f.id !== fileId) };
+                }
+                return d;
+            }));
+            incrementDataVersion();
+        }
+        return result;
+    } catch (error) {
+        const message = await getErrorMessage(error);
+        return { message: `Error: ${message}` };
+    }
+  }, [incrementDataVersion]);
+
   const uploadStagedFile = useCallback(async (formData: FormData) => {
     try {
       const result = await uploadStagedFileAction(formData);
@@ -319,6 +361,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     createDeployment,
     downloadLogs,
     assignDatafileToDeployment,
+    unassignDatafile,
+    deleteDatafile,
     loading,
     stagedFiles,
     loadingStagedFiles,
@@ -345,3 +389,5 @@ export const useAssets = () => {
   }
   return context;
 };
+
+    
