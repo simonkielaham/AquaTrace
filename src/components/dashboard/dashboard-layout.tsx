@@ -9,6 +9,7 @@ import AssetOverview from "@/components/dashboard/asset-overview";
 import DeploymentList from "@/components/dashboard/deployment-list";
 import AnalysisResults from "@/components/dashboard/analysis-results";
 import SurveyPointManager from "@/components/dashboard/survey-point-manager";
+import TapeDownManager from "@/components/dashboard/tape-down-manager";
 import {
   analysisResults,
 } from "@/lib/placeholder-data";
@@ -85,6 +86,7 @@ export default function DashboardLayout() {
               <PerformanceChart asset={selectedAsset} dataVersion={dataVersion}/>
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
+              <TapeDownManager asset={selectedAsset} deployments={assetDeployments} />
               <AnalysisResults results={assetAnalysisResults} />
             </div>
           </main>
