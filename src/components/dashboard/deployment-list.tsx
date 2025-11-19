@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { Deployment, Asset, DataFile, StagedFile } from "@/lib/placeholder-data";
@@ -802,9 +803,9 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
 
   return (
     <Card className="col-span-1 lg:col-span-4 shadow-sm flex flex-col">
-       <Accordion type="single" collapsible defaultValue="item-1">
+      <Accordion type="single" collapsible defaultValue="item-1">
         <AccordionItem value="item-1" className="border-b-0">
-           <div className="flex items-center p-6">
+          <div className="flex items-center p-6">
             <AccordionTrigger className="flex-1 p-0">
               <div className="flex items-center gap-4 text-left">
                 <CalendarIcon className="h-6 w-6 shrink-0 text-muted-foreground" />
@@ -815,22 +816,20 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
                   </CardDescription>
                 </div>
               </div>
-               <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
+              <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
             </AccordionTrigger>
-             <div className="flex-shrink-0 flex items-center gap-2 pl-4">
-              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleDownloadLogs(e); }}>
+            <div className="flex-shrink-0 flex items-center gap-2 pl-4">
+              <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
                 <Download className="mr-2 h-4 w-4" />
                 Log
               </Button>
               <DataFileManager>
-                <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
+                <Button variant="outline" size="sm">
                   <Files className="mr-2 h-4 w-4" />
                   Manage Files
                 </Button>
               </DataFileManager>
-              <div onClick={(e) => e.stopPropagation()}>
-                <NewDeploymentDialog asset={asset} />
-              </div>
+              <NewDeploymentDialog asset={asset} />
             </div>
           </div>
           <AccordionContent>
@@ -867,10 +866,3 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
-
-    
-
-    
-
-
-    
