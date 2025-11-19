@@ -73,6 +73,8 @@ function ExistingPointsTable({ asset, dataVersion }: { asset: Asset, dataVersion
 
                 if (isMounted) {
                     const enrichedPoints: EnrichedSurveyPoint[] = points.map(point => {
+                        if (processedData.length === 0) return { ...point };
+
                         const nearestPoint = processedData.reduce((prev, curr) => {
                             return (Math.abs(curr.timestamp - point.timestamp) < Math.abs(prev.timestamp - point.timestamp) ? curr : prev);
                         }, processedData[0]);
@@ -182,10 +184,6 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
   const { addSurveyPoint } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   
-  const eligibleDeployments = React.useMemo(() => {
-    return deployments.filter(d => typeof d.stillwellTop === 'number');
-  }, [deployments]);
-
   const form = useForm<TapeDownFormValues>({
     resolver: zodResolver(tapeDownSchema),
     defaultValues: {
@@ -195,7 +193,8 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
   
   const selectedDeploymentId = form.watch('deploymentId');
   const measurementValue = form.watch('measurement');
-  const selectedDeployment = eligibleDeployments.find(d => d.id === selectedDeploymentId);
+  const selectedDeployment = deployments.find(d => d.id === selectedDeploymentId);
+  const isSelectedDeploymentEligible = selectedDeployment && typeof selectedDeployment.stillwellTop === 'number';
 
   const handleSubmit = async (data: TapeDownFormValues) => {
     if (!selectedDeployment || typeof selectedDeployment.stillwellTop !== 'number') {
@@ -261,16 +260,16 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
                               render={({ field }) => (
                                 <FormItem>
                                   <FormLabel>Stillwell / Deployment</FormLabel>
-                                  <Select onValueChange={field.onChange} value={field.value} disabled={eligibleDeployments.length === 0}>
+                                  <Select onValueChange={field.onChange} value={field.value}>
                                     <FormControl>
                                         <SelectTrigger>
-                                        <SelectValue placeholder={eligibleDeployments.length > 0 ? "Select a stillwell..." : "No stillwells available"} />
+                                        <SelectValue placeholder={deployments.length > 0 ? "Select a stillwell..." : "No deployments for this asset"} />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {eligibleDeployments.map(d => (
+                                        {deployments.map(d => (
                                             <SelectItem key={d.id} value={d.id}>
-                                                {d.name} (Top: {d.stillwellTop?.toFixed(2)}m)
+                                                {d.name} {typeof d.stillwellTop !== 'number' && '(No Stillwell Top!)'}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -294,6 +293,7 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
                                             "w-full pl-3 text-left font-normal",
                                             !field.value && "text-muted-foreground"
                                           )}
+                                          disabled={!isSelectedDeploymentEligible}
                                         >
                                           {field.value ? (
                                             format(field.value, "PPP")
@@ -329,7 +329,7 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
                                   <div className="relative">
                                     <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <FormControl>
-                                      <Input type="text" placeholder="HH:MM" className="pl-10" {...field} />
+                                      <Input type="text" placeholder="HH:MM" className="pl-10" {...field} disabled={!isSelectedDeploymentEligible} />
                                     </FormControl>
                                   </div>
                                   <FormMessage />
@@ -345,13 +345,13 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
                                     <FormItem>
                                     <FormLabel>Tape-Down (m)</FormLabel>
                                     <FormControl>
-                                        <Input type="number" step="0.01" placeholder="e.g., 0.8" className="w-[180px]" {...field} />
+                                        <Input type="number" step="0.01" placeholder="e.g., 0.8" className="w-[180px]" {...field} disabled={!isSelectedDeploymentEligible} />
                                     </FormControl>
                                     <FormMessage />
                                     </FormItem>
                                 )}
                                 />
-                            <Button type="submit" disabled={isSubmitting || !form.formState.isValid}>
+                            <Button type="submit" disabled={isSubmitting || !form.formState.isValid || !isSelectedDeploymentEligible}>
                                 <PlusCircle className="mr-2 h-4 w-4" />
                                 {isSubmitting ? "Adding..." : "Add Checkpoint"}
                             </Button>
@@ -360,7 +360,11 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
                     </Form>
                      {selectedDeploymentId && (
                         <div className="mt-4 text-sm text-muted-foreground bg-muted/50 p-3 rounded-md max-w-lg">
-                            Calculation Preview: Water Elevation = {selectedDeployment?.stillwellTop?.toFixed(2) || '...'}m (Stillwell Top) - {(measurementValue || 0).toFixed(2)}m (Tape-Down) = <span className="font-bold text-foreground">{((selectedDeployment?.stillwellTop || 0) - (measurementValue || 0)).toFixed(2)}m</span>
+                           {isSelectedDeploymentEligible ? (
+                             <>Calculation Preview: Water Elevation = {selectedDeployment.stillwellTop?.toFixed(2) || '...'}m (Stillwell Top) - {(measurementValue || 0).toFixed(2)}m (Tape-Down) = <span className="font-bold text-foreground">{((selectedDeployment.stillwellTop || 0) - (measurementValue || 0)).toFixed(2)}m</span></>
+                           ) : (
+                             <span className="text-destructive">This deployment does not have a 'Stillwell Top' elevation set. Please edit the deployment to add one.</span>
+                           )}
                         </div>
                     )}
                 </div>
@@ -378,3 +382,5 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
     </Card>
   );
 }
+
+    
