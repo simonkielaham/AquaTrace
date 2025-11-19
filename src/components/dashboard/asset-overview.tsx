@@ -1,3 +1,4 @@
+
 import type { Asset } from "@/lib/placeholder-data";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,10 +34,12 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
               <MapPin className="h-4 w-4" />
               <span>{asset.location}</span>
             </div>
-             <div className="flex items-center space-x-2">
-                <Globe className="h-4 w-4" />
-                <span>{asset.latitude.toFixed(4)}, {asset.longitude.toFixed(4)}</span>
-            </div>
+             {typeof asset.latitude === 'number' && typeof asset.longitude === 'number' && (
+                <div className="flex items-center space-x-2">
+                    <Globe className="h-4 w-4" />
+                    <span>{asset.latitude.toFixed(4)}, {asset.longitude.toFixed(4)}</span>
+                </div>
+            )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {image && (
