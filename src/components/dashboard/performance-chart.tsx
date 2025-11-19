@@ -37,7 +37,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter, Dot, Brush } from "recharts";
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter, Dot, Brush, Symbols } from "recharts";
 import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
@@ -147,8 +147,8 @@ export default function PerformanceChart({
   const [yZoomRange, setYZoomRange] = React.useState<[number, number] | null>(null);
 
   const yAxisBounds = React.useMemo(() => {
-    if (loading || chartData.length === 0) {
-      return [0, 0];
+    if (loading) {
+      return ['auto', 'auto'];
     }
     
     const dataToConsider = selectedRange
@@ -156,7 +156,18 @@ export default function PerformanceChart({
       : chartData;
 
     if (dataToConsider.length === 0) {
-      return [0, 0];
+      // If there's no data in the selected range, fall back to asset elevations
+       const assetElevations = [
+        asset.permanentPoolElevation,
+        ...asset.designElevations.filter(de => de.elevation > 0).map(de => de.elevation)
+      ].filter(e => typeof e === 'number' && isFinite(e));
+      
+      if (assetElevations.length === 0) return [0, 1]; // Absolute fallback
+
+      const min = Math.min(...assetElevations);
+      const max = Math.max(...assetElevations);
+      const padding = (max - min) * 0.2 || 1;
+      return [min - padding, max + padding];
     }
       
     const allElevations: number[] = dataToConsider.flatMap(d => {
@@ -167,13 +178,13 @@ export default function PerformanceChart({
     });
 
     allElevations.push(asset.permanentPoolElevation);
-    asset.designElevations.forEach(de => {
-        if (de.elevation > 0) allElevations.push(de.elevation);
+    asset.designElevations.filter(de => de.elevation > 0).forEach(de => {
+        allElevations.push(de.elevation);
     });
     
     const validElevations = allElevations.filter(e => typeof e === 'number' && isFinite(e));
     if (validElevations.length === 0) {
-        return [0, 0];
+        return [0, 1]; // Fallback
     }
 
     const dataMin = Math.min(...validElevations);
@@ -184,7 +195,10 @@ export default function PerformanceChart({
     return [dataMin - padding, dataMax + padding];
   }, [chartData, asset, loading, selectedRange]);
 
+
   React.useEffect(() => {
+    // When the primary data range changes, reset the zoom slider
+    // to match the new overall boundaries.
     if (!loading) {
       setYZoomRange(yAxisBounds as [number, number]);
     }
@@ -369,7 +383,7 @@ export default function PerformanceChart({
                 dataKey="elevation" 
                 fill="var(--color-surveyPoints)" 
                 name="Survey Points" 
-                shape={<Dot r={4} strokeWidth={2} stroke="var(--background)" />}
+                shape={<Symbols type="diamond" size={64} stroke="var(--background)" strokeWidth={2} />}
             />
             <ReferenceLine
               y={asset.permanentPoolElevation}
@@ -408,9 +422,9 @@ export default function PerformanceChart({
             <ChartLegend content={<ChartLegendContent />} />
           </AreaChart>
         </ChartContainer>
-        {yZoomRange && (
+        {yZoomRange && Array.isArray(yAxisBounds) && typeof yAxisBounds[0] === 'number' && typeof yAxisBounds[1] === 'number' && (
           <div className="w-10 flex flex-col items-center">
-            <Slider
+             <Slider
               orientation="vertical"
               min={yAxisBounds[0]}
               max={yAxisBounds[1]}
@@ -418,6 +432,7 @@ export default function PerformanceChart({
               value={[yZoomRange[0], yZoomRange[1]]}
               onValueChange={(value) => setYZoomRange(value as [number, number])}
               className="h-full"
+              minStepsBetweenThumbs={1}
             />
           </div>
         )}
