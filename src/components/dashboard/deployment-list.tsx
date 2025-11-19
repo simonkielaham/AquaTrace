@@ -723,12 +723,14 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
                     <Download className="mr-2 h-4 w-4" />
                     Log
                   </Button>
-                  <DataFileManager>
-                    <Button variant="outline" size="sm" onClick={handleManageFiles}>
-                      <Files className="mr-2 h-4 w-4" />
-                      Manage Files
-                    </Button>
-                  </DataFileManager>
+                  <div onClick={handleManageFiles}>
+                    <DataFileManager>
+                      <Button variant="outline" size="sm">
+                        <Files className="mr-2 h-4 w-4" />
+                        Manage Files
+                      </Button>
+                    </DataFileManager>
+                  </div>
                   <div onClick={handleNewDeployment}>
                     <NewDeploymentDialog asset={asset} />
                   </div>
@@ -769,5 +771,3 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
-
-    
