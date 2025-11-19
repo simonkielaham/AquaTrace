@@ -38,6 +38,8 @@ const surveyPointSchema = z.object({
 type SurveyPointFormValues = z.infer<typeof surveyPointSchema>;
 
 type EnrichedSurveyPoint = SurveyPoint & {
+    sensorTimestamp?: number;
+    sensorElevation?: number;
     difference?: number;
 }
 
@@ -69,29 +71,34 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
             if (isMounted) {
                  const enrichedPoints: EnrichedSurveyPoint[] = points.map(point => {
                     if (processedData.length === 0) {
-                        return { ...point, difference: undefined };
+                        return { ...point };
                     }
                     
                     // Find the nearest processed data point
-                    let nearestPoint = processedData[0];
-                    let smallestDiff = Math.abs(point.timestamp - nearestPoint.timestamp);
+                    let nearestPoint: DataPoint | null = null;
+                    if (processedData.length > 0) {
+                      nearestPoint = processedData[0];
+                      let smallestDiff = Math.abs(point.timestamp - nearestPoint.timestamp);
 
-                    for (const p of processedData) {
-                        const diff = Math.abs(point.timestamp - p.timestamp);
-                        if (diff < smallestDiff) {
-                            smallestDiff = diff;
-                            nearestPoint = p;
-                        }
+                      for (const p of processedData) {
+                          const diff = Math.abs(point.timestamp - p.timestamp);
+                          if (diff < smallestDiff) {
+                              smallestDiff = diff;
+                              nearestPoint = p;
+                          }
+                      }
+                    }
+                    
+                    if (nearestPoint) {
+                        return {
+                            ...point,
+                            sensorTimestamp: nearestPoint.timestamp,
+                            sensorElevation: nearestPoint.waterLevel,
+                            difference: point.elevation - nearestPoint.waterLevel,
+                        };
                     }
 
-                    // Now that we have the true nearest point, we check if the timestamp matches
-                    // because the backend snaps it.
-                    const waterLevel = nearestPoint.timestamp === point.timestamp ? nearestPoint.waterLevel : undefined;
-                    
-                    return {
-                        ...point,
-                        difference: waterLevel !== undefined ? point.elevation - waterLevel : undefined
-                    };
+                    return { ...point };
                 });
                 
                 setSurveyPoints(enrichedPoints);
@@ -251,8 +258,10 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                 <Table>
                     <TableHeader>
                     <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Elevation</TableHead>
+                        <TableHead>Survey Datetime</TableHead>
+                        <TableHead>Survey Elevation</TableHead>
+                        <TableHead>Sensor Datetime</TableHead>
+                        <TableHead>Sensor Elevation</TableHead>
                         <TableHead>Difference</TableHead>
                         <TableHead className="text-right">Action</TableHead>
                     </TableRow>
@@ -262,6 +271,12 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                         <TableRow key={point.id}>
                         <TableCell>{format(new Date(point.timestamp), "Pp")}</TableCell>
                         <TableCell>{point.elevation.toFixed(2)}m</TableCell>
+                        <TableCell>
+                          {point.sensorTimestamp ? format(new Date(point.sensorTimestamp), "Pp") : <span className="text-muted-foreground text-xs">N/A</span>}
+                        </TableCell>
+                         <TableCell>
+                          {point.sensorElevation !== undefined ? `${point.sensorElevation.toFixed(2)}m` : <span className="text-muted-foreground text-xs">N/A</span>}
+                        </TableCell>
                         <TableCell>
                             {point.difference !== undefined ? (
                                 <span className={cn(
@@ -298,3 +313,5 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
     </Card>
   );
 }
+
+    
