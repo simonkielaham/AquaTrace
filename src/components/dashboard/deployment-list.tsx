@@ -276,6 +276,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isParsing, setIsParsing] = React.useState(false);
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
+  const [csvPreview, setCsvPreview] = React.useState<string[][]>([]);
   
   const form = useForm<AssignDatafileValues>({
     resolver: zodResolver(assignDatafileSchema),
@@ -287,6 +288,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   const resetDialogState = React.useCallback(() => {
     form.reset({ startRow: 2, filename: undefined, datetimeColumn: undefined, valueColumn: undefined, dataType: undefined });
     setCsvHeaders([]);
+    setCsvPreview([]);
     setIsSubmitting(false);
     setIsParsing(false);
   }, [form]);
@@ -322,26 +324,30 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
     form.setValue("datetimeColumn", undefined);
     form.setValue("valueColumn", undefined);
     setCsvHeaders([]);
+    setCsvPreview([]);
 
     setIsParsing(true);
-    toast({ title: "Parsing File...", description: "Reading headers from the selected CSV file."});
+    toast({ title: "Parsing File...", description: "Reading headers and preview from the selected CSV file."});
     
     const fileContent = await getStagedFileContent(filename);
     
     if (!fileContent) {
-        toast({ variant: "destructive", title: "Error", description: "Could not retrieve file content to parse headers." });
+        toast({ variant: "destructive", title: "Error", description: "Could not retrieve file content." });
         setIsParsing(false);
         return;
     }
 
     Papa.parse(fileContent, {
-        preview: 1, // only need the first row for headers
+        preview: 11, // 1 header row + 10 data rows
         skipEmptyLines: true,
         complete: (results) => {
-            const headers = (results.data[0] as string[] || []).filter(h => h);
+            const data = results.data as string[][];
+            const headers = (data[0] || []).filter(h => h);
+
             if (headers.length > 0) {
               setCsvHeaders(headers);
-              toast({ title: "Headers Parsed", description: "Please map the required columns." });
+              setCsvPreview(data.slice(1));
+              toast({ title: "File Parsed", description: "Please map the required columns." });
             } else {
                toast({ variant: "destructive", title: "Parsing Error", description: "Could not parse CSV headers. Check file format." });
             }
@@ -349,7 +355,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
         },
         error: (error) => {
             console.error("PapaParse error:", error);
-            toast({ variant: "destructive", title: "Parsing Error", description: "Could not parse CSV headers." });
+            toast({ variant: "destructive", title: "Parsing Error", description: "Could not parse CSV file." });
             setIsParsing(false);
         }
     });
@@ -367,7 +373,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm"><FileUp className="mr-2 h-4 w-4" /> Assign Datafile</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[725px]">
+      <DialogContent className="sm:max-w-[80vw] md:max-w-[725px]">
         <DialogHeader>
           <DialogTitle>Assign Datafile to {deployment.name}</DialogTitle>
           <DialogDescription>Select a staged file and map the columns for processing.</DialogDescription>
@@ -399,7 +405,39 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
 
               {(isParsing || (selectedFilename && csvHeaders.length > 0)) && (
                 <>
-                 {isParsing && <div className="flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Parsing headers...</div>}
+                 {isParsing && <div className="flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Parsing file...</div>}
+                 
+                  {csvPreview.length > 0 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-base">Data Preview</CardTitle>
+                            <CardDescription>First 10 rows of data from {selectedFilename}.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ScrollArea className="h-48 w-full rounded-md border">
+                                <Table className="w-full">
+                                    <TableHeader>
+                                        <TableRow>
+                                            {csvHeaders.map((header, i) => (
+                                                <TableHead key={i}>{header}</TableHead>
+                                            ))}
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {csvPreview.map((row, i) => (
+                                            <TableRow key={i}>
+                                                {row.map((cell, j) => (
+                                                    <TableCell key={j} className="whitespace-nowrap">{cell}</TableCell>
+                                                ))}
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </ScrollArea>
+                        </CardContent>
+                    </Card>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
@@ -657,7 +695,8 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
   const { toast } = useToast();
   const { downloadLogs } = useAssets();
   
-  const handleDownloadLogs = async () => {
+  const handleDownloadLogs = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     toast({ title: "Generating log file..." });
     const result = await downloadLogs(asset.id);
 
@@ -708,20 +747,22 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
                   </CardDescription>
                 </div>
               </div>
-              <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
+               <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
             </AccordionTrigger>
              <div className="flex-shrink-0 flex items-center gap-2 pl-4">
               <Button variant="outline" size="sm" onClick={handleDownloadLogs}>
                 <Download className="mr-2 h-4 w-4" />
                 Log
               </Button>
-              <DataFileManager>
-                <Button variant="outline" size="sm">
+               <DataFileManager>
+                <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
                   <Files className="mr-2 h-4 w-4" />
                   Manage Files
                 </Button>
               </DataFileManager>
-              <NewDeploymentDialog asset={asset} />
+              <div onClick={(e) => e.stopPropagation()}>
+                <NewDeploymentDialog asset={asset} />
+              </div>
             </div>
           </div>
           <AccordionContent>
