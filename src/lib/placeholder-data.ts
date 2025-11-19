@@ -1,4 +1,5 @@
 
+
 export type Asset = {
   id: string;
   name: string;
@@ -39,6 +40,10 @@ export type SurveyPoint = {
   assetId: string;
   timestamp: number;
   elevation: number;
+  source?: 'manual' | 'tape-down';
+  tapeDownMeasurement?: number;
+  stillwellTopElevation?: number;
+  deploymentId?: string;
 };
 
 export type Deployment = {

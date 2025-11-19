@@ -61,6 +61,10 @@ const editDeploymentSchema = z.object({
 const surveyPointSchema = z.object({
   timestamp: z.string().datetime(),
   elevation: z.coerce.number(),
+  source: z.enum(['manual', 'tape-down']).default('manual'),
+  tapeDownMeasurement: z.coerce.number().optional(),
+  stillwellTopElevation: z.coerce.number().optional(),
+  deploymentId: z.string().optional(),
 });
 
 
@@ -119,7 +123,7 @@ export async function addSurveyPoint(assetId: string, data: any) {
     await writeLog({ action: 'addSurveyPoint', status: 'failure', assetId, payload: logPayload, response });
     return response;
   }
-  const { timestamp, elevation } = validatedFields.data;
+  const { timestamp, elevation, source, tapeDownMeasurement, stillwellTopElevation, deploymentId } = validatedFields.data;
 
   try {
     const surveyPoints = await readJsonFile<SurveyPoint[]>(surveyPointsFilePath);
@@ -147,6 +151,10 @@ export async function addSurveyPoint(assetId: string, data: any) {
       assetId,
       timestamp: finalTimestamp,
       elevation: parseFloat(elevation.toString()),
+      source,
+      tapeDownMeasurement,
+      stillwellTopElevation,
+      deploymentId
     };
     
     surveyPoints.push(newPoint);

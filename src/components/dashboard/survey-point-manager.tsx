@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { Asset, SurveyPoint, DataPoint } from "@/lib/placeholder-data";
@@ -43,7 +44,7 @@ const surveyPointSchema = z.object({
 
 type SurveyPointFormValues = z.infer<typeof surveyPointSchema>;
 
-type EnrichedSurveyPoint = SurveyPoint & {
+export type EnrichedSurveyPoint = SurveyPoint & {
     sensorTimestamp?: number;
     sensorElevation?: number;
     difference?: number;
@@ -75,7 +76,9 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
             ]);
 
             if (isMounted) {
-                 const enrichedPoints: EnrichedSurveyPoint[] = points.map(point => {
+                 const manualPoints = points.filter(p => p.source === 'manual' || p.source === undefined);
+
+                 const enrichedPoints: EnrichedSurveyPoint[] = manualPoints.map(point => {
                     if (processedData.length === 0) {
                         return { ...point };
                     }
@@ -113,7 +116,10 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
             console.error("Failed to fetch or enrich survey points:", error);
             if (isMounted) {
                 // If it fails, at least try to show the raw points
-                getSurveyPoints(asset.id).then(points => setSurveyPoints(points));
+                getSurveyPoints(asset.id).then(points => {
+                    const manualPoints = points.filter(p => p.source === 'manual' || p.source === undefined);
+                    setSurveyPoints(manualPoints)
+                });
             }
         } finally {
              if (isMounted) setLoadingPoints(false);
@@ -135,7 +141,8 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
 
     const serverData = {
       timestamp: combinedDateTime.toISOString(),
-      elevation: data.elevation
+      elevation: data.elevation,
+      source: 'manual',
     };
 
     const result = await addSurveyPoint(asset.id, serverData);

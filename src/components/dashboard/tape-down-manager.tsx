@@ -1,7 +1,8 @@
 
+
 "use client";
 
-import type { Asset, SurveyPoint, Deployment } from "@/lib/placeholder-data";
+import type { Asset, SurveyPoint, Deployment, DataPoint } from "@/lib/placeholder-data";
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -54,9 +55,9 @@ const tapeDownSchema = z.object({
 type TapeDownFormValues = z.infer<typeof tapeDownSchema>;
 
 
-function ExistingPointsTable({ asset, dataVersion }: { asset: Asset, dataVersion: number }) {
+function ExistingPointsTable({ asset, deployments, dataVersion }: { asset: Asset, deployments: Deployment[], dataVersion: number }) {
     const { getSurveyPoints, deleteSurveyPoint } = useAssets();
-    const [surveyPoints, setSurveyPoints] = React.useState<EnrichedSurveyPoint[]>([]);
+    const [tapeDownPoints, setTapeDownPoints] = React.useState<EnrichedSurveyPoint[]>([]);
     const [loadingPoints, setLoadingPoints] = React.useState(true);
     const [isDeleting, setIsDeleting] = React.useState('');
     const { toast } = useToast();
@@ -72,7 +73,8 @@ function ExistingPointsTable({ asset, dataVersion }: { asset: Asset, dataVersion
                 ]);
 
                 if (isMounted) {
-                    const enrichedPoints: EnrichedSurveyPoint[] = points.map(point => {
+                    const tapeDowns = points.filter(p => p.source === 'tape-down');
+                    const enrichedPoints: EnrichedSurveyPoint[] = tapeDowns.map(point => {
                         if (processedData.length === 0) return { ...point };
 
                         const nearestPoint = processedData.reduce((prev, curr) => {
@@ -89,12 +91,15 @@ function ExistingPointsTable({ asset, dataVersion }: { asset: Asset, dataVersion
                         }
                         return { ...point };
                     });
-                    setSurveyPoints(enrichedPoints);
+                    setTapeDownPoints(enrichedPoints);
                 }
             } catch (error) {
-                console.error("Failed to fetch or enrich survey points:", error);
+                console.error("Failed to fetch or enrich tape down points:", error);
                  if (isMounted) {
-                    getSurveyPoints(asset.id).then(points => setSurveyPoints(points));
+                    getSurveyPoints(asset.id).then(points => {
+                        const tapeDowns = points.filter(p => p.source === 'tape-down');
+                        setTapeDownPoints(tapeDowns);
+                    });
                 }
             } finally {
                 if (isMounted) setLoadingPoints(false);
@@ -110,41 +115,37 @@ function ExistingPointsTable({ asset, dataVersion }: { asset: Asset, dataVersion
         if (result?.message && result.message.startsWith('Error:')) {
             toast({ variant: "destructive", title: "Error", description: result.message });
         } else {
-            toast({ title: "Success", description: "Survey point deleted." });
+            toast({ title: "Success", description: "Tape-down measurement deleted." });
         }
         setIsDeleting('');
     }
 
      if (loadingPoints) {
-        return <div className="p-4 text-center text-muted-foreground">Loading points...</div>;
+        return <div className="p-4 text-center text-muted-foreground">Loading tape-down measurements...</div>;
     }
-    if (surveyPoints.length === 0) {
-        return <p className="p-4 text-center text-sm text-muted-foreground">No manual points added yet.</p>;
+    if (tapeDownPoints.length === 0) {
+        return <p className="p-4 text-center text-sm text-muted-foreground">No tape-down measurements recorded yet.</p>;
     }
 
     return (
          <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead>Survey Datetime</TableHead>
-                    <TableHead>Survey Elevation</TableHead>
-                    <TableHead>Sensor Datetime</TableHead>
-                    <TableHead>Sensor Elevation</TableHead>
-                    <TableHead>Difference</TableHead>
+                    <TableHead>Datetime</TableHead>
+                    <TableHead>Stillwell Top</TableHead>
+                    <TableHead>Tape Down</TableHead>
+                    <TableHead>Calculated Elevation</TableHead>
+                    <TableHead>Sensor Difference</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {surveyPoints.map((point) => (
+                {tapeDownPoints.map((point) => (
                     <TableRow key={point.id}>
                         <TableCell>{format(new Date(point.timestamp), "Pp")}</TableCell>
-                        <TableCell>{point.elevation.toFixed(2)}m</TableCell>
-                        <TableCell>
-                            {point.sensorTimestamp ? format(new Date(point.sensorTimestamp), "Pp") : <span className="text-muted-foreground text-xs">N/A</span>}
-                        </TableCell>
-                        <TableCell>
-                            {point.sensorElevation !== undefined ? `${point.sensorElevation.toFixed(2)}m` : <span className="text-muted-foreground text-xs">N/A</span>}
-                        </TableCell>
+                        <TableCell>{point.stillwellTopElevation?.toFixed(2)}m</TableCell>
+                        <TableCell>{point.tapeDownMeasurement?.toFixed(2)}m</TableCell>
+                        <TableCell className="font-semibold">{point.elevation.toFixed(2)}m</TableCell>
                         <TableCell>
                             {point.difference !== undefined ? (
                                 <span className={cn(
@@ -153,7 +154,7 @@ function ExistingPointsTable({ asset, dataVersion }: { asset: Asset, dataVersion
                                     point.difference < -0.01 ? "text-red-600" :
                                     "text-muted-foreground"
                                 )}>
-                                    {point.difference > 0 ? '+' : ''}{point.difference.toFixed(2)}m
+                                    {point.difference > 0 ? '+' : ''}{point.difference.toFixed(3)}m
                                 </span>
                             ) : (
                                 <span className="text-muted-foreground text-xs">N/A</span>
@@ -165,7 +166,7 @@ function ExistingPointsTable({ asset, dataVersion }: { asset: Asset, dataVersion
                                 size="icon"
                                 onClick={() => handleDelete(point.id)}
                                 disabled={!!isDeleting}
-                                title="Delete survey point"
+                                title="Delete tape-down measurement"
                             >
                                 {isDeleting === point.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
                             </Button>
@@ -212,7 +213,11 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
 
     const serverData = {
       timestamp: combinedDateTime.toISOString(),
-      elevation: calculatedElevation
+      elevation: calculatedElevation,
+      source: 'tape-down',
+      tapeDownMeasurement: data.measurement,
+      stillwellTopElevation: selectedDeployment.stillwellTop,
+      deploymentId: selectedDeployment.id,
     };
 
     const result = await addSurveyPoint(asset.id, serverData);
@@ -268,7 +273,7 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
                                     </FormControl>
                                     <SelectContent>
                                         {deployments.map(d => (
-                                            <SelectItem key={d.id} value={d.id}>
+                                            <SelectItem key={d.id} value={d.id} disabled={typeof d.stillwellTop !== 'number'}>
                                                 {d.name} {typeof d.stillwellTop !== 'number' && '(No Stillwell Top!)'}
                                             </SelectItem>
                                         ))}
@@ -370,9 +375,9 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="font-medium">Existing Points</h4>
+                  <h4 className="font-medium">Existing Tape-Down Measurements</h4>
                   <ScrollArea className="h-[250px] rounded-md border">
-                    <ExistingPointsTable asset={asset} dataVersion={dataVersion} />
+                    <ExistingPointsTable asset={asset} deployments={deployments} dataVersion={dataVersion} />
                   </ScrollArea>
                 </div>
             </CardContent>
