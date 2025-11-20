@@ -37,7 +37,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter, Dot, Brush, Symbols } from "recharts";
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter, Brush, Symbols } from "recharts";
 import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
@@ -236,7 +236,9 @@ export default function PerformanceChart({
           if (!dataMap.has(timestamp)) {
             dataMap.set(timestamp, { timestamp });
           }
-          dataMap.get(timestamp)!.elevation = p.elevation;
+          const point = dataMap.get(timestamp)!;
+          point.elevation = p.elevation;
+          point.source = p.source;
         });
         
         const mergedData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
@@ -361,11 +363,12 @@ export default function PerformanceChart({
                       )
                     }
                     if (item.dataKey === 'elevation' && typeof value === 'number') {
+                      const label = payload.source === 'tape-down' ? 'TAPE-DOWN MEASUREMENT' : 'MANUAL SURVEY';
                       return (
                         <div className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-elevation)'}}/>
                             <div className="flex flex-col items-start">
-                                <span className="font-bold">SURVEY POINT: {`${value.toFixed(3)}m`}</span>
+                                <span className="font-bold">{label}: {`${value.toFixed(3)}m`}</span>
                             </div>
                         </div>
                       )
@@ -386,15 +389,6 @@ export default function PerformanceChart({
               connectNulls
               dot={false}
             />
-            {chartData.filter(d => d.elevation !== undefined).map(d => (
-                <ReferenceLine 
-                    key={`dropline-${d.timestamp}`}
-                    x={d.timestamp}
-                    stroke="hsl(var(--accent))"
-                    strokeDasharray="3 3"
-                    strokeWidth={1}
-                />
-            ))}
             <Scatter 
                 dataKey="elevation" 
                 fill="var(--color-elevation)" 
@@ -506,5 +500,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    
