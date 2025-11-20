@@ -48,25 +48,6 @@ type PerformanceChartProps = {
   onBrushChange: (range: { startIndex?: number; endIndex?: number }) => void;
 };
 
-const chartConfig = {
-  waterLevel: {
-    label: "Water Elevation",
-    color: "hsl(var(--chart-1))",
-  },
-  precipitation: {
-    label: "Precipitation",
-    color: "hsl(var(--chart-2))",
-  },
-  elevation: {
-    label: "Survey Points",
-    color: "hsl(var(--accent))",
-  },
-  ppe: {
-    label: "Permanent Pool",
-    color: "hsl(var(--chart-2))",
-  },
-};
-
 const AnalysisDialog = ({ 
     asset,
     data, 
@@ -155,7 +136,39 @@ export default function PerformanceChart({
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
   const [isDataTableOpen, setIsDataTableOpen] = React.useState(false);
   const [yZoomRange, setYZoomRange] = React.useState<[number, number] | null>(null);
+
+  const chartConfig = React.useMemo(() => {
+    const config = {
+      waterLevel: {
+        label: "Water Elevation",
+        color: "hsl(var(--chart-1))",
+      },
+      precipitation: {
+        label: "Precipitation",
+        color: "hsl(var(--chart-2))",
+      },
+      elevation: {
+        label: "Survey Points",
+        color: "hsl(var(--accent))",
+      },
+      ppe: {
+        label: "Permanent Pool",
+        color: "hsl(var(--chart-2))",
+      },
+    };
   
+    asset.designElevations.forEach((de, index) => {
+      // Use modulo operator to cycle through chart colors if there are more elevations than colors
+      const chartColorIndex = (index % 5) + 1;
+      config[de.name] = {
+        label: de.name,
+        color: `hsl(var(--chart-${chartColorIndex}))`
+      };
+    });
+    
+    return config;
+  }, [asset.designElevations]);
+
   const yAxisBounds = React.useMemo(() => {
     if (loading) {
       return ['auto', 'auto'];
@@ -296,6 +309,7 @@ export default function PerformanceChart({
               type="number"
               domain={[0, 'dataMax']}
               reversed={true}
+              tickFormatter={(value) => (value as number).toFixed(0)}
               label={{ value: 'Precipitation (mm)', angle: 90, position: 'insideRight', offset: 30 }}
             />
             <ChartTooltip
@@ -375,7 +389,7 @@ export default function PerformanceChart({
             <ReferenceLine
               yAxisId="left"
               y={asset.permanentPoolElevation}
-              label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}
+              name="Permanent Pool"
               stroke="var(--color-ppe)"
               strokeWidth={2}
               isFront
@@ -385,8 +399,8 @@ export default function PerformanceChart({
                 yAxisId="left"
                 key={de.name}
                 y={de.elevation}
-                label={{ value: de.name, position: 'left', fill: 'hsl(var(--muted-foreground))', fontSize: '12px', dx: -10 }}
-                stroke="hsl(var(--destructive))"
+                name={de.name}
+                stroke={chartConfig[de.name]?.color}
                 strokeDasharray="3 3"
                 isFront
               />
@@ -491,5 +505,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    
