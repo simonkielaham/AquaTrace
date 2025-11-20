@@ -124,74 +124,82 @@ function DesignElevationRow({ control, index, remove, swap }: { control: any, in
     const isCustom = watchName === 'Custom';
 
     return (
-      <div className="flex items-end gap-2">
-        <div className="flex-1 space-y-2">
-          <FormField
-            control={control}
-            name={`designElevations.${index}.name`}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs">Type</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a type" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {elevationOptions.map(option => (
-                      <SelectItem key={option} value={option}>{option}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {isCustom && (
+      <div className="flex items-start gap-2 rounded-md border p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+          <div className="space-y-2">
             <FormField
               control={control}
-              name={`designElevations.${index}.customName`}
+              name={`designElevations.${index}.name`}
               render={({ field }) => (
                 <FormItem>
-                   <FormControl>
-                     <Input placeholder="Enter custom name" {...field} />
-                  </FormControl>
+                  <FormLabel>Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {elevationOptions.map(option => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          )}
+            {isCustom && (
+              <FormField
+                control={control}
+                name={`designElevations.${index}.customName`}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="sr-only">Custom Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter custom name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+          </div>
+          <FormField
+            control={control}
+            name={`designElevations.${index}.elevation`}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Elevation (m)</FormLabel>
+                <FormControl>
+                  <Input type="number" step="0.01" placeholder="e.g., 12.0" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
-        <FormField
-          control={control}
-          name={`designElevations.${index}.elevation`}
-          render={({ field }) => (
-            <FormItem className="w-1/3">
-              <FormLabel className="text-xs">Elevation (m)</FormLabel>
-              <FormControl>
-                <Input type="number" step="0.01" placeholder="e.g., 12.0" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="flex flex-col gap-1">
-            <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => swap(index, index - 1)} disabled={index === 0}>
-                <ArrowUp className="h-4 w-4"/>
-            </Button>
-             <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => swap(index, index + 1)} disabled={index === fields.length - 1}>
-                <ArrowDown className="h-4 w-4"/>
-            </Button>
+        <div className="flex flex-col items-center gap-1 pt-1">
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => swap(index, index - 1)} disabled={index === 0}>
+              <ArrowUp className="h-4 w-4"/>
+              <span className="sr-only">Move Up</span>
+          </Button>
+          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => swap(index, index + 1)} disabled={index === fields.length - 1}>
+              <ArrowDown className="h-4 w-4"/>
+              <span className="sr-only">Move Down</span>
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant="destructive"
-          size="icon"
-          onClick={() => remove(index)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        <div className="pt-7">
+          <Button
+            type="button"
+            variant="destructive"
+            size="icon"
+            onClick={() => remove(index)}
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="sr-only">Delete</span>
+          </Button>
+        </div>
       </div>
     );
 }
@@ -317,7 +325,7 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
               <FormDescription className="mb-4">
                 Add and reorder any other relevant design elevations.
               </FormDescription>
-              <div className="space-y-4 max-h-[250px] overflow-y-auto pr-2">
+              <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2">
                 {fields.map((field, index) => (
                   <DesignElevationRow
                     key={field.id}
@@ -664,5 +672,7 @@ export default function AssetManagementPage() {
     </SidebarProvider>
   );
 }
+
+    
 
     
