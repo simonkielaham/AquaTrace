@@ -15,7 +15,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -46,7 +45,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { PlusCircle, Trash2, FilePenLine, ChevronDown } from "lucide-react";
+import { PlusCircle, Trash2, FilePenLine, ChevronDown, ArrowUp, ArrowDown } from "lucide-react";
 import { SidebarProvider, Sidebar } from "@/components/ui/sidebar";
 import SidebarNav from "@/components/dashboard/sidebar-nav";
 import PageHeader from "@/components/dashboard/page-header";
@@ -69,7 +68,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Asset } from "@/lib/placeholder-data";
 import { DialogClose, DialogFooter } from "@/components/ui/dialog";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 
 const designElevationSchema = z.object({
@@ -85,7 +83,7 @@ const assetFormSchema = z.object({
   longitude: z.coerce.number().min(-180, "Invalid longitude.").max(180, "Invalid longitude."),
   permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
   designElevations: z.array(designElevationSchema),
-  imageId: z.string().min(1, "Please select an image."),
+  imageId: z.string().url("Please enter a valid image URL.").or(z.literal("")),
 });
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
@@ -114,11 +112,13 @@ const elevationOptions = [
     "Custom"
 ];
 
-function DesignElevationRow({ control, index, remove }: { control: any, index: number, remove: (index: number) => void }) {
+function DesignElevationRow({ control, index, remove, swap }: { control: any, index: number, remove: (index: number) => void, swap: (index1: number, index2: number) => void }) {
     const watchName = useWatch({
         control,
         name: `designElevations.${index}.name`
     });
+    
+    const { fields } = useFieldArray({ control, name: "designElevations" });
 
     const isCustom = watchName === 'Custom';
 
@@ -175,6 +175,14 @@ function DesignElevationRow({ control, index, remove }: { control: any, index: n
             </FormItem>
           )}
         />
+        <div className="flex flex-col gap-1">
+            <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => swap(index, index - 1)} disabled={index === 0}>
+                <ArrowUp className="h-4 w-4"/>
+            </Button>
+             <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => swap(index, index + 1)} disabled={index === fields.length - 1}>
+                <ArrowDown className="h-4 w-4"/>
+            </Button>
+        </div>
         <Button
           type="button"
           variant="destructive"
@@ -195,13 +203,12 @@ interface AssetFormProps {
 }
 
 function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, swap } = useFieldArray({
     control: form.control,
     name: "designElevations",
   });
   
-  const selectedImageId = useWatch({ control: form.control, name: 'imageId' });
-  const selectedImage = PlaceHolderImages.find(img => img.id === selectedImageId);
+  const imageUrl = useWatch({ control: form.control, name: 'imageId' });
 
   return (
     <Form {...form}>
@@ -276,35 +283,27 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
               )}
             />
              <div className="space-y-4">
-              <FormField
+               <FormField
                 control={form.control}
                 name="imageId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Asset Image</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select an image" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {PlaceHolderImages.map(img => (
-                          <SelectItem key={img.id} value={img.id}>{img.description}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Asset Image URL</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://example.com/image.jpg" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              {selectedImage && (
+              {imageUrl && (
                 <div className="relative h-40 w-full rounded-md overflow-hidden border">
                    <Image 
-                     src={selectedImage.imageUrl} 
-                     alt={selectedImage.description} 
+                     src={imageUrl} 
+                     alt="Asset preview" 
                      fill
                      className="object-cover"
+                     onError={(e) => e.currentTarget.style.display = 'none'} // Hide if image fails to load
                    />
                 </div>
               )}
@@ -315,7 +314,7 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
             <div>
               <FormLabel>Optional Design Elevations</FormLabel>
               <FormDescription className="mb-4">
-                Add any other relevant design elevations.
+                Add and reorder any other relevant design elevations.
               </FormDescription>
               <div className="space-y-4 max-h-[250px] overflow-y-auto pr-2">
                 {fields.map((field, index) => (
@@ -324,6 +323,7 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
                     control={form.control}
                     index={index}
                     remove={remove}
+                    swap={swap}
                   />
                 ))}
               </div>
@@ -663,3 +663,5 @@ export default function AssetManagementPage() {
     </SidebarProvider>
   );
 }
+
+    

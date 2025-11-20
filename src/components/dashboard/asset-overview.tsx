@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Target, Globe, FilePenLine, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { EditAssetDialog, DeleteAssetDialog } from "@/app/asset-management/page";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -22,9 +21,12 @@ const statusVariantMap = {
 } as const;
 
 export default function AssetOverview({ asset }: AssetOverviewProps) {
-  const image = PlaceHolderImages.find((img) => img.id === asset.imageId);
   const router = useRouter();
   const [_, startTransition] = React.useTransition();
+  
+  const sortedDesignElevations = React.useMemo(() => {
+    return [...asset.designElevations].sort((a, b) => a.elevation - b.elevation);
+  }, [asset.designElevations]);
 
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm">
@@ -68,19 +70,18 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
             )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {image && (
-            <div className="md:col-span-1 rounded-lg overflow-hidden">
+          {asset.imageId && (
+            <div className="md:col-span-1 rounded-lg overflow-hidden relative">
               <Image
-                src={image.imageUrl}
-                alt={image.description}
-                width={400}
-                height={300}
-                data-ai-hint={image.imageHint}
+                src={asset.imageId}
+                alt={asset.name}
+                fill
                 className="object-cover w-full h-full"
+                unoptimized // Since we are using external URLs
               />
             </div>
           )}
-          <div className="md:col-span-2 space-y-4">
+          <div className={cn("md:col-span-2 space-y-4", !asset.imageId && "md:col-span-3")}>
             <div className="flex items-start space-x-3 rounded-lg border p-3">
               <Target className="h-5 w-5 mt-1 text-primary" />
               <div>
@@ -96,7 +97,7 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
             <div className="space-y-2">
               <h4 className="font-semibold text-sm">Design Elevations</h4>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                {asset.designElevations.map((de) => (
+                {sortedDesignElevations.map((de) => (
                   <div key={de.name} className="flex justify-between rounded-md bg-muted/50 p-2">
                     <span className="text-muted-foreground">{de.name}:</span>
                     <span className="font-semibold">{de.elevation.toFixed(2)}m</span>
@@ -110,3 +111,5 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
     </Card>
   );
 }
+
+    
