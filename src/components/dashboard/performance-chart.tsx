@@ -331,7 +331,7 @@ export default function PerformanceChart({
               domain={[0, 'dataMax']}
               reversed={true}
               tickFormatter={(value) => (value as number).toFixed(0)}
-              label={{ value: 'Precipitation (mm)', angle: 90, position: 'insideRight', offset: 30 }}
+              label={{ value: 'Precipitation (mm)', angle: 90, position: 'insideRight', offset: 40 }}
             />
             <ChartTooltip
               cursor={false}
