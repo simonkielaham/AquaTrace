@@ -21,6 +21,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Droplets, TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
 import { format, formatDistance } from "date-fns";
+import { cn } from "@/lib/utils";
 
 type AnalysisResultsProps = {
   weatherSummary: WeatherSummary | null;
@@ -31,15 +32,30 @@ const formatDuration = (start: number, end: number) => {
   return formatDistance(new Date(start), new Date(end), { includeSeconds: true });
 };
 
-const MetricCell = ({ value, unit, icon: Icon, iconColor }: { value?: number, unit: string, icon: React.ElementType, iconColor?: string }) => {
+const MetricCell = ({ value, baseline, unit, icon: Icon, iconColor }: { value?: number, baseline?: number, unit: string, icon: React.ElementType, iconColor?: string }) => {
   if (value === undefined || value === null) {
     return <TableCell className="text-center">-</TableCell>;
   }
+
+  const difference = baseline !== undefined ? value - baseline : undefined;
+
   return (
      <TableCell>
         <div className="flex items-center gap-2">
-            <Icon className={`h-4 w-4 ${iconColor || 'text-muted-foreground'}`} />
-            <span>{value.toFixed(2)}{unit}</span>
+            <Icon className={`h-4 w-4 shrink-0 ${iconColor || 'text-muted-foreground'}`} />
+            <div className="flex flex-col">
+              <span>{value.toFixed(2)}{unit}</span>
+              {difference !== undefined && (
+                <span className={cn(
+                    "text-xs font-mono",
+                     difference > 0.01 ? "text-red-600" :
+                     difference < -0.01 ? "text-green-600" :
+                    "text-muted-foreground"
+                )}>
+                  ({difference >= 0 ? '+' : ''}{(difference).toFixed(2)}{unit})
+                </span>
+              )}
+            </div>
         </div>
     </TableCell>
   )
@@ -57,7 +73,7 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
         </CardHeader>
         <CardContent>
           <div className="text-center text-muted-foreground py-8">
-            <p>No precipitation events found in the selected date range.</p>
+            <p>No significant precipitation events found in the selected date range.</p>
           </div>
         </CardContent>
       </Card>
@@ -96,8 +112,20 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                   <TableCell>{formatDuration(event.startDate, event.endDate)}</TableCell>
                   <MetricCell value={event.totalPrecipitation} unit=" mm" icon={Droplets} iconColor="text-blue-400" />
                   <MetricCell value={event.analysis?.baselineElevation} unit="m" icon={ArrowRight} />
-                  <MetricCell value={event.analysis?.peakElevation} unit="m" icon={TrendingUp} iconColor="text-destructive" />
-                  <MetricCell value={event.analysis?.postEventElevation} unit="m" icon={TrendingDown} iconColor="text-green-500" />
+                  <MetricCell 
+                    value={event.analysis?.peakElevation} 
+                    baseline={event.analysis?.baselineElevation}
+                    unit="m" 
+                    icon={TrendingUp} 
+                    iconColor="text-destructive" 
+                  />
+                  <MetricCell 
+                    value={event.analysis?.postEventElevation} 
+                    baseline={event.analysis?.baselineElevation}
+                    unit="m" 
+                    icon={TrendingDown} 
+                    iconColor="text-green-500" 
+                  />
                 </TableRow>
               ))}
             </TableBody>
