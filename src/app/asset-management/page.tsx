@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray, UseFormReturn, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -68,6 +69,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Asset } from "@/lib/placeholder-data";
 import { DialogClose, DialogFooter } from "@/components/ui/dialog";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 
 const designElevationSchema = z.object({
@@ -83,6 +85,7 @@ const assetFormSchema = z.object({
   longitude: z.coerce.number().min(-180, "Invalid longitude.").max(180, "Invalid longitude."),
   permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
   designElevations: z.array(designElevationSchema),
+  imageId: z.string().min(1, "Please select an image."),
 });
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
@@ -196,6 +199,9 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
     control: form.control,
     name: "designElevations",
   });
+  
+  const selectedImageId = useWatch({ control: form.control, name: 'imageId' });
+  const selectedImage = PlaceHolderImages.find(img => img.id === selectedImageId);
 
   return (
     <Form {...form}>
@@ -269,6 +275,41 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
                 </FormItem>
               )}
             />
+             <div className="space-y-4">
+              <FormField
+                control={form.control}
+                name="imageId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Asset Image</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select an image" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {PlaceHolderImages.map(img => (
+                          <SelectItem key={img.id} value={img.id}>{img.description}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {selectedImage && (
+                <div className="relative h-40 w-full rounded-md overflow-hidden border">
+                   <Image 
+                     src={selectedImage.imageUrl} 
+                     alt={selectedImage.description} 
+                     fill
+                     className="object-cover"
+                   />
+                </div>
+              )}
+            </div>
+
           </div>
           <div className="space-y-4">
             <div>
@@ -306,7 +347,7 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
 }
 
 
-function EditAssetDialog({ asset }: { asset: Asset }) {
+export function EditAssetDialog({ asset, children }: { asset: Asset, children: React.ReactNode }) {
   const { toast } = useToast();
   const { updateAsset } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -328,6 +369,7 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
           elevation: de.elevation
         }
       }),
+      imageId: asset.imageId,
     },
   });
 
@@ -368,12 +410,9 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon">
-          <FilePenLine className="h-4 w-4" />
-          <span className="sr-only">Edit</span>
-        </Button>
+        {children}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[725px]">
+      <DialogContent className="sm:max-w-[825px]">
         <DialogHeader>
           <DialogTitle>Edit Asset: {asset.name}</DialogTitle>
           <DialogDescription>
@@ -395,7 +434,7 @@ function EditAssetDialog({ asset }: { asset: Asset }) {
   );
 }
 
-function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () => void }) {
+export function DeleteAssetDialog({ asset, children, onDeleted }: { asset: Asset, children: React.ReactNode, onDeleted: () => void }) {
   const { toast } = useToast();
   const { deleteAsset } = useAssets();
   const [isDeleting, setIsDeleting] = React.useState(false);
@@ -428,10 +467,7 @@ function DeleteAssetDialog({ asset, onDeleted }: { asset: Asset, onDeleted: () =
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon" title="Delete Asset">
-          <Trash2 className="h-4 w-4 text-destructive" />
-          <span className="sr-only">Delete</span>
-        </Button>
+        {children}
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -488,12 +524,22 @@ function AssetListTable() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  <EditAssetDialog asset={asset} />
+                  <EditAssetDialog asset={asset}>
+                    <Button variant="ghost" size="icon" title="Edit Asset">
+                      <FilePenLine className="h-4 w-4" />
+                      <span className="sr-only">Edit</span>
+                    </Button>
+                  </EditAssetDialog>
                   <DeleteAssetDialog asset={asset} onDeleted={() => {
                      startTransition(() => {
                         router.refresh(); 
                      })
-                  }} />
+                  }}>
+                    <Button variant="ghost" size="icon" title="Delete Asset">
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                      <span className="sr-only">Delete</span>
+                    </Button>
+                  </DeleteAssetDialog>
                 </TableCell>
               </TableRow>
             ))}
@@ -521,6 +567,7 @@ export default function AssetManagementPage() {
       longitude: 0,
       permanentPoolElevation: 0,
       designElevations: [],
+      imageId: ""
     },
   });
   

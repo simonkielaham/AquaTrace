@@ -3,9 +3,13 @@ import type { Asset } from "@/lib/placeholder-data";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Target, Globe } from "lucide-react";
+import { MapPin, Target, Globe, FilePenLine, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { EditAssetDialog, DeleteAssetDialog } from "@/app/asset-management/page";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import React from 'react';
 
 type AssetOverviewProps = {
   asset: Asset;
@@ -19,14 +23,36 @@ const statusVariantMap = {
 
 export default function AssetOverview({ asset }: AssetOverviewProps) {
   const image = PlaceHolderImages.find((img) => img.id === asset.imageId);
+  const router = useRouter();
+  const [_, startTransition] = React.useTransition();
 
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-        <CardTitle className="font-headline">{asset.name}</CardTitle>
-        <Badge variant={statusVariantMap[asset.status]} className="capitalize">
-          {asset.status}
-        </Badge>
+        <div className="flex-1">
+          <CardTitle className="font-headline">{asset.name}</CardTitle>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={statusVariantMap[asset.status]} className="capitalize">
+            {asset.status}
+          </Badge>
+          <EditAssetDialog asset={asset}>
+             <Button variant="ghost" size="icon" title="Edit Asset">
+                <FilePenLine className="h-4 w-4" />
+                <span className="sr-only">Edit</span>
+              </Button>
+          </EditAssetDialog>
+           <DeleteAssetDialog asset={asset} onDeleted={() => {
+                startTransition(() => {
+                    router.refresh(); 
+                });
+            }}>
+                <Button variant="ghost" size="icon" title="Delete Asset">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                    <span className="sr-only">Delete</span>
+                </Button>
+          </DeleteAssetDialog>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex items-center space-x-4 text-sm text-muted-foreground mb-4">
