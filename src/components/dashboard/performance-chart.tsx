@@ -263,7 +263,7 @@ export default function PerformanceChart({
       <CardContent>
        <div className="w-full flex gap-4">
         <ChartContainer config={chartConfig} className="h-[400px] w-full flex-1">
-          <ComposedChart data={chartData} margin={{ top: 5, right: 30, left: 30, bottom: 50 }}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: 40, left: 20, bottom: 50 }}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="timestamp"
@@ -284,7 +284,7 @@ export default function PerformanceChart({
               domain={yZoomRange || yAxisBounds}
               tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
               allowDataOverflow={true}
-              label={{ value: 'Water Elevation (m)', angle: -90, position: 'insideLeft', offset: -20 }}
+              label={{ value: 'Water Elevation (m)', angle: -90, position: 'insideLeft', offset: -15 }}
             />
              <YAxis
               yAxisId="right"
@@ -296,7 +296,7 @@ export default function PerformanceChart({
               type="number"
               domain={[0, 'dataMax']}
               reversed={true}
-              label={{ value: 'Precipitation (mm)', angle: 90, position: 'insideRight', offset: 10 }}
+              label={{ value: 'Precipitation (mm)', angle: 90, position: 'insideRight', offset: 30 }}
             />
             <ChartTooltip
               cursor={false}
@@ -368,6 +368,8 @@ export default function PerformanceChart({
               yAxisId="right"
               dataKey="precipitation"
               fill="var(--color-precipitation)"
+              fillOpacity={0.8}
+              barSize={20}
               name="Precipitation"
             />
             <ReferenceLine
@@ -489,5 +491,7 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
 
     
