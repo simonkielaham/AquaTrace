@@ -24,13 +24,14 @@ import { format, formatDistance } from "date-fns";
 
 type AnalysisResultsProps = {
   weatherSummary: WeatherSummary | null;
+  onSelectEvent: (startDate: number, endDate: number) => void;
 };
 
 const formatDuration = (start: number, end: number) => {
   return formatDistance(new Date(start), new Date(end), { includeSeconds: true });
 };
 
-export default function AnalysisResults({ weatherSummary }: AnalysisResultsProps) {
+export default function AnalysisResults({ weatherSummary, onSelectEvent }: AnalysisResultsProps) {
   if (!weatherSummary || weatherSummary.events.length === 0) {
     return (
       <Card className="col-span-1 lg:col-span-4 shadow-sm">
@@ -70,7 +71,11 @@ export default function AnalysisResults({ weatherSummary }: AnalysisResultsProps
             </TableHeader>
             <TableBody>
               {weatherSummary.events.map((event) => (
-                <TableRow key={event.id}>
+                <TableRow 
+                  key={event.id}
+                  className="cursor-pointer"
+                  onClick={() => onSelectEvent(event.startDate, event.endDate)}
+                >
                   <TableCell>{format(new Date(event.startDate), 'Pp')}</TableCell>
                   <TableCell>{format(new Date(event.endDate), 'Pp')}</TableCell>
                   <TableCell>{formatDuration(event.startDate, event.endDate)}</TableCell>

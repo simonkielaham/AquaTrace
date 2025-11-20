@@ -44,6 +44,8 @@ type PerformanceChartProps = {
   asset: Asset;
   chartData: ChartablePoint[];
   loading: boolean;
+  brushRange?: { startIndex?: number; endIndex?: number };
+  onBrushChange: (range: { startIndex?: number; endIndex?: number }) => void;
 };
 
 const chartConfig = {
@@ -74,10 +76,14 @@ const AnalysisDialog = ({
 }: { 
     asset: Asset,
     data: ChartablePoint[], 
-    range: { startIndex: number, endIndex: number },
+    range: { startIndex?: number, endIndex?: number },
     isOpen: boolean,
     onOpenChange: (open: boolean) => void,
 }) => {
+    
+    if (range.startIndex === undefined || range.endIndex === undefined) {
+        return null;
+    }
     
     const analysisData = data.slice(range.startIndex, range.endIndex + 1);
     const startDate = new Date(data[range.startIndex]?.timestamp);
@@ -143,29 +149,29 @@ export default function PerformanceChart({
   asset,
   chartData,
   loading,
+  brushRange,
+  onBrushChange,
 }: PerformanceChartProps) {
-  const [selectedRange, setSelectedRange] = React.useState<{ startIndex: number; endIndex: number } | null>(null);
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
   const [isDataTableOpen, setIsDataTableOpen] = React.useState(false);
   const [yZoomRange, setYZoomRange] = React.useState<[number, number] | null>(null);
-
+  
   const yAxisBounds = React.useMemo(() => {
     if (loading) {
       return ['auto', 'auto'];
     }
 
-    const dataToConsider = selectedRange
-      ? chartData.slice(selectedRange.startIndex, selectedRange.endIndex + 1)
+    const dataToConsider = brushRange && brushRange.startIndex !== undefined && brushRange.endIndex !== undefined
+      ? chartData.slice(brushRange.startIndex, brushRange.endIndex + 1)
       : chartData;
 
     if (dataToConsider.length === 0) {
-      // If there's no data in the selected range, fall back to asset elevations
        const assetElevations = [
         asset.permanentPoolElevation,
         ...asset.designElevations.filter(de => de.elevation > 0).map(de => de.elevation)
       ].filter(e => typeof e === 'number' && isFinite(e));
       
-      if (assetElevations.length === 0) return [0, 1]; // Absolute fallback
+      if (assetElevations.length === 0) return [0, 1];
 
       const min = Math.min(...assetElevations);
       const max = Math.max(...assetElevations);
@@ -187,7 +193,7 @@ export default function PerformanceChart({
     
     const validElevations = allElevations.filter(e => typeof e === 'number' && isFinite(e));
     if (validElevations.length === 0) {
-        return [0, 1]; // Fallback
+        return [0, 1];
     }
 
     const dataMin = Math.min(...validElevations);
@@ -196,21 +202,14 @@ export default function PerformanceChart({
     const padding = (dataMax - dataMin) * 0.1 || 1;
 
     return [dataMin - padding, dataMax + padding];
-  }, [chartData, asset, loading, selectedRange]);
+  }, [chartData, asset, loading, brushRange]);
 
 
   React.useEffect(() => {
-    // When the primary data range changes, reset the zoom slider
-    // to match the new overall boundaries.
     if (!loading) {
       setYZoomRange(yAxisBounds as [number, number]);
     }
   }, [yAxisBounds, loading]);
-
-  React.useEffect(() => {
-    // Reset selection when chart data changes
-    setSelectedRange(null);
-  }, [chartData]);
 
 
   if (loading) {
@@ -402,7 +401,11 @@ export default function PerformanceChart({
                 stroke="hsl(var(--chart-1))"
                 tickFormatter={(value) => new Date(value as number).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 y={350}
-                onChange={(range) => setSelectedRange(range as { startIndex: number; endIndex: number; })}
+                startIndex={brushRange?.startIndex}
+                endIndex={brushRange?.endIndex}
+                onChange={(range) => {
+                    onBrushChange({startIndex: range.startIndex, endIndex: range.endIndex})
+                }}
             />
             <Legend content={<ChartLegendContent />} />
           </AreaChart>
@@ -433,19 +436,19 @@ export default function PerformanceChart({
             </Button>
              <Button 
                 onClick={() => setIsAnalysisDialogOpen(true)}
-                disabled={!selectedRange || selectedRange.startIndex === undefined || selectedRange.endIndex === undefined}
+                disabled={!brushRange || brushRange.startIndex === undefined || brushRange.endIndex === undefined}
              >
                 <AreaChartIcon className="mr-2 h-4 w-4" />
                 Analyze Selected Range
             </Button>
         </div>
         
-        {selectedRange && <AnalysisDialog 
+        {brushRange && <AnalysisDialog 
             asset={asset}
             isOpen={isAnalysisDialogOpen}
             onOpenChange={setIsAnalysisDialogOpen}
             data={chartData}
-            range={selectedRange}
+            range={brushRange}
         />}
 
         <Dialog open={isDataTableOpen} onOpenChange={setIsDataTableOpen}>

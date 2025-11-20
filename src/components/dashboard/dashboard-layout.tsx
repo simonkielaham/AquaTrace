@@ -26,6 +26,7 @@ export default function DashboardLayout() {
   const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
   const [weatherSummary, setWeatherSummary] = React.useState<WeatherSummary | null>(null);
   const [isChartLoading, setIsChartLoading] = React.useState(true);
+  const [chartBrushRange, setChartBrushRange] = React.useState<{startIndex?: number, endIndex?: number}>({});
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   
@@ -79,6 +80,7 @@ export default function DashboardLayout() {
 
         setChartData(combinedData);
         setWeatherSummary(weatherSummary);
+        setChartBrushRange({}); // Reset brush on new data
         setIsChartLoading(false);
         
         toast({
@@ -89,13 +91,14 @@ export default function DashboardLayout() {
                 <p>Sensor data processed for {selectedAsset.name}.</p>
                 {weatherSummary && (
                   <p>
-                    Weather Summary: Found{" "}
+                    Found{" "}
                     <span className="font-bold">
-                      {weatherSummary.totalPrecipitation.toFixed(2)}mm
+                      {weatherSummary.events.length}
                     </span>{" "}
-                    of precipitation across{" "}
-                    <span className="font-bold">{weatherSummary.events.length}</span>{" "}
-                    events.
+                    precipitation events totaling{" "}
+                    <span className="font-bold">
+                        {weatherSummary.totalPrecipitation.toFixed(2)}mm
+                    </span>.
                   </p>
                 )}
               </div>
@@ -106,6 +109,27 @@ export default function DashboardLayout() {
     fetchData();
     return () => { isMounted = false };
   }, [selectedAsset, dataVersion, toast]);
+  
+  const handleSelectEventTimeRange = React.useCallback((eventStartDate: number, eventEndDate: number) => {
+    if (!chartData || chartData.length === 0) return;
+
+    const postEventEndDate = eventEndDate + 48 * 60 * 60 * 1000; // 48 hours in milliseconds
+
+    const startIndex = chartData.findIndex(d => d.timestamp >= eventStartDate);
+    let endIndex = chartData.findIndex(d => d.timestamp >= postEventEndDate);
+
+    // If endIndex is not found (meaning the range extends beyond the data), use the last point.
+    if (endIndex === -1) {
+        endIndex = chartData.length - 1;
+    }
+    
+    // Ensure startIndex is valid
+    if (startIndex !== -1) {
+       setChartBrushRange({ startIndex, endIndex });
+    }
+    
+  }, [chartData]);
+
 
   if (loading) {
      return (
@@ -162,11 +186,16 @@ export default function DashboardLayout() {
                 asset={selectedAsset} 
                 chartData={chartData}
                 loading={isChartLoading}
+                brushRange={chartBrushRange}
+                onBrushChange={setChartBrushRange}
               />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
               <TapeDownManager asset={selectedAsset} deployments={assetDeployments} dataVersion={dataVersion} />
-              <AnalysisResults weatherSummary={weatherSummary} />
+              <AnalysisResults 
+                weatherSummary={weatherSummary} 
+                onSelectEvent={handleSelectEventTimeRange}
+              />
             </div>
           </main>
         </div>
@@ -174,5 +203,3 @@ export default function DashboardLayout() {
     </SidebarProvider>
   );
 }
-
-    
