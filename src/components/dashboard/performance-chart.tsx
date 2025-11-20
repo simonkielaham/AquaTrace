@@ -343,7 +343,7 @@ export default function PerformanceChart({
             <ReferenceLine
               yAxisId="left"
               y={asset.permanentPoolElevation}
-              stroke="var(--color-Permanent-Pool)"
+              stroke={chartConfig["Permanent Pool"].color}
               strokeWidth={2}
               isFront
             />
