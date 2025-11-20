@@ -385,7 +385,7 @@ export default function PerformanceChart({
                 yAxisId="left"
                 key={de.name}
                 y={de.elevation}
-                label={{ value: de.name, position: 'right', fill: 'hsl(var(--muted-foreground))', fontSize: '10px' }}
+                label={{ value: de.name, position: 'left', fill: 'hsl(var(--muted-foreground))', fontSize: '12px', dx: -10 }}
                 stroke="hsl(var(--destructive))"
                 strokeDasharray="3 3"
                 isFront
@@ -491,7 +491,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    
 
     
