@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Asset, ChartablePoint, SurveyPoint, WeatherSummary } from "@/lib/placeholder-data";
+import type { Asset, ChartablePoint } from "@/lib/placeholder-data";
 import {
   Card,
   CardContent,
@@ -9,7 +9,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Info, BarChart, AreaChart as AreaChartIcon, Save, TableIcon } from "lucide-react";
+import { BarChart, AreaChart as AreaChartIcon, Save, TableIcon } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -33,19 +33,17 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { AreaChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter } from "recharts";
-import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
 
 type PerformanceChartProps = {
   asset: Asset;
-  dataVersion?: number;
+  chartData: ChartablePoint[];
+  loading: boolean;
 };
 
 const chartConfig = {
@@ -143,11 +141,9 @@ const AnalysisDialog = ({
 
 export default function PerformanceChart({
   asset,
-  dataVersion,
+  chartData,
+  loading,
 }: PerformanceChartProps) {
-  const { toast } = useToast();
-  const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
-  const [loading, setLoading] = React.useState(true);
   const [selectedRange, setSelectedRange] = React.useState<{ startIndex: number; endIndex: number } | null>(null);
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
   const [isDataTableOpen, setIsDataTableOpen] = React.useState(false);
@@ -211,75 +207,10 @@ export default function PerformanceChart({
     }
   }, [yAxisBounds, loading]);
 
-
   React.useEffect(() => {
-    let isMounted = true;
-    const fetchData = async () => {
-      if (!asset.id) return;
-      setLoading(true);
-
-      const { id: toastId } = toast({
-        title: "Fetching Data...",
-        description: `Querying sensor and weather data for ${asset.name}.`,
-      });
-      
-      const [processedDataResult, surveyPoints] = await Promise.all([
-        getProcessedDataAction(asset.id),
-        getSurveyPointsAction(asset.id)
-      ]);
-      
-      if (isMounted) {
-        const { data: processedData, weatherSummary } = processedDataResult;
-
-        const dataMap = new Map<number, ChartablePoint>();
-        processedData.forEach(p => dataMap.set(p.timestamp, p));
-
-        surveyPoints.forEach(sp => {
-          // Find the nearest timestamp in the sensor data to align the survey point
-          let nearestTimestamp = sp.timestamp;
-          if (processedData.length > 0) {
-              const nearestSensorPoint = processedData.reduce((prev, curr) => {
-                 return (Math.abs(curr.timestamp - sp.timestamp) < Math.abs(prev.timestamp - sp.timestamp) ? curr : prev);
-              });
-              nearestTimestamp = nearestSensorPoint.timestamp;
-          }
-
-          if (!dataMap.has(nearestTimestamp)) {
-             dataMap.set(nearestTimestamp, { timestamp: nearestTimestamp });
-          }
-          const point = dataMap.get(nearestTimestamp)!;
-          point.elevation = sp.elevation; // Add the manual elevation
-        });
-
-        const combinedData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
-
-        setChartData(combinedData);
-        setLoading(false);
-        setSelectedRange(null); // Reset selection on data change
-        
-        toast({
-            id: toastId,
-            title: "Data Loaded Successfully",
-            description: (
-              <div>
-                <p>Sensor data processed for {asset.name}.</p>
-                <p>
-                  Weather Summary: Found{" "}
-                  <span className="font-bold">
-                    {weatherSummary.totalPrecipitation.toFixed(2)}mm
-                  </span>{" "}
-                  of precipitation across{" "}
-                  <span className="font-bold">{weatherSummary.events.length}</span>{" "}
-                  events.
-                </p>
-              </div>
-            ),
-        });
-      }
-    };
-    fetchData();
-    return () => { isMounted = false };
-  }, [asset, dataVersion, toast]);
+    // Reset selection when chart data changes
+    setSelectedRange(null);
+  }, [chartData]);
 
 
   if (loading) {

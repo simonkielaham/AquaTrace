@@ -1,95 +1,90 @@
+
 "use client";
 
-import type { AnalysisResult } from "@/lib/placeholder-data";
+import type { WeatherSummary, AnalysisPeriod } from "@/lib/placeholder-data";
 import * as React from "react";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription
 } from "@/components/ui/card";
 import {
-  AlertTriangle,
-  CheckCircle2,
-  Droplets,
-  Info,
-  XCircle,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Droplets } from "lucide-react";
+import { format, formatDistance } from "date-fns";
 
 type AnalysisResultsProps = {
-  results: AnalysisResult[];
+  weatherSummary: WeatherSummary | null;
 };
 
-type FormattedResult = Omit<AnalysisResult, "timestamp"> & {
-  timestamp: string;
+const formatDuration = (start: number, end: number) => {
+  return formatDistance(new Date(start), new Date(end), { includeSeconds: true });
 };
 
-const iconMap = {
-  high: <XCircle className="h-5 w-5 text-destructive" />,
-  medium: <AlertTriangle className="h-5 w-5 text-yellow-500" />,
-  low: <Info className="h-5 w-5 text-blue-500" />,
-  info: <CheckCircle2 className="h-5 w-5 text-green-500" />,
-};
-
-const typeIconMap = {
-  "Blocked Outlet": <XCircle className="h-4 w-4 text-muted-foreground" />,
-  "Potential Leak": <Droplets className="h-4 w-4 text-muted-foreground" />,
-  "Normal Drainage": <CheckCircle2 className="h-4 w-4 text-muted-foreground" />,
-  "High Inflow": <Info className="h-4 w-4 text-muted-foreground" />,
-};
-
-const severityTextClass = {
-  high: "text-destructive",
-  medium: "text-yellow-600 dark:text-yellow-500",
-  low: "text-blue-600 dark:text-blue-500",
-  info: "text-green-600 dark:text-green-500",
-};
-
-export default function AnalysisResults({ results }: AnalysisResultsProps) {
-  const [formattedResults, setFormattedResults] = React.useState<FormattedResult[]>([]);
-
-  React.useEffect(() => {
-    setFormattedResults(
-      results.map((r) => ({
-        ...r,
-        timestamp: new Date(r.timestamp).toLocaleString(),
-      }))
+export default function AnalysisResults({ weatherSummary }: AnalysisResultsProps) {
+  if (!weatherSummary || weatherSummary.events.length === 0) {
+    return (
+      <Card className="col-span-1 lg:col-span-4 shadow-sm">
+        <CardHeader>
+          <CardTitle className="font-headline">Precipitation Event Analysis</CardTitle>
+          <CardDescription>
+            A summary of identified rain events based on your criteria.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center text-muted-foreground py-8">
+            <p>No precipitation events found in the selected date range.</p>
+          </div>
+        </CardContent>
+      </Card>
     );
-  }, [results]);
+  }
 
   return (
-    <Card className="col-span-1 lg:col-span-2 shadow-sm">
+    <Card className="col-span-1 lg:col-span-4 shadow-sm">
       <CardHeader>
-        <CardTitle className="font-headline">Analysis Results</CardTitle>
+        <CardTitle className="font-headline">Precipitation Event Analysis</CardTitle>
+        <CardDescription>
+          A summary of identified rain events. Total precipitation for period: <span className="font-bold">{weatherSummary.totalPrecipitation.toFixed(2)}mm</span>
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {formattedResults.map((result) => (
-            <div key={result.id} className="flex items-start space-x-4">
-              <div className="flex-shrink-0 mt-1">{iconMap[result.severity]}</div>
-              <div className="flex-1">
-                <div className="flex items-center space-x-2">
-                  {typeIconMap[result.type]}
-                  <p
-                    className={cn(
-                      "text-sm font-semibold",
-                      severityTextClass[result.severity]
-                    )}
-                  >
-                    {result.type}
-                  </p>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {result.description}
-                </p>
-                <p className="text-xs text-muted-foreground/80 pt-1">
-                  {result.timestamp}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <ScrollArea className="h-[300px]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Start Time</TableHead>
+                <TableHead>End Time</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead className="text-right">Total Precipitation</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {weatherSummary.events.map((event) => (
+                <TableRow key={event.id}>
+                  <TableCell>{format(new Date(event.startDate), 'Pp')}</TableCell>
+                  <TableCell>{format(new Date(event.endDate), 'Pp')}</TableCell>
+                  <TableCell>{formatDuration(event.startDate, event.endDate)}</TableCell>
+                  <TableCell className="text-right font-medium">
+                     <div className="flex items-center justify-end gap-2">
+                        <Droplets className="h-4 w-4 text-blue-400" />
+                        <span>{event.totalPrecipitation.toFixed(2)} mm</span>
+                     </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </ScrollArea>
       </CardContent>
     </Card>
   );

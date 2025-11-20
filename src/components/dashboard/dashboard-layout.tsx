@@ -11,14 +11,21 @@ import AnalysisResults from "@/components/dashboard/analysis-results";
 import SurveyPointManager from "@/components/dashboard/survey-point-manager";
 import TapeDownManager from "@/components/dashboard/tape-down-manager";
 import {
-  analysisResults,
+  ChartablePoint,
+  WeatherSummary,
 } from "@/lib/placeholder-data";
 import { useAssets } from "@/context/asset-context";
 import PerformanceChart from "@/components/dashboard/performance-chart";
+import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
+import { useToast } from "@/hooks/use-toast";
 
 
 export default function DashboardLayout() {
   const { assets, selectedAssetId, setSelectedAssetId, deployments, loading, dataVersion } = useAssets();
+  const { toast } = useToast();
+  const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
+  const [weatherSummary, setWeatherSummary] = React.useState<WeatherSummary | null>(null);
+  const [isChartLoading, setIsChartLoading] = React.useState(true);
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   
@@ -28,6 +35,77 @@ export default function DashboardLayout() {
       setSelectedAssetId(assets[0].id);
     }
   }, [selectedAssetId, assets, setSelectedAssetId, loading]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchData = async () => {
+      if (!selectedAsset) return;
+      setIsChartLoading(true);
+
+      const { id: toastId } = toast({
+        title: "Fetching Data...",
+        description: `Querying sensor and weather data for ${selectedAsset.name}.`,
+      });
+      
+      const [processedDataResult, surveyPoints] = await Promise.all([
+        getProcessedDataAction(selectedAsset.id),
+        getSurveyPointsAction(selectedAsset.id)
+      ]);
+      
+      if (isMounted) {
+        const { data: processedData, weatherSummary } = processedDataResult;
+
+        const dataMap = new Map<number, ChartablePoint>();
+        processedData.forEach(p => dataMap.set(p.timestamp, p));
+
+        surveyPoints.forEach(sp => {
+          // Find the nearest timestamp in the sensor data to align the survey point
+          let nearestTimestamp = sp.timestamp;
+          if (processedData.length > 0) {
+              const nearestSensorPoint = processedData.reduce((prev, curr) => {
+                 return (Math.abs(curr.timestamp - sp.timestamp) < Math.abs(prev.timestamp - sp.timestamp) ? curr : prev);
+              });
+              nearestTimestamp = nearestSensorPoint.timestamp;
+          }
+
+          if (!dataMap.has(nearestTimestamp)) {
+             dataMap.set(nearestTimestamp, { timestamp: nearestTimestamp });
+          }
+          const point = dataMap.get(nearestTimestamp)!;
+          point.elevation = sp.elevation; // Add the manual elevation
+        });
+
+        const combinedData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
+
+        setChartData(combinedData);
+        setWeatherSummary(weatherSummary);
+        setIsChartLoading(false);
+        
+        toast({
+            id: toastId,
+            title: "Data Loaded Successfully",
+            description: (
+              <div>
+                <p>Sensor data processed for {selectedAsset.name}.</p>
+                {weatherSummary && (
+                  <p>
+                    Weather Summary: Found{" "}
+                    <span className="font-bold">
+                      {weatherSummary.totalPrecipitation.toFixed(2)}mm
+                    </span>{" "}
+                    of precipitation across{" "}
+                    <span className="font-bold">{weatherSummary.events.length}</span>{" "}
+                    events.
+                  </p>
+                )}
+              </div>
+            ),
+        });
+      }
+    };
+    fetchData();
+    return () => { isMounted = false };
+  }, [selectedAsset, dataVersion, toast]);
 
   if (loading) {
      return (
@@ -61,9 +139,6 @@ export default function DashboardLayout() {
   const assetDeployments = deployments.filter(
     (d) => d.assetId === selectedAssetId
   );
-  const assetAnalysisResults = analysisResults.filter(
-    (r) => r.assetId === selectedAssetId
-  );
 
   return (
     <SidebarProvider>
@@ -83,11 +158,15 @@ export default function DashboardLayout() {
           <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <div className="flex flex-col gap-6">
               <AssetOverview asset={selectedAsset} />
-              <PerformanceChart asset={selectedAsset} dataVersion={dataVersion}/>
+              <PerformanceChart 
+                asset={selectedAsset} 
+                chartData={chartData}
+                loading={isChartLoading}
+              />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
-              <TapeDownManager asset={selectedAsset} deployments={assetDeployments} />
-              <AnalysisResults results={assetAnalysisResults} />
+              <TapeDownManager asset={selectedAsset} deployments={assetDeployments} dataVersion={dataVersion} />
+              <AnalysisResults weatherSummary={weatherSummary} />
             </div>
           </main>
         </div>
