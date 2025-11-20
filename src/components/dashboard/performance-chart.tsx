@@ -138,7 +138,7 @@ export default function PerformanceChart({
   const [yZoomRange, setYZoomRange] = React.useState<[number, number] | null>(null);
 
   const chartConfig = React.useMemo(() => {
-    const config = {
+    const config: any = {
       waterLevel: {
         label: "Water Elevation",
         color: "hsl(var(--chart-1))",
@@ -151,7 +151,7 @@ export default function PerformanceChart({
         label: "Survey Points",
         color: "hsl(var(--accent))",
       },
-      ppe: {
+      "Permanent Pool": {
         label: "Permanent Pool",
         color: "hsl(var(--chart-2))",
       },
@@ -159,7 +159,7 @@ export default function PerformanceChart({
   
     asset.designElevations.forEach((de, index) => {
       // Use modulo operator to cycle through chart colors if there are more elevations than colors
-      const chartColorIndex = (index % 5) + 1;
+      const chartColorIndex = ((index + 2) % 5) + 1; // Start from chart-3
       config[de.name] = {
         label: de.name,
         color: `hsl(var(--chart-${chartColorIndex}))`
@@ -216,6 +216,27 @@ export default function PerformanceChart({
 
     return [dataMin - padding, dataMax + padding];
   }, [chartData, asset, loading, brushRange]);
+
+  const legendPayload = React.useMemo(() => {
+    const payload = [
+      { value: 'waterLevel', type: 'line', id: 'waterLevel', color: chartConfig.waterLevel.color },
+      { value: 'precipitation', type: 'rect', id: 'precipitation', color: chartConfig.precipitation.color },
+      { value: 'elevation', type: 'diamond', id: 'elevation', color: chartConfig.elevation.color },
+      { value: 'Permanent Pool', type: 'line', id: 'Permanent Pool', color: chartConfig["Permanent Pool"].color },
+    ];
+    
+    asset.designElevations.forEach(de => {
+        payload.push({
+            value: de.name,
+            type: 'line',
+            id: de.name,
+            color: chartConfig[de.name].color
+        })
+    });
+
+    return payload;
+
+  }, [asset.designElevations, chartConfig]);
 
 
   React.useEffect(() => {
@@ -424,7 +445,7 @@ export default function PerformanceChart({
                     onBrushChange({startIndex: range.startIndex, endIndex: range.endIndex})
                 }}
             />
-            <Legend content={<ChartLegendContent />} />
+            <Legend payload={legendPayload} content={<ChartLegendContent />} />
           </ComposedChart>
         </ChartContainer>
         {yZoomRange && Array.isArray(yAxisBounds) && typeof yAxisBounds[0] === 'number' && typeof yAxisBounds[1] === 'number' && (
