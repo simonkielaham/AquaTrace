@@ -625,6 +625,32 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
 
           weatherSummary.events.forEach(event => {
               event.dataPoints = sortedData.filter(d => d.timestamp >= event.startDate && d.timestamp <= event.endDate);
+              
+              // New Analysis Logic
+              const analysis: AnalysisPeriod['analysis'] = {};
+
+              // 1. Baseline Elevation
+              const baselineTime = event.startDate - (3 * 60 * 60 * 1000);
+              const baselinePoint = sortedData.reduce((prev, curr) => 
+                Math.abs(curr.timestamp - baselineTime) < Math.abs(prev.timestamp - baselineTime) ? curr : prev
+              );
+              analysis.baselineElevation = baselinePoint?.waterLevel;
+
+              // 2. Peak Elevation
+              const peakWindowEnd = event.startDate + (48 * 60 * 60 * 1000);
+              const peakPoints = sortedData.filter(p => p.timestamp >= event.startDate && p.timestamp <= peakWindowEnd && p.waterLevel !== undefined);
+              if (peakPoints.length > 0) {
+                analysis.peakElevation = Math.max(...peakPoints.map(p => p.waterLevel!));
+              }
+              
+              // 3. Post-Event Elevation
+              const postEventTime = event.endDate + (48 * 60 * 60 * 1000);
+              const postEventPoint = sortedData.reduce((prev, curr) =>
+                 Math.abs(curr.timestamp - postEventTime) < Math.abs(prev.timestamp - postEventTime) ? curr : prev
+              );
+              analysis.postEventElevation = postEventPoint?.waterLevel;
+
+              event.analysis = analysis;
           });
         }
       } catch (error) {

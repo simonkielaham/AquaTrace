@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Droplets } from "lucide-react";
+import { Droplets, TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
 import { format, formatDistance } from "date-fns";
 
 type AnalysisResultsProps = {
@@ -29,6 +29,20 @@ type AnalysisResultsProps = {
 
 const formatDuration = (start: number, end: number) => {
   return formatDistance(new Date(start), new Date(end), { includeSeconds: true });
+};
+
+const MetricCell = ({ value, unit, icon: Icon, iconColor }: { value?: number, unit: string, icon: React.ElementType, iconColor?: string }) => {
+  if (value === undefined || value === null) {
+    return <TableCell className="text-center">-</TableCell>;
+  }
+  return (
+     <TableCell>
+        <div className="flex items-center gap-2">
+            <Icon className={`h-4 w-4 ${iconColor || 'text-muted-foreground'}`} />
+            <span>{value.toFixed(2)}{unit}</span>
+        </div>
+    </TableCell>
+  )
 };
 
 export default function AnalysisResults({ weatherSummary, onSelectEvent }: AnalysisResultsProps) {
@@ -64,9 +78,11 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
             <TableHeader>
               <TableRow>
                 <TableHead>Start Time</TableHead>
-                <TableHead>End Time</TableHead>
                 <TableHead>Duration</TableHead>
-                <TableHead className="text-right">Total Precipitation</TableHead>
+                <TableHead>Precipitation</TableHead>
+                <TableHead>Baseline Elev.</TableHead>
+                <TableHead>Peak Elev.</TableHead>
+                <TableHead>Post-Event Elev.</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -76,15 +92,12 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                   className="cursor-pointer"
                   onClick={() => onSelectEvent(event.startDate, event.endDate)}
                 >
-                  <TableCell>{format(new Date(event.startDate), 'Pp')}</TableCell>
-                  <TableCell>{format(new Date(event.endDate), 'Pp')}</TableCell>
+                  <TableCell className="font-medium">{format(new Date(event.startDate), 'Pp')}</TableCell>
                   <TableCell>{formatDuration(event.startDate, event.endDate)}</TableCell>
-                  <TableCell className="text-right font-medium">
-                     <div className="flex items-center justify-end gap-2">
-                        <Droplets className="h-4 w-4 text-blue-400" />
-                        <span>{event.totalPrecipitation.toFixed(2)} mm</span>
-                     </div>
-                  </TableCell>
+                  <MetricCell value={event.totalPrecipitation} unit=" mm" icon={Droplets} iconColor="text-blue-400" />
+                  <MetricCell value={event.analysis?.baselineElevation} unit="m" icon={ArrowRight} />
+                  <MetricCell value={event.analysis?.peakElevation} unit="m" icon={TrendingUp} iconColor="text-destructive" />
+                  <MetricCell value={event.analysis?.postEventElevation} unit="m" icon={TrendingDown} iconColor="text-green-500" />
                 </TableRow>
               ))}
             </TableBody>

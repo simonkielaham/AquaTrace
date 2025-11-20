@@ -73,9 +73,9 @@ export type AnalysisPeriod = {
     totalPrecipitation: number;
     dataPoints: ChartablePoint[];
     analysis?: {
-        peak?: ChartablePoint | null;
-        trough?: ChartablePoint | null;
-        drawdownHours?: number | null;
+        peakElevation?: number;
+        baselineElevation?: number;
+        postEventElevation?: number;
     }
 }
 
@@ -96,5 +96,3 @@ export type WeatherSummary = {
 // This file now only contains type definitions.
 // The actual data is loaded and managed in AssetProvider.
 export const analysisResults: AnalysisResult[] = [];
-
-    
