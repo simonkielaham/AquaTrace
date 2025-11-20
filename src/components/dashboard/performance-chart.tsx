@@ -364,6 +364,7 @@ export default function PerformanceChart({
               axisLine={false}
               tickMargin={8}
               type="number"
+              domain={[0, 'dataMax']}
               label={{ value: 'Precipitation (mm)', angle: -90, position: 'insideRight', offset: 10 }}
             />
             <ChartTooltip
@@ -553,5 +554,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    
