@@ -9,7 +9,6 @@ import { EditAssetDialog, DeleteAssetDialog } from "@/app/asset-management/page"
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import React from 'react';
-import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 type AssetOverviewProps = {
   asset: Asset;
@@ -30,8 +29,7 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
     return [...asset.designElevations].sort((a, b) => a.elevation - b.elevation);
   }, [asset.designElevations]);
 
-  const placeholderImage = PlaceHolderImages.find(p => p.id === asset.imageId);
-  const imageUrl = placeholderImage ? placeholderImage.imageUrl : asset.imageId;
+  const imageUrl = asset.imageId;
 
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm">
@@ -82,7 +80,7 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
                 alt={asset.name}
                 fill
                 className="object-cover w-full h-full"
-                unoptimized // Since we are using external URLs
+                unoptimized // Since we are using external URLs or data URIs
               />
             </div>
           )}

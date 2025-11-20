@@ -69,7 +69,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Asset } from "@/lib/placeholder-data";
 import { DialogClose, DialogFooter } from "@/components/ui/dialog";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 
 const designElevationSchema = z.object({
@@ -85,7 +84,7 @@ const assetFormSchema = z.object({
   longitude: z.coerce.number().min(-180, "Invalid longitude.").max(180, "Invalid longitude."),
   permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
   designElevations: z.array(designElevationSchema),
-  imageId: z.string().url("Please enter a valid URL.").optional().or(z.literal('')),
+  imageId: z.string().optional(),
 });
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
@@ -219,12 +218,28 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
     name: "designElevations",
   });
   
-  const imageUrl = useWatch({ control: form.control, name: 'imageId' });
-  const [isValidImage, setIsValidImage] = React.useState(true);
+  const [imagePreview, setImagePreview] = React.useState<string | null>(form.getValues('imageId') || null);
+
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        form.setValue('imageId', base64String);
+        setImagePreview(base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   React.useEffect(() => {
-    setIsValidImage(true);
-  }, [imageUrl]);
+      const initialImageId = form.getValues('imageId');
+      if (initialImageId) {
+        setImagePreview(initialImageId);
+      }
+  }, [form]);
+
 
   return (
     <Form {...form}>
@@ -299,28 +314,22 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
               )}
             />
              <div className="space-y-4">
-               <FormField
-                control={form.control}
-                name="imageId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Asset Image URL</FormLabel>
-                     <FormControl>
-                        <Input placeholder="https://example.com/image.jpg" {...field} />
-                      </FormControl>
+                <FormItem>
+                    <FormLabel>Asset Image</FormLabel>
+                    <FormControl>
+                        <Input type="file" accept="image/*" onChange={handleImageChange} />
+                    </FormControl>
                     <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {imageUrl && isValidImage && (
+                </FormItem>
+              
+              {imagePreview && (
                 <div className="relative h-40 w-full rounded-md overflow-hidden border">
                    <Image 
-                     src={imageUrl} 
+                     src={imagePreview} 
                      alt="Asset preview" 
                      fill
                      className="object-cover"
                      unoptimized
-                     onError={() => setIsValidImage(false)}
                    />
                 </div>
               )}
@@ -370,11 +379,6 @@ export function EditAssetDialog({ asset, children }: { asset: Asset, children: R
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
 
-  // Check if imageId is a placeholder ID and get URL if so
-  const placeholderImage = PlaceHolderImages.find(p => p.id === asset.imageId);
-  const initialImageUrl = placeholderImage ? placeholderImage.imageUrl : asset.imageId;
-
-
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),
     defaultValues: {
@@ -391,7 +395,7 @@ export function EditAssetDialog({ asset, children }: { asset: Asset, children: R
           elevation: de.elevation
         }
       }),
-      imageId: initialImageUrl,
+      imageId: asset.imageId,
     },
   });
 
@@ -601,11 +605,9 @@ export default function AssetManagementPage() {
         description: 'Please wait while we create the asset.',
     });
     
-    const imageId = data.imageId || '';
-
     const payload: AssetPayload = {
       ...data,
-      imageId: imageId,
+      imageId: data.imageId || '',
       designElevations: data.designElevations.map(de => ({
         name: de.name === 'Custom' ? de.customName || 'Custom' : de.name,
         elevation: de.elevation,
