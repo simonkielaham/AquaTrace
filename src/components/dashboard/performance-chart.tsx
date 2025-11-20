@@ -36,7 +36,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { AreaChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter } from "recharts";
+import { ComposedChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter } from "recharts";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -263,7 +263,7 @@ export default function PerformanceChart({
       <CardContent>
        <div className="w-full flex gap-4">
         <ChartContainer config={chartConfig} className="h-[400px] w-full flex-1">
-          <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 30, bottom: 50 }}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: 30, left: 30, bottom: 50 }}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="timestamp"
@@ -409,7 +409,7 @@ export default function PerformanceChart({
                 }}
             />
             <Legend content={<ChartLegendContent />} />
-          </AreaChart>
+          </ComposedChart>
         </ChartContainer>
         {yZoomRange && Array.isArray(yAxisBounds) && typeof yAxisBounds[0] === 'number' && typeof yAxisBounds[1] === 'number' && (
           <div className="w-10 flex flex-col items-center">
