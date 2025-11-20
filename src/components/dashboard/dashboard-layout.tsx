@@ -189,13 +189,13 @@ export default function DashboardLayout() {
                 brushRange={chartBrushRange}
                 onBrushChange={setChartBrushRange}
               />
-              <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
-              <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
-              <TapeDownManager asset={selectedAsset} deployments={assetDeployments} dataVersion={dataVersion} />
               <AnalysisResults 
                 weatherSummary={weatherSummary} 
                 onSelectEvent={handleSelectEventTimeRange}
               />
+              <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
+              <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
+              <TapeDownManager asset={selectedAsset} deployments={assetDeployments} dataVersion={dataVersion} />
             </div>
           </main>
         </div>
