@@ -531,7 +531,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
       }
     }
     
-    let weatherSummary = { totalPrecipitation: 0, eventCount: 0 };
+    const weatherSummary = { totalPrecipitation: 0, eventCount: 0 };
 
     // If we have data, fetch and process weather data
     if (dataMap.size > 0 && minDate && maxDate) {
@@ -548,18 +548,39 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
           
           const sortedTimestamps = Array.from(dataMap.keys()).sort((a,b) => a - b);
           
+          // Logic for precipitation event definition
+          const MEASURABLE_RAIN_THRESHOLD = 0.2; // mm
+          const DRY_PERIOD_HOURS = 6;
+          let inEvent = false;
+          let lastRainTimestamp: number | null = null;
+          
           weatherData.forEach(weatherPoint => {
-              if (weatherPoint.date && weatherPoint.precipitation > 0) {
-                  const weatherTimestamp = new Date(weatherPoint.date).getTime();
-                  weatherSummary.totalPrecipitation += weatherPoint.precipitation;
-                  weatherSummary.eventCount += 1;
+              if (!weatherPoint.date) return;
+              
+              const currentTimestamp = new Date(weatherPoint.date).getTime();
+              const precipitation = weatherPoint.precipitation ?? 0;
+              
+              if (precipitation >= MEASURABLE_RAIN_THRESHOLD) {
+                  weatherSummary.totalPrecipitation += precipitation;
+                  
+                  if (lastRainTimestamp) {
+                      const hoursSinceLastRain = (currentTimestamp - lastRainTimestamp) / (1000 * 60 * 60);
+                      if (hoursSinceLastRain >= DRY_PERIOD_HOURS) {
+                          // This is a new event
+                          weatherSummary.eventCount += 1;
+                      }
+                  } else {
+                      // This is the very first measurable rain
+                      weatherSummary.eventCount += 1;
+                  }
+                  
+                  lastRainTimestamp = currentTimestamp;
 
-                  // Find the next sensor data point timestamp
-                  const nextSensorTimestamp = sortedTimestamps.find(ts => ts >= weatherTimestamp);
-
+                  // Aggregate precipitation onto the chart data
+                  const nextSensorTimestamp = sortedTimestamps.find(ts => ts >= currentTimestamp);
                   if (nextSensorTimestamp) {
                       const pointToUpdate = dataMap.get(nextSensorTimestamp)!;
-                      pointToUpdate.precipitation = (pointToUpdate.precipitation || 0) + weatherPoint.precipitation;
+                      pointToUpdate.precipitation = (pointToUpdate.precipitation || 0) + precipitation;
                   }
               }
           });
