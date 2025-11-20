@@ -9,6 +9,7 @@ import { EditAssetDialog, DeleteAssetDialog } from "@/app/asset-management/page"
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import React from 'react';
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 type AssetOverviewProps = {
   asset: Asset;
@@ -25,8 +26,12 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
   const [_, startTransition] = React.useTransition();
   
   const sortedDesignElevations = React.useMemo(() => {
+    if (!asset.designElevations) return [];
     return [...asset.designElevations].sort((a, b) => a.elevation - b.elevation);
   }, [asset.designElevations]);
+
+  const image = PlaceHolderImages.find(p => p.id === asset.imageId);
+  const imageUrl = image ? image.imageUrl : asset.imageId;
 
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm">
@@ -70,10 +75,10 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
             )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {asset.imageId && (
+          {imageUrl && (
             <div className="md:col-span-1 rounded-lg overflow-hidden relative">
               <Image
-                src={asset.imageId}
+                src={imageUrl}
                 alt={asset.name}
                 fill
                 className="object-cover w-full h-full"
@@ -81,7 +86,7 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
               />
             </div>
           )}
-          <div className={cn("md:col-span-2 space-y-4", !asset.imageId && "md:col-span-3")}>
+          <div className={cn("md:col-span-2 space-y-4", !imageUrl && "md:col-span-3")}>
             <div className="flex items-start space-x-3 rounded-lg border p-3">
               <Target className="h-5 w-5 mt-1 text-primary" />
               <div>

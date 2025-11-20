@@ -32,7 +32,7 @@ const assetFormSchema = z.object({
     name: z.string().min(1),
     elevation: z.coerce.number()
   })),
-  imageId: z.string(),
+  imageId: z.string().optional(),
 });
 
 const editAssetFormSchema = z.object({
@@ -45,7 +45,7 @@ const editAssetFormSchema = z.object({
     name: z.string().min(1),
     elevation: z.coerce.number()
   })),
-  imageId: z.string(),
+  imageId: z.string().optional(),
 });
 
 const deploymentFormSchema = z.object({
@@ -828,7 +828,7 @@ export async function updateAsset(assetId: string, data: any) {
           name: de.name,
           elevation: parseFloat(de.elevation.toString())
       })),
-      imageId: validatedData.imageId,
+      imageId: validatedData.imageId || '',
     };
     
     await writeJsonFile(assetsFilePath, assets);
@@ -885,7 +885,7 @@ export async function createAsset(data: any) {
           elevation: parseFloat(de.elevation.toString())
       })),
       status: 'ok', 
-      imageId: validatedData.imageId,
+      imageId: validatedData.imageId || '',
     };
     
     assets.push(newAsset);
@@ -966,3 +966,4 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
+

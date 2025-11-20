@@ -69,6 +69,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Asset } from "@/lib/placeholder-data";
 import { DialogClose, DialogFooter } from "@/components/ui/dialog";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 
 const designElevationSchema = z.object({
@@ -84,7 +85,7 @@ const assetFormSchema = z.object({
   longitude: z.coerce.number().min(-180, "Invalid longitude.").max(180, "Invalid longitude."),
   permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
   designElevations: z.array(designElevationSchema),
-  imageId: z.string().url("Please enter a valid image URL.").or(z.literal("")),
+  imageId: z.string().optional(),
 });
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
@@ -92,6 +93,7 @@ type AssetFormValues = z.infer<typeof assetFormSchema>;
 // This is the type that will be sent to the server actions
 type AssetPayload = Omit<AssetFormValues, 'designElevations'> & {
   designElevations: { name: string; elevation: number }[];
+  imageId: string;
 };
 
 
@@ -218,6 +220,30 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
   });
   
   const imageUrl = useWatch({ control: form.control, name: 'imageId' });
+  const [selectedImage, setSelectedImage] = React.useState(imageUrl);
+
+  const handleImageIdChange = (value: string) => {
+    form.setValue('imageId', value);
+    const image = PlaceHolderImages.find(p => p.id === value);
+    setSelectedImage(image?.imageUrl || '');
+  }
+
+  React.useEffect(() => {
+    // This effect ensures the preview image is updated correctly if the form value changes externally
+    const subscription = form.watch((value, { name }) => {
+      if (name === 'imageId') {
+        const newImageId = value.imageId;
+        if (newImageId && !newImageId.startsWith('http')) {
+          const image = PlaceHolderImages.find(p => p.id === newImageId);
+          setSelectedImage(image?.imageUrl || '');
+        } else {
+          setSelectedImage(newImageId || '');
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
+
 
   return (
     <Form {...form}>
@@ -297,18 +323,27 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
                 name="imageId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Asset Image URL</FormLabel>
-                    <FormControl>
-                      <Input placeholder="https://example.com/image.jpg" {...field} />
-                    </FormControl>
+                    <FormLabel>Asset Image</FormLabel>
+                     <Select onValueChange={handleImageIdChange} value={field.value && !field.value.startsWith('http') ? field.value : ''}>
+                        <FormControl>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a placeholder image" />
+                        </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                        {PlaceHolderImages.map(image => (
+                            <SelectItem key={image.id} value={image.id}>{image.description}</SelectItem>
+                        ))}
+                        </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              {imageUrl && (
+              {selectedImage && (
                 <div className="relative h-40 w-full rounded-md overflow-hidden border">
                    <Image 
-                     src={imageUrl} 
+                     src={selectedImage} 
                      alt="Asset preview" 
                      fill
                      className="object-cover"
@@ -362,6 +397,10 @@ export function EditAssetDialog({ asset, children }: { asset: Asset, children: R
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
 
+  // Find the image ID if the current asset.imageId is a full URL, otherwise use the ID directly.
+  const placeholderImage = PlaceHolderImages.find(p => p.imageUrl === asset.imageId);
+  const imageId = placeholderImage ? placeholderImage.id : asset.imageId;
+
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),
     defaultValues: {
@@ -378,7 +417,7 @@ export function EditAssetDialog({ asset, children }: { asset: Asset, children: R
           elevation: de.elevation
         }
       }),
-      imageId: asset.imageId,
+      imageId: imageId,
     },
   });
 
@@ -389,8 +428,12 @@ export function EditAssetDialog({ asset, children }: { asset: Asset, children: R
       description: "Please wait while we save your changes.",
     });
 
+    const image = PlaceHolderImages.find(p => p.id === data.imageId);
+    const finalImageId = image ? image.id : (data.imageId || '');
+
     const payload: AssetPayload = {
       ...data,
+      imageId: finalImageId,
       designElevations: data.designElevations.map(de => ({
         name: de.name === 'Custom' ? de.customName || 'Custom' : de.name,
         elevation: de.elevation,
@@ -586,9 +629,13 @@ export default function AssetManagementPage() {
         title: 'Creating Asset...',
         description: 'Please wait while we create the asset.',
     });
+    
+    const image = PlaceHolderImages.find(p => p.id === data.imageId);
+    const imageId = image ? image.id : (data.imageId || '');
 
     const payload: AssetPayload = {
       ...data,
+      imageId: imageId,
       designElevations: data.designElevations.map(de => ({
         name: de.name === 'Custom' ? de.customName || 'Custom' : de.name,
         elevation: de.elevation,
