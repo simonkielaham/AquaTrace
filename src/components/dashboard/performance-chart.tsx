@@ -151,10 +151,6 @@ export default function PerformanceChart({
         label: "Survey Points",
         color: "hsl(var(--accent))",
       },
-      "Permanent Pool": {
-        label: "Permanent Pool",
-        color: "hsl(var(--chart-2))",
-      },
     };
   
     asset.designElevations.forEach((de, index) => {
@@ -165,6 +161,11 @@ export default function PerformanceChart({
         color: `hsl(var(--chart-${chartColorIndex}))`
       };
     });
+     // Add PPE separately to ensure it has a consistent color
+    config["Permanent Pool"] = {
+        label: "Permanent Pool",
+        color: "hsl(var(--chart-2))",
+    };
     
     return config;
   }, [asset.designElevations]);
@@ -217,24 +218,25 @@ export default function PerformanceChart({
     return [dataMin - padding, dataMax + padding];
   }, [chartData, asset, loading, brushRange]);
 
-  const legendPayload = React.useMemo(() => {
-    const payload = [
-      { value: 'waterLevel', type: 'line', id: 'waterLevel', color: chartConfig.waterLevel.color },
-      { value: 'precipitation', type: 'rect', id: 'precipitation', color: chartConfig.precipitation.color },
-      { value: 'elevation', type: 'diamond', id: 'elevation', color: chartConfig.elevation.color },
-      { value: 'Permanent Pool', type: 'line', id: 'Permanent Pool', color: chartConfig["Permanent Pool"].color },
+  const [mainLegendPayload, designLegendPayload] = React.useMemo(() => {
+    const mainPayload = [
+      { value: 'waterLevel', label: "Water Elevation", type: 'line', id: 'waterLevel', color: chartConfig.waterLevel.color },
+      { value: 'precipitation', label: "Precipitation", type: 'rect', id: 'precipitation', color: chartConfig.precipitation.color },
+      { value: 'elevation', label: "Survey Points", type: 'diamond', id: 'elevation', color: chartConfig.elevation.color },
     ];
     
-    asset.designElevations.forEach(de => {
-        payload.push({
+    const designPayload = [
+      { value: 'Permanent Pool', label: "Permanent Pool", type: 'line', id: 'Permanent Pool', color: chartConfig["Permanent Pool"].color },
+       ...asset.designElevations.map(de => ({
             value: de.name,
+            label: de.name,
             type: 'line',
             id: de.name,
             color: chartConfig[de.name].color
-        })
-    });
+        }))
+    ];
 
-    return payload;
+    return [mainPayload, designPayload];
 
   }, [asset.designElevations, chartConfig]);
 
@@ -297,7 +299,7 @@ export default function PerformanceChart({
       <CardContent>
        <div className="w-full flex gap-4">
         <ChartContainer config={chartConfig} className="h-[400px] w-full flex-1">
-          <ComposedChart data={chartData} margin={{ top: 5, right: 40, left: 20, bottom: 50 }}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: 50, left: 20, bottom: 50 }}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="timestamp"
@@ -331,7 +333,7 @@ export default function PerformanceChart({
               domain={[0, 'dataMax']}
               reversed={true}
               tickFormatter={(value) => (value as number).toFixed(0)}
-              label={{ value: 'Precipitation (mm)', angle: 90, position: 'insideRight', offset: 40 }}
+              label={{ value: 'Precipitation (mm)', angle: 90, position: 'right', offset: 15 }}
             />
             <ChartTooltip
               cursor={false}
@@ -410,8 +412,7 @@ export default function PerformanceChart({
             <ReferenceLine
               yAxisId="left"
               y={asset.permanentPoolElevation}
-              name="Permanent Pool"
-              stroke="var(--color-ppe)"
+              stroke="var(--color-Permanent-Pool)"
               strokeWidth={2}
               isFront
             />
@@ -420,7 +421,6 @@ export default function PerformanceChart({
                 yAxisId="left"
                 key={de.name}
                 y={de.elevation}
-                name={de.name}
                 stroke={chartConfig[de.name]?.color}
                 strokeDasharray="3 3"
                 isFront
@@ -445,7 +445,14 @@ export default function PerformanceChart({
                     onBrushChange({startIndex: range.startIndex, endIndex: range.endIndex})
                 }}
             />
-            <Legend payload={legendPayload} content={<ChartLegendContent />} />
+            <Legend
+              content={
+                <div className="flex w-full flex-col items-center justify-center gap-1 pt-4">
+                  <ChartLegendContent payload={mainLegendPayload} />
+                  <ChartLegendContent payload={designLegendPayload} />
+                </div>
+              }
+            />
           </ComposedChart>
         </ChartContainer>
         {yZoomRange && Array.isArray(yAxisBounds) && typeof yAxisBounds[0] === 'number' && typeof yAxisBounds[1] === 'number' && (
@@ -526,3 +533,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
