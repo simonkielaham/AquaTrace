@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Asset, ChartablePoint } from "@/lib/placeholder-data";
+import type { Asset, ChartablePoint, SurveyPoint } from "@/lib/placeholder-data";
 import {
   Card,
   CardContent,
@@ -37,7 +37,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Scatter, Brush, Symbols } from "recharts";
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush } from "recharts";
 import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
@@ -141,6 +141,7 @@ export default function PerformanceChart({
   dataVersion,
 }: PerformanceChartProps) {
   const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
+  const [surveyPoints, setSurveyPoints] = React.useState<SurveyPoint[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedRange, setSelectedRange] = React.useState<{ startIndex: number; endIndex: number } | null>(null);
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
@@ -174,7 +175,6 @@ export default function PerformanceChart({
     const allElevations: number[] = dataToConsider.flatMap(d => {
         const points = [];
         if (d.waterLevel !== undefined) points.push(d.waterLevel);
-        if (d.elevation !== undefined) points.push(d.elevation);
         return points;
     });
 
@@ -182,6 +182,7 @@ export default function PerformanceChart({
     asset.designElevations.filter(de => de.elevation > 0).forEach(de => {
         allElevations.push(de.elevation);
     });
+     surveyPoints.forEach(p => allElevations.push(p.elevation));
     
     const validElevations = allElevations.filter(e => typeof e === 'number' && isFinite(e));
     if (validElevations.length === 0) {
@@ -194,7 +195,7 @@ export default function PerformanceChart({
     const padding = (dataMax - dataMin) * 0.1 || 1;
 
     return [dataMin - padding, dataMax + padding];
-  }, [chartData, asset, loading, selectedRange]);
+  }, [chartData, surveyPoints, asset, loading, selectedRange]);
 
 
   React.useEffect(() => {
@@ -212,38 +213,16 @@ export default function PerformanceChart({
       if (!asset.id) return;
       setLoading(true);
       setChartData([]); // Reset data on asset change
+      setSurveyPoints([]);
       
-      const [processedData, surveyPoints] = await Promise.all([
+      const [processedData, surveyData] = await Promise.all([
         getProcessedDataAction(asset.id),
         getSurveyPointsAction(asset.id)
       ]);
       
       if (isMounted) {
-        const dataMap = new Map<number, ChartablePoint>();
-
-        processedData.forEach(p => {
-          const timestamp = new Date(p.timestamp).getTime();
-          if (!dataMap.has(timestamp)) {
-            dataMap.set(timestamp, { timestamp });
-          }
-          const point = dataMap.get(timestamp)!;
-          point.waterLevel = p.waterLevel;
-          point.rawWaterLevel = p.rawWaterLevel;
-        });
-
-        surveyPoints.forEach(p => {
-          const timestamp = new Date(p.timestamp).getTime();
-          if (!dataMap.has(timestamp)) {
-            dataMap.set(timestamp, { timestamp });
-          }
-          const point = dataMap.get(timestamp)!;
-          point.elevation = p.elevation;
-          point.source = p.source;
-        });
-        
-        const mergedData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
-        
-        setChartData(mergedData);
+        setChartData(processedData);
+        setSurveyPoints(surveyData);
         setLoading(false);
         setSelectedRange(null); // Reset selection on data change
       }
@@ -271,7 +250,7 @@ export default function PerformanceChart({
     )
   }
 
-  if (chartData.length === 0) {
+  if (chartData.length === 0 && surveyPoints.length === 0) {
     return (
       <Card className="col-span-1 lg:col-span-4 shadow-sm">
         <CardHeader>
@@ -337,7 +316,6 @@ export default function PerformanceChart({
                   }}
                   indicator="dot"
                   formatter={(value, name, item) => {
-                    const payload = item.payload as ChartablePoint;
                     if (item.dataKey === 'waterLevel' && typeof value === 'number') {
                       const diff = (value - asset.permanentPoolElevation);
                       const isPositive = diff >= 0;
@@ -349,26 +327,12 @@ export default function PerformanceChart({
                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-waterLevel)'}}/>
                             <div className="flex flex-col items-start gap-1">
                                 <span className="font-bold">WATER ELEVATION: {`${value.toFixed(3)}m`}</span>
-                                {payload.rawWaterLevel !== undefined && (
-                                  <span className="text-xs text-muted-foreground">Raw Reading: {payload.rawWaterLevel.toFixed(3)}m</span>
-                                )}
                                 <span className={cn(
                                   "text-xs",
                                   isPositive ? "text-green-600 dark:text-green-500" : "text-destructive"
                                 )}>
                                   {diffText}
                                 </span>
-                            </div>
-                        </div>
-                      )
-                    }
-                    if (item.dataKey === 'elevation' && typeof value === 'number') {
-                      const label = payload.source === 'tape-down' ? 'TAPE-DOWN MEASUREMENT' : 'MANUAL SURVEY';
-                      return (
-                        <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-elevation)'}}/>
-                            <div className="flex flex-col items-start">
-                                <span className="font-bold">{label}: {`${value.toFixed(3)}m`}</span>
                             </div>
                         </div>
                       )
@@ -389,13 +353,6 @@ export default function PerformanceChart({
               connectNulls
               dot={false}
             />
-            <Scatter 
-                dataKey="elevation" 
-                fill="var(--color-elevation)" 
-                name="Survey Points" 
-                shape={<Symbols type="diamond" size={64} stroke="var(--background)" strokeWidth={2} />}
-                z={100}
-            />
             <ReferenceLine
               y={asset.permanentPoolElevation}
               label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}
@@ -412,6 +369,14 @@ export default function PerformanceChart({
                 strokeDasharray="3 3"
                 isFront
               />
+            ))}
+            {surveyPoints.map((point) => (
+                <ReferenceLine 
+                    key={point.id} 
+                    x={point.timestamp} 
+                    stroke="hsl(var(--accent))" 
+                    strokeDasharray="3 3"
+                />
             ))}
             <Brush 
                 dataKey="timestamp" 
@@ -500,3 +465,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
