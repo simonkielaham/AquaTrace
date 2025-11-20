@@ -333,7 +333,7 @@ export default function PerformanceChart({
       <CardContent>
        <div className="w-full flex gap-4">
         <ChartContainer config={chartConfig} className="h-[400px] w-full flex-1">
-          <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 50 }}>
+          <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 30, bottom: 50 }}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="timestamp"
@@ -354,6 +354,7 @@ export default function PerformanceChart({
               domain={yZoomRange || yAxisBounds}
               tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
               allowDataOverflow={true}
+              label={{ value: 'Water Elevation (m)', angle: -90, position: 'insideLeft', offset: -20 }}
             />
              <YAxis
               yAxisId="right"
@@ -363,6 +364,7 @@ export default function PerformanceChart({
               axisLine={false}
               tickMargin={8}
               type="number"
+              label={{ value: 'Precipitation (mm)', angle: -90, position: 'insideRight', offset: 10 }}
             />
             <ChartTooltip
               cursor={false}
