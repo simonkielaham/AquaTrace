@@ -149,6 +149,10 @@ export default function PerformanceChart({
         label: "Survey Points",
         color: "hsl(var(--accent))",
       },
+       "Permanent Pool": {
+        label: "Permanent Pool",
+        color: "hsl(210 40% 50%)", // A distinct blue
+    },
     };
   
     asset.designElevations.forEach((de, index) => {
@@ -159,11 +163,6 @@ export default function PerformanceChart({
         color: `hsl(var(--chart-${chartColorIndex}))`
       };
     });
-     // Add PPE separately to ensure it has a consistent color
-    config["Permanent Pool"] = {
-        label: "Permanent Pool",
-        color: "hsl(var(--chart-2))",
-    };
     
     return config;
   }, [asset.designElevations]);
