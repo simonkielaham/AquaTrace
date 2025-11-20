@@ -531,10 +531,8 @@ export async function getProcessedData(assetId: string): Promise<ChartablePoint[
       }
     }
     
-    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
-
     // If we have data, fetch and process weather data
-    if (sortedData.length > 0 && minDate && maxDate) {
+    if (dataMap.size > 0 && minDate && maxDate) {
       try {
         const weatherCsv = await getWeatherData({
           latitude: asset.latitude,
@@ -546,41 +544,28 @@ export async function getProcessedData(assetId: string): Promise<ChartablePoint[
         if (weatherCsv) {
           const weatherData = Papa.parse(weatherCsv, { header: true, dynamicTyping: true }).data as {date: string, precipitation: number}[];
           
-          let weatherIndex = 0;
-          for (let i = 0; i < sortedData.length; i++) {
-              const currentPoint = sortedData[i];
-              const previousPointTimestamp = i > 0 ? sortedData[i-1].timestamp : 0;
-              
-              let accumulatedPrecipitation = 0;
-              
-              while (weatherIndex < weatherData.length) {
-                  const weatherTimestamp = new Date(weatherData[weatherIndex].date).getTime();
-                  if (weatherTimestamp > previousPointTimestamp && weatherTimestamp <= currentPoint.timestamp) {
-                      accumulatedPrecipitation += weatherData[weatherIndex].precipitation || 0;
-                      weatherIndex++;
-                  } else if (weatherTimestamp > currentPoint.timestamp) {
-                      // We've gone past the current water level point's time
-                      break; 
-                  } else {
-                      // This weather point is before our interval, move to the next one
-                      weatherIndex++;
+          const sortedTimestamps = Array.from(dataMap.keys()).sort((a,b) => a - b);
+          
+          weatherData.forEach(weatherPoint => {
+              if (weatherPoint.date && weatherPoint.precipitation > 0) {
+                  const weatherTimestamp = new Date(weatherPoint.date).getTime();
+
+                  // Find the next sensor data point timestamp
+                  const nextSensorTimestamp = sortedTimestamps.find(ts => ts >= weatherTimestamp);
+
+                  if (nextSensorTimestamp) {
+                      const pointToUpdate = dataMap.get(nextSensorTimestamp)!;
+                      pointToUpdate.precipitation = (pointToUpdate.precipitation || 0) + weatherPoint.precipitation;
                   }
               }
-              // To avoid going back over the weather data for every point, we don't reset weatherIndex.
-              // But for the next iteration, we need to start from where the last successful accumulation left off.
-              // So, we step back one to re-evaluate the current weather point for the next interval.
-              if (weatherIndex > 0) {
-                  weatherIndex--;
-              }
-
-              currentPoint.precipitation = accumulatedPrecipitation > 0 ? accumulatedPrecipitation : 0;
-          }
+          });
         }
       } catch (error) {
           console.error("Failed to get or process weather data:", error);
       }
     }
     
+    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
     return sortedData;
 
   } catch (error) {
@@ -879,9 +864,5 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-
-    
-
-    
 
     
