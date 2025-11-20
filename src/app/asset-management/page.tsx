@@ -26,7 +26,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
   Form,
@@ -85,7 +84,7 @@ const assetFormSchema = z.object({
   longitude: z.coerce.number().min(-180, "Invalid longitude.").max(180, "Invalid longitude."),
   permanentPoolElevation: z.coerce.number().min(0, "Permanent pool elevation is required."),
   designElevations: z.array(designElevationSchema),
-  imageId: z.string().optional(),
+  imageId: z.string().url("Please enter a valid URL.").optional().or(z.literal('')),
 });
 
 type AssetFormValues = z.infer<typeof assetFormSchema>;
@@ -219,22 +218,12 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
     name: "designElevations",
   });
   
-  const imageId = useWatch({ control: form.control, name: 'imageId' });
-  const [selectedImage, setSelectedImage] = React.useState<string | undefined>();
-  
-  React.useEffect(() => {
-    if (imageId) {
-      if (imageId.startsWith('http')) {
-        setSelectedImage(imageId);
-      } else {
-        const image = PlaceHolderImages.find(p => p.id === imageId);
-        setSelectedImage(image?.imageUrl);
-      }
-    } else {
-      setSelectedImage(undefined);
-    }
-  }, [imageId]);
+  const imageUrl = useWatch({ control: form.control, name: 'imageId' });
+  const [isValidImage, setIsValidImage] = React.useState(true);
 
+  React.useEffect(() => {
+    setIsValidImage(true);
+  }, [imageUrl]);
 
   return (
     <Form {...form}>
@@ -314,31 +303,23 @@ function AssetForm({ form, onSubmit, isSubmitting, children }: AssetFormProps) {
                 name="imageId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Asset Image</FormLabel>
-                     <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select a placeholder image" />
-                        </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                        {PlaceHolderImages.map(image => (
-                            <SelectItem key={image.id} value={image.id}>{image.description}</SelectItem>
-                        ))}
-                        </SelectContent>
-                    </Select>
+                    <FormLabel>Asset Image URL</FormLabel>
+                     <FormControl>
+                        <Input placeholder="https://example.com/image.jpg" {...field} />
+                      </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              {selectedImage && (
+              {imageUrl && isValidImage && (
                 <div className="relative h-40 w-full rounded-md overflow-hidden border">
                    <Image 
-                     src={selectedImage} 
+                     src={imageUrl} 
                      alt="Asset preview" 
                      fill
                      className="object-cover"
-                     onError={(e) => e.currentTarget.style.display = 'none'} // Hide if image fails to load
+                     unoptimized
+                     onError={() => setIsValidImage(false)}
                    />
                 </div>
               )}
@@ -388,17 +369,9 @@ export function EditAssetDialog({ asset, children }: { asset: Asset, children: R
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
 
-  // Find the image ID if the current asset.imageId is a placeholder, otherwise use the ID/URL directly.
-  const isPlaceholder = PlaceHolderImages.some(p => p.id === asset.imageId);
-  const isUrl = asset.imageId && asset.imageId.startsWith('http');
-  
-  let imageIdValue = asset.imageId;
-  if (!isPlaceholder && !isUrl) {
-    const placeholderImage = PlaceHolderImages.find(p => p.imageUrl === asset.imageId);
-    if (placeholderImage) {
-      imageIdValue = placeholderImage.id;
-    }
-  }
+  // Check if imageId is a placeholder ID and get URL if so
+  const placeholderImage = PlaceHolderImages.find(p => p.id === asset.imageId);
+  const initialImageUrl = placeholderImage ? placeholderImage.imageUrl : asset.imageId;
 
 
   const form = useForm<AssetFormValues>({
@@ -417,7 +390,7 @@ export function EditAssetDialog({ asset, children }: { asset: Asset, children: R
           elevation: de.elevation
         }
       }),
-      imageId: imageIdValue,
+      imageId: initialImageUrl,
     },
   });
 
@@ -715,7 +688,5 @@ export default function AssetManagementPage() {
     </SidebarProvider>
   );
 }
-
-    
 
     

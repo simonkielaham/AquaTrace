@@ -30,8 +30,8 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
     return [...asset.designElevations].sort((a, b) => a.elevation - b.elevation);
   }, [asset.designElevations]);
 
-  const image = PlaceHolderImages.find(p => p.id === asset.imageId);
-  const imageUrl = image ? image.imageUrl : asset.imageId;
+  const placeholderImage = PlaceHolderImages.find(p => p.id === asset.imageId);
+  const imageUrl = placeholderImage ? placeholderImage.imageUrl : asset.imageId;
 
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm">
