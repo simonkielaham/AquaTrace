@@ -16,7 +16,7 @@ import {
 } from "@/lib/placeholder-data";
 import { useAssets } from "@/context/asset-context";
 import PerformanceChart from "@/components/dashboard/performance-chart";
-import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
+import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 
 
@@ -48,35 +48,10 @@ export default function DashboardLayout() {
         description: `Querying sensor and weather data for ${selectedAsset.name}.`,
       });
       
-      const [processedDataResult, surveyPoints] = await Promise.all([
-        getProcessedDataAction(selectedAsset.id),
-        getSurveyPointsAction(selectedAsset.id)
-      ]);
+      const processedDataResult = await getProcessedDataAction(selectedAsset.id);
       
       if (isMounted) {
-        const { data: processedData, weatherSummary } = processedDataResult;
-
-        const dataMap = new Map<number, ChartablePoint>();
-        processedData.forEach(p => dataMap.set(p.timestamp, p));
-
-        surveyPoints.forEach(sp => {
-          // Find the nearest timestamp in the sensor data to align the survey point
-          let nearestTimestamp = sp.timestamp;
-          if (processedData.length > 0) {
-              const nearestSensorPoint = processedData.reduce((prev, curr) => {
-                 return (Math.abs(curr.timestamp - sp.timestamp) < Math.abs(prev.timestamp - sp.timestamp) ? curr : prev);
-              });
-              nearestTimestamp = nearestSensorPoint.timestamp;
-          }
-
-          if (!dataMap.has(nearestTimestamp)) {
-             dataMap.set(nearestTimestamp, { timestamp: nearestTimestamp });
-          }
-          const point = dataMap.get(nearestTimestamp)!;
-          point.elevation = sp.elevation; // Add the manual elevation
-        });
-
-        const combinedData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
+        const { data: combinedData, weatherSummary } = processedDataResult;
 
         setChartData(combinedData);
         setWeatherSummary(weatherSummary);

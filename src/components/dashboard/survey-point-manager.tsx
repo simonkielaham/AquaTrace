@@ -70,6 +70,8 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
     const fetchAndEnrichPoints = async () => {
         setLoadingPoints(true);
         try {
+            // Since getProcessedData now merges points, we can simplify this.
+            // But for showing the difference, we still need both raw survey points and processed sensor data.
             const [points, processedDataResult] = await Promise.all([
                 getSurveyPoints(asset.id),
                 getProcessedDataAction(asset.id)
@@ -84,20 +86,13 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                         return { ...point };
                     }
                     
-                    // Find the nearest processed data point
-                    let nearestPoint: ChartablePoint | null = null;
-                    if (processedData.length > 0) {
-                      nearestPoint = processedData[0];
-                      let smallestDiff = Math.abs(point.timestamp - nearestPoint.timestamp);
+                    // Find the nearest processed data point that has a waterLevel
+                    const sensorPoints = processedData.filter(p => p.waterLevel !== undefined);
+                    if(sensorPoints.length === 0) return { ...point };
 
-                      for (const p of processedData) {
-                          const diff = Math.abs(point.timestamp - p.timestamp);
-                          if (diff < smallestDiff) {
-                              smallestDiff = diff;
-                              nearestPoint = p;
-                          }
-                      }
-                    }
+                    const nearestPoint = sensorPoints.reduce((prev, curr) => {
+                       return (Math.abs(curr.timestamp - point.timestamp) < Math.abs(prev.timestamp - point.timestamp) ? curr : prev);
+                    });
                     
                     if (nearestPoint && nearestPoint.waterLevel !== undefined) {
                         return {
@@ -111,7 +106,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                     return { ...point };
                 });
                 
-                setSurveyPoints(enrichedPoints);
+                setSurveyPoints(enrichedPoints.sort((a,b) => b.timestamp - a.timestamp));
             }
         } catch (error) {
             console.error("Failed to fetch or enrich survey points:", error);
@@ -119,7 +114,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                 // If it fails, at least try to show the raw points
                 getSurveyPoints(asset.id).then(points => {
                     const manualPoints = points.filter(p => p.source === 'manual' || p.source === undefined);
-                    setSurveyPoints(manualPoints)
+                    setSurveyPoints(manualPoints.sort((a,b) => b.timestamp - a.timestamp));
                 });
             }
         } finally {
@@ -152,7 +147,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Survey point added." });
-      form.reset({ time: "12:00" });
+      form.reset({ time: "12:00", date: undefined, elevation: undefined });
     }
     
     setIsSubmitting(false);

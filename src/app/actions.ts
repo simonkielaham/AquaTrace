@@ -130,24 +130,10 @@ export async function addSurveyPoint(assetId: string, data: any) {
 
   try {
     const surveyPoints = await readJsonFile<SurveyPoint[]>(surveyPointsFilePath);
-    const sensorDataPoints = await getProcessedData(assetId);
     
-    let finalTimestamp = new Date(timestamp).getTime();
-
-    // If sensor data exists, find the nearest point in time
-    if (sensorDataPoints.data.length > 0) {
-      let nearestPoint = sensorDataPoints.data[0];
-      let smallestDiff = Math.abs(finalTimestamp - nearestPoint.timestamp);
-
-      for (const point of sensorDataPoints.data) {
-        const diff = Math.abs(finalTimestamp - point.timestamp);
-        if (diff < smallestDiff) {
-          smallestDiff = diff;
-          nearestPoint = point;
-        }
-      }
-      finalTimestamp = nearestPoint.timestamp;
-    }
+    // We don't need to align to sensor data here anymore, just save the point.
+    // The alignment will happen in getProcessedData.
+    const finalTimestamp = new Date(timestamp).getTime();
     
     const newPoint: SurveyPoint = {
       id: `survey-${Date.now()}`,
@@ -485,6 +471,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
     }
 
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const surveyPoints = await getSurveyPoints(assetId);
     const assetDeployments = deployments.filter(d => d.assetId === assetId);
 
     const dataMap = new Map<number, ChartablePoint>();
@@ -531,6 +518,26 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
         }
       }
     }
+
+    // Second pass: merge survey points
+    const sensorDataPoints = Array.from(dataMap.values());
+    surveyPoints.forEach(sp => {
+        // Find the nearest timestamp in the sensor data to align the survey point
+        let nearestTimestamp = sp.timestamp;
+        if (sensorDataPoints.length > 0) {
+            const nearestSensorPoint = sensorDataPoints.reduce((prev, curr) => {
+               return (Math.abs(curr.timestamp - sp.timestamp) < Math.abs(prev.timestamp - sp.timestamp) ? curr : prev);
+            });
+            nearestTimestamp = nearestSensorPoint.timestamp;
+        }
+
+        if (!dataMap.has(nearestTimestamp)) {
+           dataMap.set(nearestTimestamp, { timestamp: nearestTimestamp });
+        }
+        const point = dataMap.get(nearestTimestamp)!;
+        point.elevation = sp.elevation; // Add the manual elevation
+      });
+
     
     const weatherSummary: WeatherSummary = { totalPrecipitation: 0, events: [] };
     const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
