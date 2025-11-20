@@ -34,7 +34,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { ComposedChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend } from "recharts";
+import { ComposedChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter } from "recharts";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -221,6 +221,24 @@ export default function PerformanceChart({
       setYZoomRange(yAxisBounds as [number, number]);
     }
   }, [yAxisBounds, loading]);
+  
+  const legendPayload = React.useMemo(() => {
+    const payload = [
+      { value: 'Water Elevation', type: 'area', id: 'waterLevel', color: chartConfig.waterLevel.color },
+      { value: 'Precipitation', type: 'bar', id: 'precipitation', color: chartConfig.precipitation.color },
+      { value: 'Survey Points', type: 'scatter', id: 'elevation', color: chartConfig.elevation.color },
+      { value: 'Permanent Pool', type: 'line', id: 'permanentPool', color: chartConfig['Permanent Pool'].color },
+    ];
+
+    const designElevationsPayload = asset.designElevations.map(de => ({
+      value: de.name,
+      type: 'line',
+      id: de.name,
+      color: chartConfig[de.name]?.color,
+    }));
+
+    return payload.concat(designElevationsPayload);
+  }, [asset.designElevations, chartConfig]);
 
 
   if (loading) {
@@ -316,6 +334,66 @@ export default function PerformanceChart({
                 <ChartTooltipContent
                   labelFormatter={(label) => new Date(label as number).toLocaleString()}
                   indicator="dot"
+                  formatter={(value, name, props) => {
+                      if (name === "elevation") {
+                        return (
+                           <div className="flex items-center gap-2">
+                             <div
+                               className="h-2.5 w-2.5 shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]"
+                               style={
+                                {
+                                  "--color-bg": chartConfig.elevation.color,
+                                  "--color-border": chartConfig.elevation.color,
+                                } as React.CSSProperties
+                              }
+                             />
+                              <div className="flex flex-1 justify-between">
+                                 <span className="text-muted-foreground">Survey Point</span>
+                                 <span>{typeof value === 'number' && value.toFixed(2)}m</span>
+                              </div>
+                           </div>
+                        )
+                      }
+                      if (name === "precipitation" && typeof value === 'number' && value > 0) {
+                        return (
+                           <div className="flex items-center gap-2">
+                             <div
+                               className="h-2.5 w-2.5 shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]"
+                               style={
+                                {
+                                  "--color-bg": chartConfig.precipitation.color,
+                                  "--color-border": chartConfig.precipitation.color,
+                                } as React.CSSProperties
+                              }
+                             />
+                              <div className="flex flex-1 justify-between">
+                                 <span className="text-muted-foreground">Precipitation</span>
+                                 <span>{typeof value === 'number' && value.toFixed(1)}mm</span>
+                              </div>
+                           </div>
+                        )
+                      }
+                      if (name === "waterLevel" && value) {
+                        return (
+                          <div className="flex items-center gap-2">
+                             <div
+                               className="h-2.5 w-2.5 shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]"
+                               style={
+                                {
+                                  "--color-bg": chartConfig.waterLevel.color,
+                                  "--color-border": chartConfig.waterLevel.color,
+                                } as React.CSSProperties
+                              }
+                             />
+                              <div className="flex flex-1 justify-between">
+                                 <span className="text-muted-foreground">Water Elevation</span>
+                                 <span>{typeof value === 'number' && value.toFixed(2)}m</span>
+                              </div>
+                           </div>
+                        )
+                      }
+                      return null;
+                  }}
                 />
               }
             />
@@ -337,8 +415,14 @@ export default function PerformanceChart({
               fill="var(--color-precipitation)"
               fillOpacity={0.8}
               barSize={20}
-              minPointSize={1}
               name="Precipitation"
+              minPointSize={1}
+            />
+            <Scatter 
+              yAxisId="left"
+              dataKey="elevation" 
+              fill="var(--color-elevation)" 
+              name="Survey Points"
             />
             <ReferenceLine
               yAxisId="left"
@@ -347,7 +431,7 @@ export default function PerformanceChart({
               strokeWidth={2}
               isFront
             />
-            {asset.designElevations.filter(de => de.elevation > 0).map(de => (
+            {asset.designElevations.map(de => (
               <ReferenceLine
                 yAxisId="left"
                 key={de.name}
@@ -369,7 +453,7 @@ export default function PerformanceChart({
                     onBrushChange({startIndex: range.startIndex, endIndex: range.endIndex})
                 }}
             />
-            <Legend verticalAlign="bottom" wrapperStyle={{ paddingTop: '20px' }}/>
+            <Legend verticalAlign="bottom" wrapperStyle={{ paddingTop: '20px' }} payload={legendPayload} />
           </ComposedChart>
         </ChartContainer>
         {yZoomRange && Array.isArray(yAxisBounds) && typeof yAxisBounds[0] === 'number' && typeof yAxisBounds[1] === 'number' && (
