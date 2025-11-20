@@ -37,7 +37,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { AreaChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush } from "recharts";
+import { AreaChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend } from "recharts";
 import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
@@ -51,6 +51,10 @@ const chartConfig = {
   waterLevel: {
     label: "Water Elevation",
     color: "hsl(var(--chart-1))",
+  },
+  precipitation: {
+    label: "Precipitation",
+    color: "hsl(var(--chart-2))",
   },
   elevation: {
     label: "Survey Points",
@@ -277,7 +281,7 @@ export default function PerformanceChart({
       <CardHeader>
         <CardTitle className="font-headline">Performance Overview</CardTitle>
         <CardDescription>
-          Water elevation over time against design elevations.
+          Water elevation and precipitation over time against design elevations.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -295,6 +299,7 @@ export default function PerformanceChart({
               domain={['dataMin', 'dataMax']}
             />
             <YAxis
+              yAxisId="left"
               unit="m"
               tickLine={false}
               axisLine={false}
@@ -303,6 +308,15 @@ export default function PerformanceChart({
               domain={yZoomRange || yAxisBounds}
               tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
               allowDataOverflow={true}
+            />
+             <YAxis
+              yAxisId="right"
+              orientation="right"
+              unit="mm"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              type="number"
             />
             <ChartTooltip
               cursor={false}
@@ -337,12 +351,21 @@ export default function PerformanceChart({
                         </div>
                       )
                     }
+                     if (item.dataKey === 'precipitation' && typeof value === 'number' && value > 0) {
+                      return (
+                        <div className="flex items-center gap-2">
+                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-precipitation)'}}/>
+                           <span>Precipitation: {`${value.toFixed(2)}mm`}</span>
+                        </div>
+                      )
+                     }
                     return null;
                   }}
                 />
               }
             />
             <Area
+              yAxisId="left"
               dataKey="waterLevel"
               type="monotone"
               fill="var(--color-waterLevel)"
@@ -353,7 +376,15 @@ export default function PerformanceChart({
               connectNulls
               dot={false}
             />
+             <Bar
+              yAxisId="right"
+              dataKey="precipitation"
+              fill="var(--color-precipitation)"
+              name="Precipitation"
+              radius={[4, 4, 0, 0]}
+            />
             <ReferenceLine
+              yAxisId="left"
               y={asset.permanentPoolElevation}
               label={{ value: "PPE", position: "right", fill: "hsl(var(--muted-foreground))" }}
               stroke="var(--color-ppe)"
@@ -362,6 +393,7 @@ export default function PerformanceChart({
             />
             {asset.designElevations.filter(de => de.elevation > 0).map(de => (
               <ReferenceLine
+                yAxisId="left"
                 key={de.name}
                 y={de.elevation}
                 label={{ value: de.name, position: 'right', fill: 'hsl(var(--muted-foreground))', fontSize: '10px' }}
@@ -372,6 +404,7 @@ export default function PerformanceChart({
             ))}
             {surveyPoints.map((point) => (
                 <ReferenceLine 
+                    yAxisId="left"
                     key={point.id} 
                     x={point.timestamp} 
                     stroke="hsl(var(--accent))" 
@@ -386,7 +419,7 @@ export default function PerformanceChart({
                 y={350}
                 onChange={(range) => setSelectedRange(range as { startIndex: number; endIndex: number; })}
             />
-            <ChartLegend content={<ChartLegendContent />} />
+            <Legend content={<ChartLegendContent />} />
           </AreaChart>
         </ChartContainer>
         {yZoomRange && Array.isArray(yAxisBounds) && typeof yAxisBounds[0] === 'number' && typeof yAxisBounds[1] === 'number' && (
@@ -444,6 +477,7 @@ export default function PerformanceChart({
                             <TableRow>
                                 <TableHead>Timestamp</TableHead>
                                 <TableHead>Water Elevation</TableHead>
+                                <TableHead>Precipitation</TableHead>
                                 <TableHead>Survey Elevation</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -452,6 +486,7 @@ export default function PerformanceChart({
                                 <TableRow key={i}>
                                     <TableCell>{new Date(d.timestamp).toLocaleString()}</TableCell>
                                     <TableCell>{d.waterLevel !== undefined ? d.waterLevel.toFixed(4) : 'N/A'}</TableCell>
+                                    <TableCell>{d.precipitation !== undefined && d.precipitation > 0 ? d.precipitation.toFixed(2) : 'N/A'}</TableCell>
                                     <TableCell>{d.elevation !== undefined ? d.elevation.toFixed(4) : 'N/A'}</TableCell>
                                 </TableRow>
                             ))}
@@ -465,5 +500,7 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
 
     
