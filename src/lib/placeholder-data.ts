@@ -65,27 +65,17 @@ export type AnalysisResult = {
   timestamp: string;
 };
 
-export type ActivityLog = {
-  id: string;
-  timestamp: string;
-  action: string;
-  status: 'success' | 'failure';
-  assetId?: string;
-  deploymentId?: string;
-  payload: any;
-  response: any;
-};
-
 export type AnalysisPeriod = {
     id: string;
     assetId: string;
     startDate: number;
     endDate: number;
+    totalPrecipitation: number;
     dataPoints: ChartablePoint[];
-    analysis: {
-        peak: ChartablePoint | null;
-        trough: ChartablePoint | null;
-        drawdownHours: number | null;
+    analysis?: {
+        peak?: ChartablePoint | null;
+        trough?: ChartablePoint | null;
+        drawdownHours?: number | null;
     }
 }
 
@@ -96,6 +86,11 @@ export type ChartablePoint = {
     elevation?: number;
     precipitation?: number;
 }
+
+export type WeatherSummary = {
+  totalPrecipitation: number;
+  events: AnalysisPeriod[];
+};
 
 
 // This file now only contains type definitions.

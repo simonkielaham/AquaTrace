@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Asset, ChartablePoint, SurveyPoint } from "@/lib/placeholder-data";
+import type { Asset, ChartablePoint, SurveyPoint, WeatherSummary } from "@/lib/placeholder-data";
 import {
   Card,
   CardContent,
@@ -269,7 +269,7 @@ export default function PerformanceChart({
                     {weatherSummary.totalPrecipitation.toFixed(2)}mm
                   </span>{" "}
                   of precipitation across{" "}
-                  <span className="font-bold">{weatherSummary.eventCount}</span>{" "}
+                  <span className="font-bold">{weatherSummary.events.length}</span>{" "}
                   events.
                 </p>
               </div>

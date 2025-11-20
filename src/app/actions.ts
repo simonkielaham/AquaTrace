@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile, SurveyPoint, ChartablePoint } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 import { getWeatherData } from '@/../sourceexamples/weather-service';
 
@@ -474,13 +474,13 @@ export async function deleteDatafile(deploymentId: string, fileId: string) {
 }
 
 
-export async function getProcessedData(assetId: string): Promise<{ data: ChartablePoint[], weatherSummary: { totalPrecipitation: number, eventCount: number } }> {
+export async function getProcessedData(assetId: string): Promise<{ data: ChartablePoint[], weatherSummary: WeatherSummary }> {
   try {
     const assets = await readJsonFile<Asset[]>(assetsFilePath);
     const asset = assets.find(a => a.id === assetId);
     if (!asset) {
         console.error("Failed to find asset for data processing:", assetId);
-        return { data: [], weatherSummary: { totalPrecipitation: 0, eventCount: 0 } };
+        return { data: [], weatherSummary: { totalPrecipitation: 0, events: [] } };
     }
 
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
@@ -531,7 +531,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
       }
     }
     
-    const weatherSummary = { totalPrecipitation: 0, eventCount: 0 };
+    const weatherSummary: WeatherSummary = { totalPrecipitation: 0, events: [] };
     const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
 
     // If we have data, fetch and process weather data
@@ -574,6 +574,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
           const MEASURABLE_RAIN_THRESHOLD = 0.2; // mm
           const DRY_PERIOD_HOURS = 6;
           let lastRainTimestamp: number | null = null;
+          let currentEvent: AnalysisPeriod | null = null;
           
           weatherData.forEach(weatherPoint => {
               if (!weatherPoint.date) return;
@@ -584,19 +585,38 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
               if (precipitation >= MEASURABLE_RAIN_THRESHOLD) {
                   weatherSummary.totalPrecipitation += precipitation;
                   
-                  if (lastRainTimestamp !== null) {
-                      const hoursSinceLastRain = (currentTimestamp - lastRainTimestamp) / (1000 * 60 * 60);
-                      if (hoursSinceLastRain >= DRY_PERIOD_HOURS) {
-                          // This is a new event
-                          weatherSummary.eventCount += 1;
-                      }
-                  } else {
-                      // This is the very first measurable rain
-                      weatherSummary.eventCount = 1;
+                  if (currentEvent === null) {
+                      // Start of a new event
+                      currentEvent = {
+                          id: `event-${currentTimestamp}`,
+                          assetId: asset.id,
+                          startDate: currentTimestamp,
+                          endDate: currentTimestamp,
+                          totalPrecipitation: 0,
+                          dataPoints: []
+                      };
+                      weatherSummary.events.push(currentEvent);
                   }
                   
+                  currentEvent.endDate = currentTimestamp;
+                  currentEvent.totalPrecipitation += precipitation;
+
                   lastRainTimestamp = currentTimestamp;
+
+              } else { // No measurable rain
+                  if (currentEvent && lastRainTimestamp) {
+                       const hoursSinceLastRain = (currentTimestamp - lastRainTimestamp) / (1000 * 60 * 60);
+                       if (hoursSinceLastRain >= DRY_PERIOD_HOURS) {
+                           // End the current event
+                           currentEvent = null;
+                       }
+                  }
               }
+          });
+
+          // Finalize data for each event
+          weatherSummary.events.forEach(event => {
+              event.dataPoints = sortedData.filter(d => d.timestamp >= event.startDate && d.timestamp <= event.endDate);
           });
         }
       } catch (error) {
@@ -608,7 +628,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
 
   } catch (error) {
     console.error("Failed to get processed data:", error);
-    return { data: [], weatherSummary: { totalPrecipitation: 0, eventCount: 0 } };
+    return { data: [], weatherSummary: { totalPrecipitation: 0, events: [] } };
   }
 }
 
