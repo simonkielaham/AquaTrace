@@ -41,6 +41,7 @@ import { AreaChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush
 import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 type PerformanceChartProps = {
   asset: Asset;
@@ -144,6 +145,7 @@ export default function PerformanceChart({
   asset,
   dataVersion,
 }: PerformanceChartProps) {
+  const { toast } = useToast();
   const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedRange, setSelectedRange] = React.useState<{ startIndex: number; endIndex: number } | null>(null);
@@ -215,22 +217,37 @@ export default function PerformanceChart({
     const fetchData = async () => {
       if (!asset.id) return;
       setLoading(true);
+
+      const { id: toastId } = toast({
+        title: "Fetching Data...",
+        description: `Querying sensor and weather data for ${asset.name}.`,
+      });
       
-      const [processedData, surveyPoints] = await Promise.all([
+      const [processedDataResult, surveyPoints] = await Promise.all([
         getProcessedDataAction(asset.id),
         getSurveyPointsAction(asset.id)
       ]);
       
       if (isMounted) {
+        const { data: processedData, weatherSummary } = processedDataResult;
+
         const dataMap = new Map<number, ChartablePoint>();
         processedData.forEach(p => dataMap.set(p.timestamp, p));
 
         surveyPoints.forEach(sp => {
-          // Ensure every survey point has a place on the timeline
-          if (!dataMap.has(sp.timestamp)) {
-             dataMap.set(sp.timestamp, { timestamp: sp.timestamp });
+          // Find the nearest timestamp in the sensor data to align the survey point
+          let nearestTimestamp = sp.timestamp;
+          if (processedData.length > 0) {
+              const nearestSensorPoint = processedData.reduce((prev, curr) => {
+                 return (Math.abs(curr.timestamp - sp.timestamp) < Math.abs(prev.timestamp - sp.timestamp) ? curr : prev);
+              });
+              nearestTimestamp = nearestSensorPoint.timestamp;
           }
-          const point = dataMap.get(sp.timestamp)!;
+
+          if (!dataMap.has(nearestTimestamp)) {
+             dataMap.set(nearestTimestamp, { timestamp: nearestTimestamp });
+          }
+          const point = dataMap.get(nearestTimestamp)!;
           point.elevation = sp.elevation; // Add the manual elevation
         });
 
@@ -239,11 +256,30 @@ export default function PerformanceChart({
         setChartData(combinedData);
         setLoading(false);
         setSelectedRange(null); // Reset selection on data change
+        
+        toast({
+            id: toastId,
+            title: "Data Loaded Successfully",
+            description: (
+              <div>
+                <p>Sensor data processed for {asset.name}.</p>
+                <p>
+                  Weather Summary: Found{" "}
+                  <span className="font-bold">
+                    {weatherSummary.totalPrecipitation.toFixed(2)}mm
+                  </span>{" "}
+                  of precipitation across{" "}
+                  <span className="font-bold">{weatherSummary.eventCount}</span>{" "}
+                  events.
+                </p>
+              </div>
+            ),
+        });
       }
     };
     fetchData();
     return () => { isMounted = false };
-  }, [asset, dataVersion]);
+  }, [asset, dataVersion, toast]);
 
 
   if (loading) {
@@ -515,3 +551,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    

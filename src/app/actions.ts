@@ -134,11 +134,11 @@ export async function addSurveyPoint(assetId: string, data: any) {
     let finalTimestamp = new Date(timestamp).getTime();
 
     // If sensor data exists, find the nearest point in time
-    if (sensorDataPoints.length > 0) {
-      let nearestPoint = sensorDataPoints[0];
+    if (sensorDataPoints.data.length > 0) {
+      let nearestPoint = sensorDataPoints.data[0];
       let smallestDiff = Math.abs(finalTimestamp - nearestPoint.timestamp);
 
-      for (const point of sensorDataPoints) {
+      for (const point of sensorDataPoints.data) {
         const diff = Math.abs(finalTimestamp - point.timestamp);
         if (diff < smallestDiff) {
           smallestDiff = diff;
@@ -474,13 +474,13 @@ export async function deleteDatafile(deploymentId: string, fileId: string) {
 }
 
 
-export async function getProcessedData(assetId: string): Promise<ChartablePoint[]> {
+export async function getProcessedData(assetId: string): Promise<{ data: ChartablePoint[], weatherSummary: { totalPrecipitation: number, eventCount: number } }> {
   try {
     const assets = await readJsonFile<Asset[]>(assetsFilePath);
     const asset = assets.find(a => a.id === assetId);
     if (!asset) {
         console.error("Failed to find asset for data processing:", assetId);
-        return [];
+        return { data: [], weatherSummary: { totalPrecipitation: 0, eventCount: 0 } };
     }
 
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
@@ -531,6 +531,8 @@ export async function getProcessedData(assetId: string): Promise<ChartablePoint[
       }
     }
     
+    let weatherSummary = { totalPrecipitation: 0, eventCount: 0 };
+
     // If we have data, fetch and process weather data
     if (dataMap.size > 0 && minDate && maxDate) {
       try {
@@ -549,6 +551,8 @@ export async function getProcessedData(assetId: string): Promise<ChartablePoint[
           weatherData.forEach(weatherPoint => {
               if (weatherPoint.date && weatherPoint.precipitation > 0) {
                   const weatherTimestamp = new Date(weatherPoint.date).getTime();
+                  weatherSummary.totalPrecipitation += weatherPoint.precipitation;
+                  weatherSummary.eventCount += 1;
 
                   // Find the next sensor data point timestamp
                   const nextSensorTimestamp = sortedTimestamps.find(ts => ts >= weatherTimestamp);
@@ -566,11 +570,11 @@ export async function getProcessedData(assetId: string): Promise<ChartablePoint[
     }
     
     const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
-    return sortedData;
+    return { data: sortedData, weatherSummary };
 
   } catch (error) {
     console.error("Failed to get processed data:", error);
-    return [];
+    return { data: [], weatherSummary: { totalPrecipitation: 0, eventCount: 0 } };
   }
 }
 
@@ -865,4 +869,5 @@ export async function deleteAsset(assetId: string) {
   }
 }
 
+    
     

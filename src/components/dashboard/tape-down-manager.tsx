@@ -2,7 +2,7 @@
 
 "use client";
 
-import type { Asset, SurveyPoint, Deployment, DataPoint } from "@/lib/placeholder-data";
+import type { Asset, SurveyPoint, Deployment, ChartablePoint } from "@/lib/placeholder-data";
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -67,12 +67,13 @@ function ExistingPointsTable({ asset, deployments, dataVersion }: { asset: Asset
         const fetchAndEnrichPoints = async () => {
             setLoadingPoints(true);
             try {
-                const [points, processedData] = await Promise.all([
+                const [points, processedDataResult] = await Promise.all([
                     getSurveyPoints(asset.id),
                     getProcessedDataAction(asset.id)
                 ]);
 
                 if (isMounted) {
+                    const processedData = processedDataResult.data;
                     const tapeDowns = points.filter(p => p.source === 'tape-down');
                     const enrichedPoints: EnrichedSurveyPoint[] = tapeDowns.map(point => {
                         if (processedData.length === 0) return { ...point };
@@ -189,6 +190,7 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
     resolver: zodResolver(tapeDownSchema),
     defaultValues: {
       time: "12:00",
+      measurement: 0,
     }
   });
   
@@ -229,7 +231,7 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
         title: "Success", 
         description: `Tape-down recorded as survey point with elevation ${calculatedElevation.toFixed(2)}m.` 
       });
-      form.reset({ deploymentId: data.deploymentId, time: "12:00" });
+      form.reset({ deploymentId: data.deploymentId, time: "12:00", measurement: 0 });
     }
     
     setIsSubmitting(false);

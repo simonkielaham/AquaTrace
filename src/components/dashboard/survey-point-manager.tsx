@@ -2,7 +2,7 @@
 
 "use client";
 
-import type { Asset, SurveyPoint, DataPoint } from "@/lib/placeholder-data";
+import type { Asset, SurveyPoint, DataPoint, ChartablePoint } from "@/lib/placeholder-data";
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -70,12 +70,13 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
     const fetchAndEnrichPoints = async () => {
         setLoadingPoints(true);
         try {
-            const [points, processedData] = await Promise.all([
+            const [points, processedDataResult] = await Promise.all([
                 getSurveyPoints(asset.id),
                 getProcessedDataAction(asset.id)
             ]);
 
             if (isMounted) {
+                 const processedData = processedDataResult.data;
                  const manualPoints = points.filter(p => p.source === 'manual' || p.source === undefined);
 
                  const enrichedPoints: EnrichedSurveyPoint[] = manualPoints.map(point => {
@@ -84,7 +85,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                     }
                     
                     // Find the nearest processed data point
-                    let nearestPoint: DataPoint | null = null;
+                    let nearestPoint: ChartablePoint | null = null;
                     if (processedData.length > 0) {
                       nearestPoint = processedData[0];
                       let smallestDiff = Math.abs(point.timestamp - nearestPoint.timestamp);
@@ -98,7 +99,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                       }
                     }
                     
-                    if (nearestPoint) {
+                    if (nearestPoint && nearestPoint.waterLevel !== undefined) {
                         return {
                             ...point,
                             sensorTimestamp: nearestPoint.timestamp,
@@ -336,3 +337,5 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
     </Card>
   );
 }
+
+    
