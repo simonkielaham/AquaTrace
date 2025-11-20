@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { promises as fs } from 'fs';
@@ -614,7 +615,14 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
               }
           });
 
-          // Finalize data for each event
+          // Finalize data for each event and filter out insignificant ones
+          const significantEvents = weatherSummary.events.filter(event => {
+            const durationSeconds = (event.endDate - event.startDate) / 1000;
+            // Keep event if duration > 5 seconds OR precipitation >= 1mm
+            return durationSeconds > 5 || event.totalPrecipitation >= 1;
+          });
+          weatherSummary.events = significantEvents;
+
           weatherSummary.events.forEach(event => {
               event.dataPoints = sortedData.filter(d => d.timestamp >= event.startDate && d.timestamp <= event.endDate);
           });
