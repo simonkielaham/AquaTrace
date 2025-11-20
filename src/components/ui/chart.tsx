@@ -42,8 +42,9 @@ const ChartContainer = React.forwardRef<
     children: React.ComponentProps<
       typeof RechartsPrimitive.ResponsiveContainer
     >["children"]
+    chartHeight?: string
   }
->(({ id, className, children, config, ...props }, ref) => {
+>(({ id, className, children, config, chartHeight, ...props }, ref) => {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
 
@@ -364,5 +365,3 @@ export {
   ChartLegendContent,
   ChartStyle,
 }
-
-    
