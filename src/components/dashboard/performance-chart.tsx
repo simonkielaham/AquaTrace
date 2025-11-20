@@ -34,7 +34,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { ComposedChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter } from "recharts";
+import { ComposedChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend } from "recharts";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -338,6 +338,7 @@ export default function PerformanceChart({
               fill="var(--color-precipitation)"
               fillOpacity={0.8}
               barSize={20}
+              minPointSize={1}
               name="Precipitation"
             />
             <ReferenceLine
@@ -357,13 +358,6 @@ export default function PerformanceChart({
                 isFront
               />
             ))}
-            <Scatter 
-              yAxisId="left" 
-              dataKey="elevation" 
-              fill="var(--color-elevation)"
-              shape="diamond"
-              name="Survey Points"
-            />
             <Brush 
                 dataKey="timestamp" 
                 height={30} 
