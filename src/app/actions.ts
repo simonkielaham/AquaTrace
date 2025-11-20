@@ -532,9 +532,10 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
     }
     
     const weatherSummary = { totalPrecipitation: 0, eventCount: 0 };
+    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
 
     // If we have data, fetch and process weather data
-    if (dataMap.size > 0 && minDate && maxDate) {
+    if (sortedData.length > 0 && minDate && maxDate) {
       try {
         const weatherCsv = await getWeatherData({
           latitude: asset.latitude,
@@ -546,12 +547,32 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
         if (weatherCsv) {
           const weatherData = Papa.parse(weatherCsv, { header: true, dynamicTyping: true }).data as {date: string, precipitation: number}[];
           
-          const sortedTimestamps = Array.from(dataMap.keys()).sort((a,b) => a - b);
+          let sensorDataIndex = 0;
+
+          // Aggregate precipitation onto the chart data
+          weatherData.forEach(weatherPoint => {
+              if (!weatherPoint.date || sensorDataIndex >= sortedData.length) return;
+              
+              const weatherTimestamp = new Date(weatherPoint.date).getTime();
+              const precipitation = weatherPoint.precipitation ?? 0;
+
+              // Find the correct sensor data "bucket" for this weather point
+              while (
+                  sensorDataIndex < sortedData.length - 1 &&
+                  sortedData[sensorDataIndex + 1].timestamp <= weatherTimestamp
+              ) {
+                  sensorDataIndex++;
+              }
+              
+              // Add precipitation to the current sensor data point
+              if (sortedData[sensorDataIndex]) {
+                  sortedData[sensorDataIndex].precipitation = (sortedData[sensorDataIndex].precipitation || 0) + precipitation;
+              }
+          });
           
           // Logic for precipitation event definition
           const MEASURABLE_RAIN_THRESHOLD = 0.2; // mm
           const DRY_PERIOD_HOURS = 6;
-          let inEvent = false;
           let lastRainTimestamp: number | null = null;
           
           weatherData.forEach(weatherPoint => {
@@ -563,7 +584,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
               if (precipitation >= MEASURABLE_RAIN_THRESHOLD) {
                   weatherSummary.totalPrecipitation += precipitation;
                   
-                  if (lastRainTimestamp) {
+                  if (lastRainTimestamp !== null) {
                       const hoursSinceLastRain = (currentTimestamp - lastRainTimestamp) / (1000 * 60 * 60);
                       if (hoursSinceLastRain >= DRY_PERIOD_HOURS) {
                           // This is a new event
@@ -571,17 +592,10 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                       }
                   } else {
                       // This is the very first measurable rain
-                      weatherSummary.eventCount += 1;
+                      weatherSummary.eventCount = 1;
                   }
                   
                   lastRainTimestamp = currentTimestamp;
-
-                  // Aggregate precipitation onto the chart data
-                  const nextSensorTimestamp = sortedTimestamps.find(ts => ts >= currentTimestamp);
-                  if (nextSensorTimestamp) {
-                      const pointToUpdate = dataMap.get(nextSensorTimestamp)!;
-                      pointToUpdate.precipitation = (pointToUpdate.precipitation || 0) + precipitation;
-                  }
               }
           });
         }
@@ -590,7 +604,6 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
       }
     }
     
-    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
     return { data: sortedData, weatherSummary };
 
   } catch (error) {
@@ -889,8 +902,3 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-
-    
-    
-
-    
