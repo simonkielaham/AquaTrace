@@ -23,8 +23,6 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
 } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
 import {
@@ -218,28 +216,6 @@ export default function PerformanceChart({
     return [dataMin - padding, dataMax + padding];
   }, [chartData, asset, loading, brushRange]);
 
-  const [mainLegendPayload, designLegendPayload] = React.useMemo(() => {
-    const mainPayload = [
-      { value: 'waterLevel', label: "Water Elevation", type: 'line', id: 'waterLevel', color: chartConfig.waterLevel.color },
-      { value: 'precipitation', label: "Precipitation", type: 'rect', id: 'precipitation', color: chartConfig.precipitation.color },
-      { value: 'elevation', label: "Survey Points", type: 'diamond', id: 'elevation', color: chartConfig.elevation.color },
-    ];
-    
-    const designPayload = [
-      { value: 'Permanent Pool', label: "Permanent Pool", type: 'line', id: 'Permanent Pool', color: chartConfig["Permanent Pool"].color },
-       ...asset.designElevations.map(de => ({
-            value: de.name,
-            label: de.name,
-            type: 'line',
-            id: de.name,
-            color: chartConfig[de.name].color
-        }))
-    ];
-
-    return [mainPayload, designPayload];
-
-  }, [asset.designElevations, chartConfig]);
-
 
   React.useEffect(() => {
     if (!loading) {
@@ -339,53 +315,8 @@ export default function PerformanceChart({
               cursor={false}
               content={
                 <ChartTooltipContent
-                  labelFormatter={(label) => {
-                    if (typeof label === 'number') {
-                      return new Date(label).toLocaleString();
-                    }
-                    return 'Invalid Date';
-                  }}
+                  labelFormatter={(label) => new Date(label as number).toLocaleString()}
                   indicator="dot"
-                  formatter={(value, name, item) => {
-                    const payload = item.payload as ChartablePoint;
-                    
-                    const precipitationItem = (payload.precipitation ?? 0) > 0 ? (
-                      <div className="flex items-center gap-2">
-                         <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-precipitation)'}}/>
-                         <span>Precipitation: {`${(payload.precipitation ?? 0).toFixed(2)}mm`}</span>
-                      </div>
-                    ) : null;
-
-                    const waterLevelItem = payload.waterLevel !== undefined ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-waterLevel)'}}/>
-                            <div className="flex flex-col items-start gap-1">
-                                <span className="font-bold">WATER ELEVATION: {`${payload.waterLevel.toFixed(3)}m`}</span>
-                                <span className={cn(
-                                  "text-xs",
-                                  payload.waterLevel >= asset.permanentPoolElevation ? "text-green-600 dark:text-green-500" : "text-destructive"
-                                )}>
-                                   ({(Math.abs(payload.waterLevel - asset.permanentPoolElevation) * 100).toFixed(1)}cm {payload.waterLevel >= asset.permanentPoolElevation ? 'above' : 'below'} PPE)
-                                </span>
-                            </div>
-                        </div>
-                      ) : null;
-                    
-                    const surveyPointItem = payload.elevation !== undefined ? (
-                         <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-elevation)'}}/>
-                          <span>Manual Survey: {`${payload.elevation.toFixed(3)}m`}</span>
-                        </div>
-                    ) : null;
-
-                    return (
-                      <>
-                        {waterLevelItem}
-                        {surveyPointItem}
-                        {precipitationItem}
-                      </>
-                    )
-                  }}
                 />
               }
             />
@@ -445,14 +376,7 @@ export default function PerformanceChart({
                     onBrushChange({startIndex: range.startIndex, endIndex: range.endIndex})
                 }}
             />
-            <Legend
-              content={
-                <div className="flex w-full flex-col items-center justify-center gap-1 pt-4">
-                  <ChartLegendContent payload={mainLegendPayload} />
-                  <ChartLegendContent payload={designLegendPayload} />
-                </div>
-              }
-            />
+            <Legend verticalAlign="bottom" wrapperStyle={{ paddingTop: '20px' }}/>
           </ComposedChart>
         </ChartContainer>
         {yZoomRange && Array.isArray(yAxisBounds) && typeof yAxisBounds[0] === 'number' && typeof yAxisBounds[1] === 'number' && (
@@ -533,5 +457,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    
