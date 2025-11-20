@@ -295,7 +295,8 @@ export default function PerformanceChart({
               tickMargin={8}
               type="number"
               domain={[0, 'dataMax']}
-              label={{ value: 'Precipitation (mm)', angle: -90, position: 'insideRight', offset: 10 }}
+              reversed={true}
+              label={{ value: 'Precipitation (mm)', angle: 90, position: 'insideRight', offset: 10 }}
             />
             <ChartTooltip
               cursor={false}
@@ -310,6 +311,14 @@ export default function PerformanceChart({
                   indicator="dot"
                   formatter={(value, name, item) => {
                     const payload = item.payload as ChartablePoint;
+                    
+                    const precipitationItem = (payload.precipitation ?? 0) > 0 ? (
+                      <div className="flex items-center gap-2">
+                         <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-precipitation)'}}/>
+                         <span>Precipitation: {`${(payload.precipitation ?? 0).toFixed(2)}mm`}</span>
+                      </div>
+                    ) : null;
+
                     const waterLevelItem = payload.waterLevel !== undefined ? (
                         <div className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-waterLevel)'}}/>
@@ -331,13 +340,6 @@ export default function PerformanceChart({
                           <span>Manual Survey: {`${payload.elevation.toFixed(3)}m`}</span>
                         </div>
                     ) : null;
-
-                     const precipitationItem = (payload.precipitation ?? 0) > 0 ? (
-                        <div className="flex items-center gap-2">
-                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-precipitation)'}}/>
-                           <span>Precipitation: {`${(payload.precipitation ?? 0).toFixed(2)}mm`}</span>
-                        </div>
-                      ) : null;
 
                     return (
                       <>
@@ -367,7 +369,6 @@ export default function PerformanceChart({
               dataKey="precipitation"
               fill="var(--color-precipitation)"
               name="Precipitation"
-              radius={[4, 4, 0, 0]}
             />
             <ReferenceLine
               yAxisId="left"
@@ -488,3 +489,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
