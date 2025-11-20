@@ -37,7 +37,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { AreaChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend } from "recharts";
+import { AreaChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter } from "recharts";
 import { getProcessedData as getProcessedDataAction, getSurveyPoints as getSurveyPointsAction } from "@/app/actions";
 import * as React from "react";
 import { cn } from "@/lib/utils";
@@ -145,7 +145,6 @@ export default function PerformanceChart({
   dataVersion,
 }: PerformanceChartProps) {
   const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
-  const [surveyPoints, setSurveyPoints] = React.useState<SurveyPoint[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedRange, setSelectedRange] = React.useState<{ startIndex: number; endIndex: number } | null>(null);
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
@@ -156,7 +155,7 @@ export default function PerformanceChart({
     if (loading) {
       return ['auto', 'auto'];
     }
-    
+
     const dataToConsider = selectedRange
       ? chartData.slice(selectedRange.startIndex, selectedRange.endIndex + 1)
       : chartData;
@@ -179,6 +178,7 @@ export default function PerformanceChart({
     const allElevations: number[] = dataToConsider.flatMap(d => {
         const points = [];
         if (d.waterLevel !== undefined) points.push(d.waterLevel);
+        if (d.elevation !== undefined) points.push(d.elevation);
         return points;
     });
 
@@ -186,7 +186,6 @@ export default function PerformanceChart({
     asset.designElevations.filter(de => de.elevation > 0).forEach(de => {
         allElevations.push(de.elevation);
     });
-     surveyPoints.forEach(p => allElevations.push(p.elevation));
     
     const validElevations = allElevations.filter(e => typeof e === 'number' && isFinite(e));
     if (validElevations.length === 0) {
@@ -199,7 +198,7 @@ export default function PerformanceChart({
     const padding = (dataMax - dataMin) * 0.1 || 1;
 
     return [dataMin - padding, dataMax + padding];
-  }, [chartData, surveyPoints, asset, loading, selectedRange]);
+  }, [chartData, asset, loading, selectedRange]);
 
 
   React.useEffect(() => {
@@ -216,17 +215,28 @@ export default function PerformanceChart({
     const fetchData = async () => {
       if (!asset.id) return;
       setLoading(true);
-      setChartData([]); // Reset data on asset change
-      setSurveyPoints([]);
       
-      const [processedData, surveyData] = await Promise.all([
+      const [processedData, surveyPoints] = await Promise.all([
         getProcessedDataAction(asset.id),
         getSurveyPointsAction(asset.id)
       ]);
       
       if (isMounted) {
-        setChartData(processedData);
-        setSurveyPoints(surveyData);
+        const dataMap = new Map<number, ChartablePoint>();
+        processedData.forEach(p => dataMap.set(p.timestamp, p));
+
+        surveyPoints.forEach(sp => {
+          // Ensure every survey point has a place on the timeline
+          if (!dataMap.has(sp.timestamp)) {
+             dataMap.set(sp.timestamp, { timestamp: sp.timestamp });
+          }
+          const point = dataMap.get(sp.timestamp)!;
+          point.elevation = sp.elevation; // Add the manual elevation
+        });
+
+        const combinedData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
+
+        setChartData(combinedData);
         setLoading(false);
         setSelectedRange(null); // Reset selection on data change
       }
@@ -254,7 +264,7 @@ export default function PerformanceChart({
     )
   }
 
-  if (chartData.length === 0 && surveyPoints.length === 0) {
+  if (chartData.length === 0) {
     return (
       <Card className="col-span-1 lg:col-span-4 shadow-sm">
         <CardHeader>
@@ -330,36 +340,43 @@ export default function PerformanceChart({
                   }}
                   indicator="dot"
                   formatter={(value, name, item) => {
-                    if (item.dataKey === 'waterLevel' && typeof value === 'number') {
-                      const diff = (value - asset.permanentPoolElevation);
-                      const isPositive = diff >= 0;
-                      const direction = isPositive ? 'above' : 'below';
-                      const diffText = `(${Math.abs(diff * 100).toFixed(1)}cm ${direction} permanent pool)`;
-
-                      return (
+                    const payload = item.payload as ChartablePoint;
+                    const waterLevelItem = payload.waterLevel !== undefined ? (
                         <div className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-waterLevel)'}}/>
                             <div className="flex flex-col items-start gap-1">
-                                <span className="font-bold">WATER ELEVATION: {`${value.toFixed(3)}m`}</span>
+                                <span className="font-bold">WATER ELEVATION: {`${payload.waterLevel.toFixed(3)}m`}</span>
                                 <span className={cn(
                                   "text-xs",
-                                  isPositive ? "text-green-600 dark:text-green-500" : "text-destructive"
+                                  payload.waterLevel >= asset.permanentPoolElevation ? "text-green-600 dark:text-green-500" : "text-destructive"
                                 )}>
-                                  {diffText}
+                                   ({(Math.abs(payload.waterLevel - asset.permanentPoolElevation) * 100).toFixed(1)}cm {payload.waterLevel >= asset.permanentPoolElevation ? 'above' : 'below'} PPE)
                                 </span>
                             </div>
                         </div>
-                      )
-                    }
-                     if (item.dataKey === 'precipitation' && typeof value === 'number' && value > 0) {
-                      return (
+                      ) : null;
+                    
+                    const surveyPointItem = payload.elevation !== undefined ? (
+                         <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-elevation)'}}/>
+                          <span>Manual Survey: {`${payload.elevation.toFixed(3)}m`}</span>
+                        </div>
+                    ) : null;
+
+                     const precipitationItem = (payload.precipitation ?? 0) > 0 ? (
                         <div className="flex items-center gap-2">
                            <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: 'var(--color-precipitation)'}}/>
-                           <span>Precipitation: {`${value.toFixed(2)}mm`}</span>
+                           <span>Precipitation: {`${(payload.precipitation ?? 0).toFixed(2)}mm`}</span>
                         </div>
-                      )
-                     }
-                    return null;
+                      ) : null;
+
+                    return (
+                      <>
+                        {waterLevelItem}
+                        {surveyPointItem}
+                        {precipitationItem}
+                      </>
+                    )
                   }}
                 />
               }
@@ -402,15 +419,13 @@ export default function PerformanceChart({
                 isFront
               />
             ))}
-            {surveyPoints.map((point) => (
-                <ReferenceLine 
-                    yAxisId="left"
-                    key={point.id} 
-                    x={point.timestamp} 
-                    stroke="hsl(var(--accent))" 
-                    strokeDasharray="3 3"
-                />
-            ))}
+            <Scatter 
+              yAxisId="left" 
+              dataKey="elevation" 
+              fill="var(--color-elevation)"
+              shape="diamond"
+              name="Survey Points"
+            />
             <Brush 
                 dataKey="timestamp" 
                 height={30} 
@@ -500,5 +515,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    
