@@ -98,7 +98,6 @@ const assignDatafileSchema = z.object({
   datetimeColumn: z.string({ required_error: "Please select the date/time column."}).min(1, "Please select the date/time column."),
   waterLevelColumn: z.string().optional(),
   precipitationColumn: z.string().optional(),
-  barometerColumn: z.string().optional(),
   sensorPressureColumn: z.string().optional(),
   temperatureColumn: z.string().optional(),
   startRow: z.coerce.number().min(1, "Start row must be at least 1."),
@@ -347,7 +346,6 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
         dataType: undefined,
         waterLevelColumn: undefined,
         precipitationColumn: undefined,
-        barometerColumn: undefined,
         sensorPressureColumn: undefined,
         temperatureColumn: undefined,
     });
@@ -574,23 +572,6 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
 
                     {dataType === "sensor-suite" && (
                         <>
-                         <FormField
-                            control={form.control}
-                            name="barometerColumn"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Barometer Column (Optional)</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
-                                    <FormControl>
-                                    <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                    {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                </FormItem>
-                            )}
-                            />
                             <FormField
                             control={form.control}
                             name="sensorPressureColumn"

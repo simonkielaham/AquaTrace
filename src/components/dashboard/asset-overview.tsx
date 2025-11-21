@@ -40,7 +40,6 @@ export default function AssetOverview({ asset, visibleElevations, onElevationVis
 
   const sensorDataOptions = [
       { key: 'temperature', label: 'Temperature', icon: Thermometer },
-      { key: 'barometer', label: 'Barometer', icon: Wind },
       { key: 'sensorPressure', label: 'Sensor Pressure', icon: Gauge },
   ];
 

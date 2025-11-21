@@ -53,7 +53,6 @@ export default function DashboardLayout() {
 
       setVisibleSensorData({
         temperature: false,
-        barometer: false,
         sensorPressure: false,
       });
       

@@ -99,7 +99,6 @@ export type ChartablePoint = {
     elevation?: number;
     precipitation?: number;
     dailyPrecipitation?: number;
-    barometer?: number;
     sensorPressure?: number;
     temperature?: number;
 }
