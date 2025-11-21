@@ -44,6 +44,7 @@ type PerformanceChartProps = {
   loading: boolean;
   brushRange?: { startIndex?: number; endIndex?: number };
   onBrushChange: (range: { startIndex?: number; endIndex?: number }) => void;
+  visibleElevations: Record<string, boolean>;
 };
 
 const AnalysisDialog = ({ 
@@ -208,6 +209,7 @@ export default function PerformanceChart({
   loading,
   brushRange,
   onBrushChange,
+  visibleElevations,
 }: PerformanceChartProps) {
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
   const [isDataTableOpen, setIsDataTableOpen] = React.useState(false);
@@ -257,10 +259,12 @@ export default function PerformanceChart({
       ? chartData.slice(brushRange.startIndex, brushRange.endIndex + 1)
       : chartData;
 
+    const visibleDesignElevations = asset.designElevations.filter(de => visibleElevations[de.name]);
+
     if (dataToConsider.length === 0) {
        const assetElevations = [
         asset.permanentPoolElevation,
-        ...asset.designElevations.filter(de => de.elevation > 0).map(de => de.elevation)
+        ...visibleDesignElevations.filter(de => de.elevation > 0).map(de => de.elevation)
       ].filter(e => typeof e === 'number' && isFinite(e));
       
       if (assetElevations.length === 0) return [0, 1];
@@ -279,7 +283,7 @@ export default function PerformanceChart({
     });
 
     allElevations.push(asset.permanentPoolElevation);
-    asset.designElevations.filter(de => de.elevation > 0).forEach(de => {
+    visibleDesignElevations.filter(de => de.elevation > 0).forEach(de => {
         allElevations.push(de.elevation);
     });
     
@@ -294,7 +298,7 @@ export default function PerformanceChart({
     const padding = (dataMax - dataMin) * 0.1 || 1;
 
     return [dataMin - padding, dataMax + padding];
-  }, [chartData, asset, loading, brushRange]);
+  }, [chartData, asset, loading, brushRange, visibleElevations]);
 
 
   React.useEffect(() => {
@@ -453,16 +457,21 @@ export default function PerformanceChart({
               strokeWidth={2}
               isFront
             />
-            {asset.designElevations.map(de => (
-              <ReferenceLine
-                yAxisId="left"
-                key={de.name}
-                y={de.elevation}
-                stroke={chartConfig[de.name]?.color}
-                strokeDasharray="3 3"
-                isFront
-              />
-            ))}
+            {asset.designElevations.map(de => {
+              if (visibleElevations[de.name]) {
+                return (
+                  <ReferenceLine
+                    yAxisId="left"
+                    key={de.name}
+                    y={de.elevation}
+                    stroke={chartConfig[de.name]?.color}
+                    strokeDasharray="3 3"
+                    isFront
+                  />
+                )
+              }
+              return null;
+            })}
             <Brush 
                 dataKey="timestamp" 
                 height={30} 

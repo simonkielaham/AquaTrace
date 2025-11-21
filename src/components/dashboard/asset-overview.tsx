@@ -9,9 +9,13 @@ import { EditAssetDialog, DeleteAssetDialog } from "@/app/asset-management/page"
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import React from 'react';
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 type AssetOverviewProps = {
   asset: Asset;
+  visibleElevations: Record<string, boolean>;
+  onElevationVisibilityChange: (name: string, visible: boolean) => void;
 };
 
 const statusVariantMap = {
@@ -20,7 +24,7 @@ const statusVariantMap = {
   error: "destructive",
 } as const;
 
-export default function AssetOverview({ asset }: AssetOverviewProps) {
+export default function AssetOverview({ asset, visibleElevations, onElevationVisibilityChange }: AssetOverviewProps) {
   const router = useRouter();
   const [_, startTransition] = React.useTransition();
   
@@ -99,11 +103,19 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
             </div>
             <div className="space-y-2">
               <h4 className="font-semibold text-sm">Design Elevations</h4>
-              <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                 {sortedDesignElevations.map((de) => (
-                  <div key={de.name} className="flex justify-between rounded-md bg-muted/50 p-2">
-                    <span className="text-muted-foreground">{de.name}:</span>
-                    <span className="font-semibold">{de.elevation.toFixed(2)}m</span>
+                  <div key={de.name} className="flex items-center justify-between rounded-md bg-muted/50 p-2 pr-3">
+                    <div className="flex flex-col">
+                        <span className="text-muted-foreground">{de.name}:</span>
+                        <span className="font-semibold">{de.elevation.toFixed(2)}m</span>
+                    </div>
+                     <Switch
+                        id={`switch-${de.name}`}
+                        checked={visibleElevations[de.name]}
+                        onCheckedChange={(checked) => onElevationVisibilityChange(de.name, checked)}
+                        aria-label={`Toggle ${de.name} visibility`}
+                    />
                   </div>
                 ))}
               </div>
@@ -114,5 +126,3 @@ export default function AssetOverview({ asset }: AssetOverviewProps) {
     </Card>
   );
 }
-
-    

@@ -27,6 +27,7 @@ export default function DashboardLayout() {
   const [weatherSummary, setWeatherSummary] = React.useState<WeatherSummary | null>(null);
   const [isChartLoading, setIsChartLoading] = React.useState(true);
   const [chartBrushRange, setChartBrushRange] = React.useState<{startIndex?: number, endIndex?: number}>({});
+  const [visibleElevations, setVisibleElevations] = React.useState<Record<string, boolean>>({});
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   
@@ -36,6 +37,16 @@ export default function DashboardLayout() {
       setSelectedAssetId(assets[0].id);
     }
   }, [selectedAssetId, assets, setSelectedAssetId, loading]);
+
+  React.useEffect(() => {
+    if (selectedAsset) {
+      const initialVisibility = selectedAsset.designElevations.reduce((acc, de) => {
+        acc[de.name] = true;
+        return acc;
+      }, {} as Record<string, boolean>);
+      setVisibleElevations(initialVisibility);
+    }
+  }, [selectedAsset]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -105,6 +116,9 @@ export default function DashboardLayout() {
     
   }, [chartData]);
 
+  const handleElevationVisibilityChange = (name: string, visible: boolean) => {
+    setVisibleElevations(prev => ({ ...prev, [name]: visible }));
+  };
 
   if (loading) {
      return (
@@ -156,13 +170,18 @@ export default function DashboardLayout() {
           <PageHeader />
           <main className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <div className="flex flex-col gap-6">
-              <AssetOverview asset={selectedAsset} />
+              <AssetOverview 
+                asset={selectedAsset} 
+                visibleElevations={visibleElevations}
+                onElevationVisibilityChange={handleElevationVisibilityChange}
+              />
               <PerformanceChart 
                 asset={selectedAsset} 
                 chartData={chartData}
                 loading={isChartLoading}
                 brushRange={chartBrushRange}
                 onBrushChange={setChartBrushRange}
+                visibleElevations={visibleElevations}
               />
               <AnalysisResults 
                 weatherSummary={weatherSummary} 
