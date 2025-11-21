@@ -82,7 +82,7 @@ type AnalysisFormValues = z.infer<typeof analysisFormSchema>;
 
 
 function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
-  const { saveAnalysis, selectedAssetId } = useAssets();
+  const { saveAnalysis } = useAssets();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = React.useState(false);
   
@@ -107,8 +107,6 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
 
 
   const handleSave = async (data: AnalysisFormValues) => {
-    if (!selectedAssetId) return;
-
     setIsSaving(true);
     toast({
       title: "Saving analysis...",
@@ -119,7 +117,7 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
       ...data,
     };
 
-    const result = await saveAnalysis(selectedAssetId, analysisData);
+    const result = await saveAnalysis(analysisData);
 
     if (result?.errors) {
        const errorMessages = Object.values(result.errors).flat().join('\n');
@@ -453,5 +451,3 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
     </Card>
   );
 }
-
-    

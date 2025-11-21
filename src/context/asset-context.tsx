@@ -56,7 +56,7 @@ interface AssetContextType {
   reassignDatafile: (formData: FormData) => Promise<any>;
   unassignDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   deleteDatafile: (deploymentId: string, fileId: string) => Promise<any>;
-  saveAnalysis: (assetId: string, data: SavedAnalysisData & { eventId: string }) => Promise<any>;
+  saveAnalysis: (data: SavedAnalysisData & { eventId: string }) => Promise<any>;
   getOverallAnalysis: (assetId: string) => Promise<OverallAnalysisData | null>;
   saveOverallAnalysis: (data: any) => Promise<any>;
   loading: boolean;
@@ -72,6 +72,7 @@ interface AssetContextType {
   dataVersion: number;
   assetData: { [assetId: string]: { data: ChartablePoint[], weatherSummary: WeatherSummary | null, loading?: boolean } };
   fetchAssetData: (assetId: string) => Promise<void>;
+  incrementDataVersion: () => void;
 }
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
@@ -345,7 +346,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [incrementDataVersion]);
 
-  const saveAnalysis = useCallback(async (assetId: string, data: SavedAnalysisData & { eventId: string }) => {
+  const saveAnalysis = useCallback(async (data: SavedAnalysisData & { eventId: string }) => {
     try {
       const result = await saveAnalysisAction(data);
       if (result && !result.errors) {
@@ -487,6 +488,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     dataVersion,
     assetData,
     fetchAssetData,
+    incrementDataVersion,
   };
 
   return <AssetContext.Provider value={value}>{children}</AssetContext.Provider>;
@@ -499,5 +501,3 @@ export const useAssets = (): AssetContextType => {
   }
   return context;
 };
-
-    
