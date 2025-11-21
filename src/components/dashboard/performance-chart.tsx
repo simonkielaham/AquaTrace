@@ -433,13 +433,11 @@ export default function PerformanceChart({
               isAnimationActive={false}
               dot={false}
             />
-             <Area
+             <Bar
               yAxisId="right"
               dataKey="precipitation"
-              type="monotone"
               fill="var(--color-precipitation)"
-              fillOpacity={0.4}
-              stroke="var(--color-precipitation)"
+              fillOpacity={0.6}
               name="Precipitation"
               isAnimationActive={false}
             />
@@ -570,3 +568,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
