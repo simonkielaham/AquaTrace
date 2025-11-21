@@ -53,7 +53,7 @@ export default function PageHeader() {
         missingOverallFields.push("Complete the 'Overall Asset Analysis' section.");
     } else {
         if (!overallAnalysis.permanentPoolPerformance) missingOverallFields.push("Permanent Pool Performance");
-        if (!overallAnalysis.estimatedControlElevation) missingOverallFields.push("Estimated Control Elevation");
+        if (overallAnalysis.estimatedControlElevation === undefined || overallAnalysis.estimatedControlElevation === null) missingOverallFields.push("Estimated Control Elevation");
         if (!overallAnalysis.rainResponse) missingOverallFields.push("Response to Rain Events");
         if (!overallAnalysis.furtherInvestigation) missingOverallFields.push("Further Investigation");
         if (!overallAnalysis.summary) missingOverallFields.push("Analysis Summary");
@@ -149,5 +149,3 @@ export default function PageHeader() {
     </header>
   );
 }
-
-    
