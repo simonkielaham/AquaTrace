@@ -345,7 +345,7 @@ export default function PerformanceChart({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[400px] flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">
+          <div className="h-[450px] flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">
             <p>Loading chart data for {asset.name}...</p>
           </div>
         </CardContent>
@@ -363,7 +363,7 @@ export default function PerformanceChart({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[400px] flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">
+          <div className="h-[450px] flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">
               <div className="text-center">
                   <BarChart className="mx-auto h-8 w-8 mb-2" />
                   <p>No performance data available.</p>
@@ -417,7 +417,7 @@ export default function PerformanceChart({
               axisLine={false}
               tickMargin={8}
               type="number"
-              domain={[0, 'dataMax']}
+              domain={[0, (dataMax: number) => Math.max(1, dataMax * 1.1)]}
               reversed={true}
               tickFormatter={(value) => (value as number).toFixed(0)}
               label={{ value: 'Precipitation (mm)', angle: 90, position: 'right', offset: 15 }}
