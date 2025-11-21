@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { WeatherSummary, AnalysisPeriod } from "@/lib/placeholder-data";
@@ -17,10 +18,11 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2 } from "lucide-react";
+import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit } from "lucide-react";
 import { format, formatDistance } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAssets } from "@/context/asset-context";
@@ -60,14 +62,24 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
   const { toast } = useToast();
   const [notes, setNotes] = React.useState(event.analysis?.notes || "");
   const [status, setStatus] = React.useState(event.analysis?.status || "normal");
+  const [analystInitials, setAnalystInitials] = React.useState(event.analysis?.analystInitials || "");
   const [isSaving, setIsSaving] = React.useState(false);
 
   React.useEffect(() => {
     setNotes(event.analysis?.notes || "");
     setStatus(event.analysis?.status || "normal");
+    setAnalystInitials(event.analysis?.analystInitials || "");
   }, [event.id, event.analysis, dataVersion]);
 
   const handleSave = async () => {
+    if (!analystInitials) {
+        toast({
+            variant: "destructive",
+            title: "Validation Error",
+            description: "Analyst initials are required to save."
+        });
+        return;
+    }
     setIsSaving(true);
     toast({
       title: "Saving analysis...",
@@ -77,9 +89,17 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
       eventId: event.id,
       notes: notes,
       status: status,
+      analystInitials: analystInitials,
     });
 
-    if (result.message.startsWith('Error:')) {
+    if (result?.errors) {
+       const errorMessages = Object.values(result.errors).flat().join('\n');
+       toast({
+        variant: "destructive",
+        title: "Error Saving Analysis",
+        description: errorMessages
+      });
+    } else if (result?.message && result.message.startsWith('Error:')) {
       toast({
         variant: "destructive",
         title: "Error Saving Analysis",
@@ -88,7 +108,7 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
     } else {
        toast({
         title: "Analysis Saved",
-        description: `Your notes and status for this event have been saved.`
+        description: `Your analysis for this event have been saved.`
       });
     }
 
@@ -208,7 +228,20 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                         </div>
                     </RadioGroup>
                 </div>
-                <Button className="w-full" onClick={handleSave} disabled={isSaving}>
+                <div className="p-4 border bg-background rounded-lg">
+                     <p className="font-medium text-sm mb-2">Analyst Sign-off</p>
+                     <div className="relative">
+                        <Edit className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            placeholder="Enter your initials..."
+                            value={analystInitials}
+                            onChange={(e) => setAnalystInitials(e.target.value.toUpperCase())}
+                            className="pl-10"
+                            maxLength={5}
+                        />
+                     </div>
+                </div>
+                <Button className="w-full" onClick={handleSave} disabled={isSaving || !analystInitials}>
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                     Save Analysis
                 </Button>
@@ -257,6 +290,8 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                 const postEventDiff = event.analysis?.postEventElevation && event.analysis?.baselineElevation
                     ? event.analysis.postEventElevation - event.analysis.baselineElevation
                     : undefined;
+
+                const isReviewed = !!event.analysis?.analystInitials;
                     
                 return (
                     <AccordionItem value={event.id} key={event.id} className="border rounded-lg bg-background">
@@ -265,7 +300,10 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                             onClick={() => onSelectEvent(event.startDate, event.endDate)}
                         >
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-left flex-1 items-center text-sm">
-                                 <div className="font-medium">{format(new Date(event.startDate), 'Pp')}</div>
+                                 <div className="font-medium flex items-center gap-2">
+                                    {isReviewed && <CheckCircle className="h-4 w-4 text-green-500" />}
+                                    {format(new Date(event.startDate), 'Pp')}
+                                 </div>
                                  <div>{formatDuration(event.startDate, event.endDate)}</div>
                                  <div className="flex items-center gap-2">
                                     <Droplets className="h-4 w-4 text-blue-400" />

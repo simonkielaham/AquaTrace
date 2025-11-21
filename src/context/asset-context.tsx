@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
@@ -46,7 +47,7 @@ interface AssetContextType {
   assignDatafileToDeployment: (formData: FormData) => Promise<any>;
   unassignDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   deleteDatafile: (deploymentId: string, fileId: string) => Promise<any>;
-  saveAnalysis: (data: { eventId: string; notes?: string; status?: "normal" | "not_normal" | "holding_water" | "leaking"; }) => Promise<any>;
+  saveAnalysis: (data: { eventId: string; notes?: string; status?: "normal" | "not_normal" | "holding_water" | "leaking"; analystInitials: string; }) => Promise<any>;
   loading: boolean;
   stagedFiles: StagedFile[];
   loadingStagedFiles: boolean;
@@ -289,7 +290,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [incrementDataVersion]);
 
-  const saveAnalysis = useCallback(async (data: { eventId: string; notes?: string; status?: "normal" | "not_normal" | "holding_water" | "leaking"; }) => {
+  const saveAnalysis = useCallback(async (data: { eventId: string; notes?: string; status?: "normal" | "not_normal" | "holding_water" | "leaking"; analystInitials: string; }) => {
       try {
         const result = await saveAnalysisAction(data);
         if (result && !result.errors) {

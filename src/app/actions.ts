@@ -78,6 +78,7 @@ const saveAnalysisSchema = z.object({
   eventId: z.string(),
   notes: z.string().optional(),
   status: z.enum(["normal" , "not_normal" , "holding_water" , "leaking"]).optional(),
+  analystInitials: z.string().min(1, "Analyst initials are required."),
 });
 
 
@@ -777,6 +778,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
               if (savedEventAnalysis) {
                   analysis.notes = savedEventAnalysis.notes;
                   analysis.status = savedEventAnalysis.status;
+                  analysis.analystInitials = savedEventAnalysis.analystInitials;
               }
 
               event.analysis = analysis;
@@ -801,14 +803,15 @@ export async function saveAnalysis(data: any) {
     return response;
   }
 
-  const { eventId, notes, status } = validatedFields.data;
+  const { eventId, notes, status, analystInitials } = validatedFields.data;
 
   try {
     const allAnalysis = await readJsonFile<{[key: string]: SavedAnalysisData}>(analysisResultsFilePath);
     
     allAnalysis[eventId] = {
       notes,
-      status
+      status,
+      analystInitials
     };
 
     await writeJsonFile(analysisResultsFilePath, allAnalysis);

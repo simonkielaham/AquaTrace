@@ -68,6 +68,7 @@ export type AnalysisResult = {
 export type SavedAnalysisData = {
     notes?: string;
     status?: "normal" | "not_normal" | "holding_water" | "leaking";
+    analystInitials?: string;
 }
 
 export type AnalysisPeriod = {
@@ -87,6 +88,7 @@ export type AnalysisPeriod = {
         estimatedTrueBaseline?: number;
         notes?: string;
         status?: "normal" | "not_normal" | "holding_water" | "leaking";
+        analystInitials?: string;
     }
 }
 
