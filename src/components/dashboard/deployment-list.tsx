@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { Deployment, Asset, DataFile, StagedFile } from "@/lib/placeholder-data";
@@ -408,6 +407,18 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
     }
   }
 
+  const SanitizeCell = ({ cell }: { cell: string }) => {
+    const cellRef = React.useRef<HTMLTableCellElement>(null);
+    React.useEffect(() => {
+        if(cellRef.current) {
+            cellRef.current.textContent = cell;
+        }
+    }, [cell]);
+
+    return <TableCell ref={cellRef} className="whitespace-nowrap" />;
+  }
+
+
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -455,8 +466,8 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                           First 10 rows of data from {selectedFilename}.
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className="border rounded-md p-0">
-                        <div className="h-48 overflow-auto">
+                      <CardContent className="h-48 border rounded-md">
+                        <div className="overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -469,12 +480,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                               {csvPreview.map((row, i) => (
                                 <TableRow key={i}>
                                   {row.map((cell, j) => (
-                                    <TableCell
-                                      key={j}
-                                      className="whitespace-nowrap"
-                                    >
-                                      {cell}
-                                    </TableCell>
+                                    <SanitizeCell key={j} cell={cell} />
                                   ))}
                                 </TableRow>
                               ))}
@@ -903,3 +909,5 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
+
+    
