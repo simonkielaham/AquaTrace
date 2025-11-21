@@ -440,7 +440,12 @@ export default function PerformanceChart({
       <CardContent>
        <div className="w-full flex gap-4">
         <ChartContainer config={chartConfig} className="h-[450px] w-full flex-1">
-          <ComposedChart data={chartData} margin={{ top: 5, right: 50, left: 20, bottom: 90 }}>
+          <ComposedChart
+            data={chartData}
+            margin={{ top: 5, right: 50, left: 20, bottom: 90 }}
+            allowDataOverflow={true}
+            syncMethod="index"
+          >
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="timestamp"
@@ -485,7 +490,6 @@ export default function PerformanceChart({
               type="number"
               domain={sensorDomains.temperature}
               hide={!visibleSensorData.temperature}
-              label={{ value: 'Temp (°C)', angle: 90, position: 'insideRight', offset: 15 }}
             />
              <YAxis
               yAxisId="pressure"
@@ -497,7 +501,6 @@ export default function PerformanceChart({
               type="number"
               domain={sensorDomains.sensorPressure}
               hide={!visibleSensorData.sensorPressure}
-              label={{ value: 'Pressure (kPa)', angle: 90, position: 'insideRight', offset: 35 }}
             />
             <YAxis
               yAxisId="barometer"
@@ -509,7 +512,6 @@ export default function PerformanceChart({
               type="number"
               domain={sensorDomains.barometer}
               hide={!visibleSensorData.barometer}
-              label={{ value: 'Barometer (kPa)', angle: 90, position: 'insideRight', offset: 55 }}
             />
             <ChartTooltip
               cursor={false}
