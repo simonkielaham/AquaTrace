@@ -65,6 +65,20 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
   const timeToBaseline = "Not implemented";
   const drawdownAnalysis = "Not implemented";
   const estimatedBaseline = "Not implemented";
+
+  const peakDiff = React.useMemo(() => {
+    if (event.analysis?.peakElevation && event.analysis?.baselineElevation) {
+      return event.analysis.peakElevation - event.analysis.baselineElevation;
+    }
+    return undefined;
+  }, [event.analysis]);
+
+  const postEventDiff = React.useMemo(() => {
+    if (event.analysis?.postEventElevation && event.analysis?.baselineElevation) {
+      return event.analysis.postEventElevation - event.analysis.baselineElevation;
+    }
+    return undefined;
+  }, [event.analysis]);
   
   const overallAssessment = React.useMemo(() => {
     if(event.analysis?.postEventElevation && event.analysis?.baselineElevation) {
@@ -102,7 +116,7 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                     unit="m"
                     icon={TrendingUp}
                     iconColor="text-destructive"
-                    subValue="During event + 48hrs"
+                    subValue={peakDiff !== undefined ? `${peakDiff > 0 ? '+' : ''}${peakDiff.toFixed(2)}m from baseline` : "During event + 48hrs"}
                  />
                  <MetricCard 
                     title="Post-Event Elevation"
@@ -110,7 +124,7 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                     unit="m"
                     icon={TrendingDown}
                     iconColor="text-green-500"
-                    subValue="48 hours after event"
+                    subValue={postEventDiff !== undefined ? `${postEventDiff > 0 ? '+' : ''}${postEventDiff.toFixed(2)}m from baseline` : "48 hours after event"}
                  />
                 <div className="p-3 border rounded-lg col-span-full">
                     <p className="text-sm font-semibold">Detailed Analysis</p>
@@ -202,40 +216,66 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
       </CardHeader>
       <CardContent>
         <Accordion type="multiple" className="space-y-2">
-            {weatherSummary.events.map((event) => (
-            <AccordionItem value={event.id} key={event.id} className="border rounded-lg bg-background">
-                <AccordionTrigger 
-                    className="p-4 hover:no-underline"
-                    onClick={() => onSelectEvent(event.startDate, event.endDate)}
-                >
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-left flex-1 items-center text-sm">
-                         <div className="font-medium">{format(new Date(event.startDate), 'Pp')}</div>
-                         <div>{formatDuration(event.startDate, event.endDate)}</div>
-                         <div className="flex items-center gap-2">
-                            <Droplets className="h-4 w-4 text-blue-400" />
-                            <span>{event.totalPrecipitation.toFixed(2)} mm</span>
-                         </div>
-                         <div className="hidden md:flex items-center gap-2">
-                            <TrendingUp className="h-4 w-4 text-destructive" />
-                            <span>{event.analysis?.peakElevation?.toFixed(2) ?? '-'} m</span>
-                         </div>
-                        <div className={cn(
-                            "hidden md:flex items-center gap-2",
-                            event.analysis?.postEventElevation && event.analysis?.baselineElevation && (event.analysis.postEventElevation > event.analysis.baselineElevation + 0.05) ? "text-destructive" : "text-green-600"
-                        )}>
-                            <TrendingDown className="h-4 w-4" />
-                            <span>{event.analysis?.postEventElevation?.toFixed(2) ?? '-'} m</span>
-                        </div>
-                    </div>
-                    <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-4" />
-                </AccordionTrigger>
-                <AccordionContent>
-                    <EventAnalysisDetails event={event} />
-                </AccordionContent>
-            </AccordionItem>
-            ))}
+            {weatherSummary.events.map((event) => {
+                const peakDiff = event.analysis?.peakElevation && event.analysis?.baselineElevation
+                    ? event.analysis.peakElevation - event.analysis.baselineElevation
+                    : undefined;
+
+                const postEventDiff = event.analysis?.postEventElevation && event.analysis?.baselineElevation
+                    ? event.analysis.postEventElevation - event.analysis.baselineElevation
+                    : undefined;
+                    
+                return (
+                    <AccordionItem value={event.id} key={event.id} className="border rounded-lg bg-background">
+                        <AccordionTrigger 
+                            className="p-4 hover:no-underline"
+                            onClick={() => onSelectEvent(event.startDate, event.endDate)}
+                        >
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-left flex-1 items-center text-sm">
+                                 <div className="font-medium">{format(new Date(event.startDate), 'Pp')}</div>
+                                 <div>{formatDuration(event.startDate, event.endDate)}</div>
+                                 <div className="flex items-center gap-2">
+                                    <Droplets className="h-4 w-4 text-blue-400" />
+                                    <span>{event.totalPrecipitation.toFixed(2)} mm</span>
+                                 </div>
+                                 <div className="hidden md:flex items-center gap-2">
+                                    <TrendingUp className="h-4 w-4 text-destructive" />
+                                    <div className="flex flex-col items-start">
+                                      <span>{event.analysis?.peakElevation?.toFixed(2) ?? '-'} m</span>
+                                      {peakDiff !== undefined && (
+                                        <span className="text-xs text-destructive/80 font-mono">
+                                            {peakDiff > 0 ? '+' : ''}{peakDiff.toFixed(2)}m
+                                        </span>
+                                      )}
+                                    </div>
+                                 </div>
+                                <div className={cn(
+                                    "hidden md:flex items-center gap-2",
+                                    postEventDiff !== undefined && postEventDiff > 0.05 ? "text-destructive" : "text-green-600"
+                                )}>
+                                    <TrendingDown className="h-4 w-4" />
+                                    <div className="flex flex-col items-start">
+                                        <span>{event.analysis?.postEventElevation?.toFixed(2) ?? '-'} m</span>
+                                        {postEventDiff !== undefined && (
+                                            <span className={cn("text-xs font-mono", postEventDiff > 0.05 ? "text-destructive/80" : "text-green-600/80")}>
+                                               {postEventDiff > 0 ? '+' : ''}{postEventDiff.toFixed(2)}m
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-4" />
+                        </AccordionTrigger>
+                        <AccordionContent>
+                            <EventAnalysisDetails event={event} />
+                        </AccordionContent>
+                    </AccordionItem>
+                )
+            })}
         </Accordion>
       </CardContent>
     </Card>
   );
 }
+
+    
