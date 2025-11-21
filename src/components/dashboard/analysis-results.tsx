@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import type { WeatherSummary, AnalysisPeriod } from "@/lib/placeholder-data";
@@ -311,7 +309,7 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-left flex-1 items-center text-sm">
                                  <div className="font-medium flex items-center gap-2">
                                     {isReviewed && <CheckCircle className="h-4 w-4 text-green-500" title="Reviewed"/>}
-                                    {format(new Date(event.startDate), 'Pp')}
+                                    {format(new Date(event.startDate), "Pp")}
                                  </div>
                                  <div>{formatDuration(event.startDate, event.endDate)}</div>
                                  <div className="flex items-center gap-2">

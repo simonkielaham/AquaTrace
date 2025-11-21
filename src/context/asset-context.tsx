@@ -62,7 +62,7 @@ interface AssetContextType {
   getSurveyPoints: (assetId: string) => Promise<SurveyPoint[]>;
   dataVersion: number;
   assetData: { [assetId: string]: { data: any[], weatherSummary: WeatherSummary | null } };
-  fetchAssetData: (assetId: string) => void;
+  fetchAssetData: (assetId: string) => Promise<void>;
 }
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
@@ -311,50 +311,40 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   }, [incrementDataVersion]);
 
   const saveAnalysis = useCallback(async (assetId: string, data: SavedAnalysisData & { eventId: string }) => {
-      try {
+    try {
         const result = await saveAnalysisAction(data);
         if (result && !result.errors) {
-            // Manually update the local state to avoid a full refresh race condition
+            // Instead of a full refetch, lets update the local data optimistically
             setAssetData(prev => {
-                const currentAssetData = prev[assetId];
-                if (!currentAssetData || !currentAssetData.weatherSummary) return prev;
-
-                const updatedEvents = currentAssetData.weatherSummary.events.map(event => {
-                    if (event.id === data.eventId) {
-                        return {
-                            ...event,
+                const newAssetData = { ...prev };
+                const currentAsset = newAssetData[assetId];
+                if (currentAsset && currentAsset.weatherSummary) {
+                    const eventIndex = currentAsset.weatherSummary.events.findIndex(e => e.id === data.eventId);
+                    if (eventIndex > -1) {
+                        const updatedEvent = { 
+                            ...currentAsset.weatherSummary.events[eventIndex],
                             analysis: {
-                                ...event.analysis,
+                                ...currentAsset.weatherSummary.events[eventIndex].analysis,
                                 notes: data.notes,
                                 status: data.status,
                                 analystInitials: data.analystInitials
                             }
-                        }
-                    }
-                    return event;
-                });
-                
-                return {
-                    ...prev,
-                    [assetId]: {
-                        ...currentAssetData,
-                        weatherSummary: {
-                            ...currentAssetData.weatherSummary,
-                            events: updatedEvents
-                        }
+                        };
+                        currentAsset.weatherSummary.events[eventIndex] = updatedEvent;
                     }
                 }
+                return newAssetData;
             });
-            // We can still increment this to ensure other parts of the app update if needed,
-            // but our primary update is now manual and immediate.
-            incrementDataVersion();
+            // We still increment data version to ensure background consistency if needed, but UI is instant
+             incrementDataVersion();
         }
         return result;
-      } catch (error) {
-          const message = await getErrorMessage(error);
-          return { message: `Error: ${message}` };
-      }
+    } catch (error) {
+        const message = await getErrorMessage(error);
+        return { message: `Error: ${message}` };
+    }
   }, [incrementDataVersion]);
+
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
     try {
@@ -382,52 +372,56 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [fetchStagedFiles]);
 
-  const getStagedFileContent = useCallback(async (filename: string): Promise<string | null> => {
+  const getStagedFileContent = useCallback(async (filename: string) => {
     try {
-        return await getStagedFileContentAction(filename);
+      return await getStagedFileContentAction(filename);
     } catch (error) {
-        console.error("Error fetching staged file content in context:", error);
-        return null;
+      const message = await getErrorMessage(error);
+      console.error(message);
+      return null;
     }
   }, []);
 
   const addSurveyPoint = useCallback(async (assetId: string, data: any) => {
     try {
       const result = await addSurveyPointAction(assetId, data);
-      if(result.newPoint) {
+      if (result && !result.errors) {
         incrementDataVersion();
       }
       return result;
-    } catch (error) {
-       const message = await getErrorMessage(error);
-       return { message: `Error: ${message}` };
+    } catch(error) {
+        const message = await getErrorMessage(error);
+        return { message: `Error: ${message}` };
     }
   }, [incrementDataVersion]);
 
   const deleteSurveyPoint = useCallback(async (pointId: string) => {
-    try {
+     try {
       const result = await deleteSurveyPointAction(pointId);
-      if(!result.message.startsWith('Error:')) {
+      if (result && !result.message.startsWith('Error:')) {
         incrementDataVersion();
       }
       return result;
-    } catch (error) {
-       const message = await getErrorMessage(error);
-       return { message: `Error: ${message}` };
+    } catch(error) {
+        const message = await getErrorMessage(error);
+        return { message: `Error: ${message}` };
     }
   }, [incrementDataVersion]);
 
+  const getSurveyPoints = useCallback(async (assetId: string) => {
+    return await getSurveyPointsAction(assetId);
+  }, []);
 
-  const value: AssetContextType = {
+  const value = {
     assets,
     selectedAssetId,
     setSelectedAssetId: handleSetSelectedAssetId,
     deployments,
     createAsset,
     updateAsset,
-    updateDeployment,
     deleteAsset,
     createDeployment,
+    updateDeployment,
     downloadLogs,
     assignDatafileToDeployment,
     unassignDatafile,
@@ -441,20 +435,16 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     getStagedFileContent,
     addSurveyPoint,
     deleteSurveyPoint,
-    getSurveyPoints: getSurveyPointsAction,
+    getSurveyPoints,
     dataVersion,
     assetData,
     fetchAssetData,
   };
 
-  return (
-    <AssetContext.Provider value={value}>
-      {children}
-    </AssetContext.Provider>
-  );
+  return <AssetContext.Provider value={value}>{children}</AssetContext.Provider>;
 };
 
-export const useAssets = () => {
+export const useAssets = (): AssetContextType => {
   const context = useContext(AssetContext);
   if (context === undefined) {
     throw new Error('useAssets must be used within an AssetProvider');

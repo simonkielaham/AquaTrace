@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import { promises as fs } from 'fs';
@@ -715,9 +713,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
           weatherSummary.events = significantEvents;
 
           weatherSummary.events.forEach(event => {
-              const startDateString = new Date(event.startDate).toISOString().split('T')[0];
-              const assetNameString = asset.name.replace(/[^a-zA-Z0-9]/g, '_');
-              event.id = `${assetNameString}-${startDateString}-${event.totalPrecipitation.toFixed(2)}mm`;
+              event.id = `${event.assetId}-${event.startDate}`;
 
               event.dataPoints = sortedData.filter(d => d.timestamp >= event.startDate && d.timestamp <= event.endDate);
               
