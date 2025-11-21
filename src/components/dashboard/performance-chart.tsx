@@ -222,23 +222,27 @@ export default function PerformanceChart({
     }
   }, [yAxisBounds, loading]);
   
-  const legendPayload = React.useMemo(() => {
-    const payload = [
+  const { mainLegendPayload, designLegendPayload } = React.useMemo(() => {
+    const mainPayload = [
       { value: 'Water Elevation', type: 'area', id: 'waterLevel', color: chartConfig.waterLevel.color },
       { value: 'Precipitation', type: 'bar', id: 'precipitation', color: chartConfig.precipitation.color },
       { value: 'Survey Points', type: 'scatter', id: 'elevation', color: chartConfig.elevation.color },
-      { value: 'Permanent Pool', type: 'line', id: 'permanentPool', color: chartConfig['Permanent Pool'].color },
     ];
+  
+    const allDesignElevations = [
+      { name: 'Permanent Pool', elevation: asset.permanentPoolElevation },
+      ...asset.designElevations,
+    ].sort((a, b) => a.elevation - b.elevation);
 
-    const designElevationsPayload = asset.designElevations.map(de => ({
+    const designPayload = allDesignElevations.map(de => ({
       value: de.name,
       type: 'line',
       id: de.name,
       color: chartConfig[de.name]?.color,
     }));
 
-    return payload.concat(designElevationsPayload);
-  }, [asset.designElevations, chartConfig]);
+    return { mainLegendPayload: mainPayload, designLegendPayload: designPayload };
+  }, [asset.designElevations, asset.permanentPoolElevation, chartConfig]);
 
 
   if (loading) {
@@ -291,8 +295,8 @@ export default function PerformanceChart({
       </CardHeader>
       <CardContent>
        <div className="w-full flex gap-4">
-        <ChartContainer config={chartConfig} className="h-[400px] w-full flex-1">
-          <ComposedChart data={chartData} margin={{ top: 5, right: 50, left: 20, bottom: 50 }}>
+        <ChartContainer config={chartConfig} className="h-[450px] w-full flex-1">
+          <ComposedChart data={chartData} margin={{ top: 5, right: 50, left: 20, bottom: 90 }}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="timestamp"
@@ -446,14 +450,15 @@ export default function PerformanceChart({
                 height={30} 
                 stroke="hsl(var(--chart-1))"
                 tickFormatter={(value) => new Date(value as number).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                y={350}
+                y={390}
                 startIndex={brushRange?.startIndex}
                 endIndex={brushRange?.endIndex}
                 onChange={(range) => {
                     onBrushChange({startIndex: range.startIndex, endIndex: range.endIndex})
                 }}
             />
-            <Legend verticalAlign="bottom" wrapperStyle={{ paddingTop: '20px' }} payload={legendPayload} />
+            <Legend verticalAlign="bottom" wrapperStyle={{ paddingTop: '20px' }} payload={mainLegendPayload} />
+            <Legend verticalAlign="bottom" wrapperStyle={{ paddingTop: '45px' }} payload={designLegendPayload} />
           </ComposedChart>
         </ChartContainer>
         {yZoomRange && Array.isArray(yAxisBounds) && typeof yAxisBounds[0] === 'number' && typeof yAxisBounds[1] === 'number' && (
