@@ -95,6 +95,7 @@ export type AnalysisPeriod = {
         timeToBaseline?: string;
         drawdownAnalysis?: string;
         estimatedTrueBaseline?: number;
+        marginOfError?: number;
         notes?: string;
         status?: "normal" | "not_normal" | "holding_water" | "leaking";
         analystInitials?: string;

@@ -855,6 +855,9 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
               event.dataPoints = sortedData.filter(d => d.timestamp >= event.startDate && d.timestamp <= event.endDate);
               
               const analysis: AnalysisPeriod['analysis'] = {};
+              
+              // Set Margin of Error based on 4m HOBO logger (conservative)
+              analysis.marginOfError = 0.016; // meters
 
               // 1. Baseline Elevation
               const baselineTime = event.startDate - (3 * 60 * 60 * 1000); // 3 hours prior
