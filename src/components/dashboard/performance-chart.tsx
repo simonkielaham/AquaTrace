@@ -128,8 +128,8 @@ const AnalysisDialog = ({
 const CustomLegend = ({ payload, chartConfig }: { payload?: any[], chartConfig: any }) => {
   if (!payload) return null;
 
-  const mainPayload = payload.filter(p => ["Water Elevation", "Precipitation", "Survey Points"].includes(p.value));
-  const designPayload = payload.filter(p => !["Water Elevation", "Precipitation", "Survey Points"].includes(p.value));
+  const mainPayload = payload.filter(p => ["Water Elevation", "Precipitation", "Survey Points", "Daily Precipitation"].includes(p.value));
+  const designPayload = payload.filter(p => !["Water Elevation", "Precipitation", "Survey Points", "Daily Precipitation"].includes(p.value));
   
   const renderLegendItems = (items: any[]) => (
     items.map((entry, index) => {
@@ -229,6 +229,10 @@ export default function PerformanceChart({
         label: "Precipitation",
         color: "hsl(var(--chart-2))",
       },
+      dailyPrecipitation: {
+        label: "Daily Precipitation",
+        color: "hsl(var(--chart-2))",
+      },
       elevation: {
         label: "Survey Elevation",
         color: "hsl(var(--accent))",
@@ -311,6 +315,7 @@ export default function PerformanceChart({
     const mainPayload = [
       { value: 'Water Elevation', type: 'line', id: 'waterLevel', color: chartConfig.waterLevel.color },
       { value: 'Precipitation', type: 'rect', id: 'precipitation', color: chartConfig.precipitation.color },
+      { value: 'Daily Precipitation', type: 'line', id: 'dailyPrecipitation', color: chartConfig.dailyPrecipitation.color },
       { value: 'Survey Points', type: 'scatter', id: 'elevation', color: chartConfig.elevation.color },
     ];
   
@@ -421,6 +426,20 @@ export default function PerformanceChart({
               cursor={false}
               content={<CustomTooltipContent asset={asset} config={chartConfig} />}
             />
+             <Area
+              yAxisId="right"
+              dataKey="dailyPrecipitation"
+              type="step"
+              fill="var(--color-dailyPrecipitation)"
+              fillOpacity={0.2}
+              stroke="var(--color-dailyPrecipitation)"
+              strokeOpacity={0.4}
+              strokeWidth={1}
+              name="Daily Precipitation"
+              isAnimationActive={false}
+              dot={false}
+              connectNulls
+            />
             <Area
               yAxisId="left"
               dataKey="waterLevel"
@@ -437,7 +456,9 @@ export default function PerformanceChart({
               yAxisId="right"
               dataKey="precipitation"
               fill="var(--color-precipitation)"
-              fillOpacity={0.6}
+              fillOpacity={0.8}
+              stroke="var(--color-precipitation)"
+              strokeWidth={1}
               name="Precipitation"
               isAnimationActive={false}
             />
@@ -568,5 +589,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    

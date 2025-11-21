@@ -557,6 +557,15 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
         if (weatherCsv) {
           const weatherData = Papa.parse(weatherCsv, { header: true, dynamicTyping: true }).data as {date: string, precipitation: number}[];
           
+          const dailyPrecipitationMap = new Map<string, number>();
+          weatherData.forEach(weatherPoint => {
+            if (!weatherPoint.date) return;
+            const dateKey = new Date(weatherPoint.date).toISOString().split('T')[0];
+            const currentTotal = dailyPrecipitationMap.get(dateKey) || 0;
+            dailyPrecipitationMap.set(dateKey, currentTotal + (weatherPoint.precipitation || 0));
+          });
+
+
           let sensorDataIndex = 0;
 
           // Aggregate precipitation onto the chart data
@@ -565,6 +574,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
               
               const weatherTimestamp = new Date(weatherPoint.date).getTime();
               const precipitation = weatherPoint.precipitation ?? 0;
+              const dateKey = new Date(weatherPoint.date).toISOString().split('T')[0];
 
               // Find the correct sensor data "bucket" for this weather point
               while (
@@ -577,6 +587,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
               // Add precipitation to the current sensor data point
               if (sortedData[sensorDataIndex]) {
                   sortedData[sensorDataIndex].precipitation = (sortedData[sensorDataIndex].precipitation || 0) + precipitation;
+                  sortedData[sensorDataIndex].dailyPrecipitation = dailyPrecipitationMap.get(dateKey);
               }
           });
           

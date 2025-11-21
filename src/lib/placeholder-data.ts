@@ -85,6 +85,7 @@ export type ChartablePoint = {
     rawWaterLevel?: number;
     elevation?: number;
     precipitation?: number;
+    dailyPrecipitation?: number;
 }
 
 export type WeatherSummary = {
