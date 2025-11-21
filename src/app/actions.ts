@@ -81,6 +81,7 @@ const saveAnalysisSchema = z.object({
   notes: z.string().optional(),
   status: z.enum(["normal" , "not_normal" , "holding_water" , "leaking"]).optional(),
   analystInitials: z.string().min(1, "Analyst initials are required."),
+  disregarded: z.boolean().optional(),
 });
 
 const saveOverallAnalysisSchema = z.object({
@@ -957,6 +958,7 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
                   analysis.notes = savedEventAnalysis.notes;
                   analysis.status = savedEventAnalysis.status;
                   analysis.analystInitials = savedEventAnalysis.analystInitials;
+                  analysis.disregarded = savedEventAnalysis.disregarded;
               }
 
               event.analysis = analysis;
@@ -986,7 +988,7 @@ export async function saveAnalysis(data: any) {
     return response;
   }
 
-  const { eventId, notes, status, analystInitials } = validatedFields.data;
+  const { eventId, notes, status, analystInitials, disregarded } = validatedFields.data;
 
   try {
     const allAnalysis = await readJsonFile<{[key: string]: SavedAnalysisData}>(analysisResultsFilePath);
@@ -994,7 +996,8 @@ export async function saveAnalysis(data: any) {
     allAnalysis[eventId] = {
       notes,
       status,
-      analystInitials
+      analystInitials,
+      disregarded
     };
 
     await writeJsonFile(analysisResultsFilePath, allAnalysis);

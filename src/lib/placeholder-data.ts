@@ -79,6 +79,7 @@ export type SavedAnalysisData = {
     notes?: string;
     status?: "normal" | "not_normal" | "holding_water" | "leaking";
     analystInitials?: string;
+    disregarded?: boolean;
 }
 
 export type OverallAnalysisData = {
@@ -111,6 +112,7 @@ export type AnalysisPeriod = {
         notes?: string;
         status?: "normal" | "not_normal" | "holding_water" | "leaking";
         analystInitials?: string;
+        disregarded?: boolean;
     }
 }
 

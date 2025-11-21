@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import {
   Form,
   FormControl,
@@ -32,7 +33,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
-import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit } from "lucide-react";
+import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit, EyeOff } from "lucide-react";
 import { format, formatDistance } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAssets } from "@/context/asset-context";
@@ -74,6 +75,7 @@ const analysisFormSchema = z.object({
   notes: z.string().optional(),
   status: z.enum(["normal" , "not_normal" , "holding_water" , "leaking"]).optional(),
   analystInitials: z.string().min(1, "Analyst initials are required."),
+  disregarded: z.boolean().optional(),
 });
 
 type AnalysisFormValues = z.infer<typeof analysisFormSchema>;
@@ -90,6 +92,7 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
         notes: event.analysis?.notes || "",
         status: event.analysis?.status || "normal",
         analystInitials: event.analysis?.analystInitials || "",
+        disregarded: event.analysis?.disregarded || false,
       }
   });
   
@@ -98,6 +101,7 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
         notes: event.analysis?.notes || "",
         status: event.analysis?.status || "normal",
         analystInitials: event.analysis?.analystInitials || "",
+        disregarded: event.analysis?.disregarded || false,
     });
   }, [event, form]);
 
@@ -291,6 +295,26 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                       )}
                     />
                 </div>
+                 <div className="p-4 border bg-background rounded-lg">
+                    <FormField
+                        control={form.control}
+                        name="disregarded"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between">
+                            <div className="space-y-0.5">
+                                <FormLabel className="text-sm font-medium">Disregard Event</FormLabel>
+                                <p className="text-xs text-muted-foreground">Exclude this event from reports.</p>
+                            </div>
+                            <FormControl>
+                                <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                />
+                            </FormControl>
+                            </FormItem>
+                        )}
+                    />
+                 </div>
                 <div className="p-4 border bg-background rounded-lg">
                     <FormField
                       control={form.control}
@@ -371,16 +395,18 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                 const returnedToBaseline = postEventDiff !== undefined && postEventDiff <= margin;
 
                 const isReviewed = !!event.analysis?.analystInitials;
+                const isDisregarded = !!event.analysis?.disregarded;
                     
                 return (
-                    <AccordionItem value={event.id} key={event.id} className="border rounded-lg bg-background">
+                    <AccordionItem value={event.id} key={event.id} className={cn("border rounded-lg bg-background", isDisregarded && "bg-muted/50")}>
                         <AccordionTrigger 
-                            className="p-4 hover:no-underline"
+                            className={cn("p-4 hover:no-underline", isDisregarded && "opacity-60")}
                             onClick={() => onSelectEvent(event.startDate, event.endDate)}
                         >
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-left flex-1 items-center text-sm">
                                  <div className="font-medium flex items-center gap-2">
-                                    {isReviewed && <CheckCircle className="h-4 w-4 text-green-500" title="Reviewed"/>}
+                                    {isDisregarded && <EyeOff className="h-4 w-4 text-muted-foreground" title="Disregarded"/>}
+                                    {isReviewed && !isDisregarded && <CheckCircle className="h-4 w-4 text-green-500" title="Reviewed"/>}
                                     {format(new Date(event.startDate), "Pp")}
                                  </div>
                                  <div>{formatDuration(event.startDate, event.endDate)}</div>
