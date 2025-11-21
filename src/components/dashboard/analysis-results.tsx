@@ -47,7 +47,7 @@ const MetricCard = ({ title, value, unit, icon: Icon, iconColor, subValue }: { t
             <Icon className={`h-5 w-5 mt-1 shrink-0 ${iconColor || 'text-muted-foreground'}`} />
             <div>
                 <p className="text-sm text-muted-foreground">{title}</p>
-                {value !== undefined ? (
+                {value !== undefined && value !== null ? (
                     <p className="text-xl font-bold font-headline">{value.toFixed(3)}<span className="text-sm font-normal font-body text-muted-foreground ml-1">{unit}</span></p>
                 ) : (
                      <p className="text-sm text-muted-foreground mt-2">Not available</p>

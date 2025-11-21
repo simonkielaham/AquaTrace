@@ -644,6 +644,10 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
           weatherSummary.events = significantEvents;
 
           weatherSummary.events.forEach(event => {
+              const startDateString = new Date(event.startDate).toISOString().split('T')[0];
+              const assetNameString = asset.name.replace(/[^a-zA-Z0-9]/g, '_');
+              event.id = `${assetNameString}-${startDateString}-${event.totalPrecipitation.toFixed(2)}mm`;
+
               event.dataPoints = sortedData.filter(d => d.timestamp >= event.startDate && d.timestamp <= event.endDate);
               
               // New Analysis Logic
@@ -651,10 +655,14 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
 
               // 1. Baseline Elevation
               const baselineTime = event.startDate - (3 * 60 * 60 * 1000);
-              const baselinePoint = sortedData.reduce((prev, curr) => 
-                Math.abs(curr.timestamp - baselineTime) < Math.abs(prev.timestamp - baselineTime) ? curr : prev
-              );
-              analysis.baselineElevation = baselinePoint?.waterLevel;
+              const baselinePoints = sortedData.filter(p => p.timestamp <= baselineTime && p.waterLevel !== undefined);
+              if (baselinePoints.length > 0) {
+                 const baselinePoint = baselinePoints.reduce((prev, curr) => 
+                    Math.abs(curr.timestamp - baselineTime) < Math.abs(prev.timestamp - baselineTime) ? curr : prev
+                 );
+                 analysis.baselineElevation = baselinePoint?.waterLevel;
+              }
+
 
               // 2. Peak Elevation
               const peakWindowEnd = event.startDate + (48 * 60 * 60 * 1000);
@@ -665,10 +673,13 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
               
               // 3. Post-Event Elevation
               const postEventTime = event.endDate + (48 * 60 * 60 * 1000);
-              const postEventPoint = sortedData.reduce((prev, curr) =>
-                 Math.abs(curr.timestamp - postEventTime) < Math.abs(prev.timestamp - postEventTime) ? curr : prev
-              );
-              analysis.postEventElevation = postEventPoint?.waterLevel;
+              const postEventPoints = sortedData.filter(p => p.timestamp >= postEventTime && p.waterLevel !== undefined);
+              if (postEventPoints.length > 0) {
+                const postEventPoint = postEventPoints.reduce((prev, curr) =>
+                    Math.abs(curr.timestamp - postEventTime) < Math.abs(prev.timestamp - postEventTime) ? curr : prev
+                );
+                analysis.postEventElevation = postEventPoint?.waterLevel;
+              }
 
               event.analysis = analysis;
           });
