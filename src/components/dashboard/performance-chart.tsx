@@ -23,8 +23,6 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
 } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
 import {
@@ -445,14 +443,14 @@ export default function PerformanceChart({
               connectNulls
               dot={false}
             />
-             <Bar
+             <Area
               yAxisId="right"
               dataKey="precipitation"
+              type="monotone"
               fill="var(--color-precipitation)"
               fillOpacity={0.8}
-              barSize={20}
+              stroke="var(--color-precipitation)"
               name="Precipitation"
-              minPointSize={1}
             />
             <Scatter 
               yAxisId="left"
