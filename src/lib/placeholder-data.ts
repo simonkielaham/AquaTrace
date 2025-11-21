@@ -77,7 +77,7 @@ export type AnalysisPeriod = {
         baselineElevation?: number;
         postEventElevation?: number;
         notes?: string;
-        status?: "normal" | "holding_water" | "leaking";
+        status?: "normal" | "not_normal" | "holding_water" | "leaking";
     }
 }
 

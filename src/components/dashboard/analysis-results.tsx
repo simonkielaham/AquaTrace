@@ -160,10 +160,14 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                 </div>
                  <div className="p-4 border bg-background rounded-lg">
                     <p className="font-medium text-sm mb-3">Asset Status During Event</p>
-                    <RadioGroup value={status} onValueChange={(value) => setStatus(value as any)}>
+                    <RadioGroup value={status} onValueChange={(value) => setStatus(value as any)} className="space-y-2">
                         <div className="flex items-center space-x-2">
                             <RadioGroupItem value="normal" id={`status-normal-${event.id}`} />
                             <Label htmlFor={`status-normal-${event.id}`}>Operating Normally</Label>
+                        </div>
+                         <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="not_normal" id={`status-not-normal-${event.id}`} />
+                            <Label htmlFor={`status-not-normal-${event.id}`}>Not Operating Normally</Label>
                         </div>
                         <div className="flex items-center space-x-2">
                             <RadioGroupItem value="holding_water" id={`status-holding-${event.id}`} />
@@ -277,5 +281,3 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
     </Card>
   );
 }
-
-    
