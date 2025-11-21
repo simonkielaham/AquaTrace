@@ -1,3 +1,4 @@
+
 'use server';
 
 import { promises as fs } from 'fs';
@@ -315,7 +316,6 @@ export async function assignDatafileToDeployment(formData: FormData) {
     datetimeColumn: formData.get('datetimeColumn'),
     waterLevelColumn: formData.get('waterLevelColumn') || undefined,
     precipitationColumn: formData.get('precipitationColumn') || undefined,
-    barometerColumn: formData.get('barometerColumn') || undefined,
     sensorPressureColumn: formData.get('sensorPressureColumn') || undefined,
     temperatureColumn: formData.get('temperatureColumn') || undefined,
     startRow: formData.get('startRow'),
@@ -327,7 +327,6 @@ export async function assignDatafileToDeployment(formData: FormData) {
     datetimeColumn: z.string(),
     waterLevelColumn: z.string().optional(),
     precipitationColumn: z.string().optional(),
-    barometerColumn: z.string().optional(),
     sensorPressureColumn: z.string().optional(),
     temperatureColumn: z.string().optional(),
     startRow: z.coerce.number().min(1),
@@ -353,7 +352,6 @@ export async function assignDatafileToDeployment(formData: FormData) {
       datetimeColumn,
       waterLevelColumn,
       precipitationColumn,
-      barometerColumn,
       sensorPressureColumn,
       temperatureColumn, 
       startRow 
@@ -391,7 +389,6 @@ export async function assignDatafileToDeployment(formData: FormData) {
         const columnMap = {
             waterLevel: waterLevelColumn,
             precipitation: precipitationColumn,
-            barometer: barometerColumn,
             sensorPressure: sensorPressureColumn,
             temperature: temperatureColumn
         };
@@ -557,7 +554,6 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                     if(!isNaN(waterLevel)) point.waterLevel = waterLevel;
                     if(!isNaN(rawWaterLevel)) point.rawWaterLevel = rawWaterLevel;
                 }
-                if (d.barometer !== undefined && !isNaN(parseFloat(d.barometer))) point.barometer = d.barometer;
                 if (d.sensorPressure !== undefined && !isNaN(parseFloat(d.sensorPressure))) point.sensorPressure = d.sensorPressure;
                 if (d.temperature !== undefined && !isNaN(parseFloat(d.temperature))) point.temperature = d.temperature;
                 if (d.precipitation !== undefined && !isNaN(parseFloat(d.precipitation))) point.precipitation = d.precipitation;
@@ -782,7 +778,8 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                         const totalPrecipInInterval = pointsInInterval.reduce((sum, p) => sum + (p.precipitation || 0), 0);
                         
                         if (totalPrecipInInterval < MEASURABLE_RAIN_THRESHOLD) {
-                           analysis.drawdownAnalysis = `Interruption detected at ${new Date(currentPoint.timestamp).toLocaleString()}`;
+                           const durationFromPeak = formatDistance(new Date(analysis.peakTimestamp!), new Date(currentPoint.timestamp));
+                           analysis.drawdownAnalysis = `Interruption detected ${durationFromPeak} after peak.`;
                            break; // Found the first interruption, so we can stop.
                         }
                     }
@@ -1142,3 +1139,5 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
+
+    
