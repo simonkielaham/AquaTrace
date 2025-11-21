@@ -315,6 +315,8 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isParsing, setIsParsing] = React.useState(false);
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
+  const [csvRows, setCsvRows] = React.useState<string[][]>([]);
+  const [selectedPreviewRowIndex, setSelectedPreviewRowIndex] = React.useState<string | undefined>();
   
   const form = useForm<AssignDatafileValues>({
     resolver: zodResolver(assignDatafileSchema),
@@ -326,6 +328,8 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   const resetDialogState = React.useCallback(() => {
     form.reset({ startRow: 2, filename: undefined, datetimeColumn: undefined, valueColumn: undefined, dataType: undefined });
     setCsvHeaders([]);
+    setCsvRows([]);
+    setSelectedPreviewRowIndex(undefined);
     setIsSubmitting(false);
     setIsParsing(false);
   }, [form]);
@@ -361,9 +365,12 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
     form.setValue("datetimeColumn", undefined);
     form.setValue("valueColumn", undefined);
     setCsvHeaders([]);
+    setCsvRows([]);
+    setSelectedPreviewRowIndex(undefined);
+
 
     setIsParsing(true);
-    toast({ title: "Parsing File...", description: "Reading headers from the selected CSV file."});
+    toast({ title: "Parsing File...", description: "Reading headers and sample rows from the selected CSV file."});
     
     const fileContent = await getStagedFileContent(filename);
     
@@ -374,17 +381,18 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
     }
 
     Papa.parse(fileContent, {
-        preview: 1, // Only need the header row
+        preview: 10, // Get first 10 rows for preview
         skipEmptyLines: true,
         complete: (results) => {
             const data = results.data as string[][];
-            const headers = (data[0] || []).filter(h => h);
-
-            if (headers.length > 0) {
+            if (data.length > 0) {
+              const headers = data[0].filter(h => h);
+              const rows = data.slice(1);
               setCsvHeaders(headers);
+              setCsvRows(rows);
               toast({ title: "File Parsed", description: "Please map the required columns." });
             } else {
-               toast({ variant: "destructive", title: "Parsing Error", description: "Could not parse CSV headers. Check file format." });
+               toast({ variant: "destructive", title: "Parsing Error", description: "Could not parse CSV. Check file format." });
             }
             setIsParsing(false);
         },
@@ -402,6 +410,8 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
       resetDialogState();
     }
   }
+  
+  const currentPreviewData = selectedPreviewRowIndex !== undefined ? csvRows[parseInt(selectedPreviewRowIndex)] : null;
 
 
   return (
@@ -440,7 +450,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
               />
 
               {(isParsing || (selectedFilename && csvHeaders.length > 0)) && (
-                <>
+                <Card className="bg-muted/50 p-4 space-y-4">
                  {isParsing && <div className="flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Parsing file...</div>}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -470,7 +480,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                           <FormItem>
                             <FormLabel>Data Start Row</FormLabel>
                             <FormControl><Input type="number" {...field} /></FormControl>
-                            <FormDescription>The row number where the actual data begins (e.g., 2 if headers are on row 1).</FormDescription>
+                            <FormDescription>The row number where the actual data begins.</FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -512,7 +522,36 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                       )}
                     />
                   </div>
-                </>
+                  {csvRows.length > 0 && (
+                    <div className="space-y-2">
+                       <Label>Preview Data Row</Label>
+                       <Select onValueChange={setSelectedPreviewRowIndex} value={selectedPreviewRowIndex}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a row to preview..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {csvRows.map((_, index) => (
+                               <SelectItem key={index} value={String(index)}>
+                                Row {index + (form.getValues('startRow') || 2)}
+                               </SelectItem>
+                            ))}
+                          </SelectContent>
+                       </Select>
+
+                       {currentPreviewData && (
+                          <div className="p-2 border rounded-md max-h-40 overflow-y-auto text-xs space-y-1">
+                            {csvHeaders.map((header, index) => (
+                               <div key={header} className="grid grid-cols-2 gap-2">
+                                  <span className="font-semibold text-muted-foreground truncate">{header}:</span>
+                                  <span className="font-mono truncate" title={currentPreviewData[index]}>{currentPreviewData[index] ?? <span className="text-muted-foreground/50">empty</span>}</span>
+                               </div>
+                            ))}
+                          </div>
+                       )}
+                    </div>
+                  )}
+
+                </Card>
               )}
             </div>
 
