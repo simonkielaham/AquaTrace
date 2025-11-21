@@ -65,6 +65,11 @@ export type AnalysisResult = {
   timestamp: string;
 };
 
+export type SavedAnalysisData = {
+    notes?: string;
+    status?: "normal" | "not_normal" | "holding_water" | "leaking";
+}
+
 export type AnalysisPeriod = {
     id: string;
     assetId: string;
@@ -73,9 +78,13 @@ export type AnalysisPeriod = {
     totalPrecipitation: number;
     dataPoints: ChartablePoint[];
     analysis?: {
+        peakTimestamp?: number;
         peakElevation?: number;
         baselineElevation?: number;
         postEventElevation?: number;
+        timeToBaseline?: string;
+        drawdownAnalysis?: string;
+        estimatedTrueBaseline?: number;
         notes?: string;
         status?: "normal" | "not_normal" | "holding_water" | "leaking";
     }

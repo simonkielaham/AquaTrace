@@ -26,6 +26,7 @@ import {
   getSurveyPoints as getSurveyPointsAction,
   unassignDatafile as unassignDatafileAction,
   deleteDatafile as deleteDatafileAction,
+  saveAnalysis as saveAnalysisAction,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -45,6 +46,7 @@ interface AssetContextType {
   assignDatafileToDeployment: (formData: FormData) => Promise<any>;
   unassignDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   deleteDatafile: (deploymentId: string, fileId: string) => Promise<any>;
+  saveAnalysis: (data: { eventId: string; notes?: string; status?: "normal" | "not_normal" | "holding_water" | "leaking"; }) => Promise<any>;
   loading: boolean;
   stagedFiles: StagedFile[];
   loadingStagedFiles: boolean;
@@ -287,6 +289,19 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [incrementDataVersion]);
 
+  const saveAnalysis = useCallback(async (data: { eventId: string; notes?: string; status?: "normal" | "not_normal" | "holding_water" | "leaking"; }) => {
+      try {
+        const result = await saveAnalysisAction(data);
+        if (result && !result.errors) {
+            incrementDataVersion();
+        }
+        return result;
+      } catch (error) {
+          const message = await getErrorMessage(error);
+          return { message: `Error: ${message}` };
+      }
+  }, [incrementDataVersion]);
+
   const uploadStagedFile = useCallback(async (formData: FormData) => {
     try {
       const result = await uploadStagedFileAction(formData);
@@ -363,6 +378,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     assignDatafileToDeployment,
     unassignDatafile,
     deleteDatafile,
+    saveAnalysis,
     loading,
     stagedFiles,
     loadingStagedFiles,
@@ -389,5 +405,3 @@ export const useAssets = () => {
   }
   return context;
 };
-
-    

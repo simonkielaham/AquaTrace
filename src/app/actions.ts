@@ -6,9 +6,10 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 import { getWeatherData } from '@/../sourceexamples/weather-service';
+import { formatDistance } from 'date-fns';
 
 
 // Define paths to data files
@@ -17,6 +18,7 @@ const assetsFilePath = path.join(dataDir, 'assets.json');
 const deploymentsFilePath = path.join(dataDir, 'deployments.json');
 const activityLogFilePath = path.join(dataDir, 'activity-log.json');
 const surveyPointsFilePath = path.join(dataDir, 'survey-points.json');
+const analysisResultsFilePath = path.join(dataDir, 'analysis-results.json');
 const stagedDir = path.join(process.cwd(), 'staged');
 const processedDir = path.join(dataDir, 'processed');
 
@@ -72,6 +74,12 @@ const surveyPointSchema = z.object({
   deploymentId: z.string().optional(),
 });
 
+const saveAnalysisSchema = z.object({
+  eventId: z.string(),
+  notes: z.string().optional(),
+  status: z.enum(["normal" , "not_normal" , "holding_water" , "leaking"]).optional(),
+});
+
 
 // Helper function to read and parse a JSON file
 async function readJsonFile<T>(filePath: string): Promise<T> {
@@ -81,7 +89,7 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
     return JSON.parse(fileContent);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      if (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json')) return [] as T;
+      if (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json') || filePath.endsWith('results.json')) return (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json')) ? [] as T : {} as T;
       return {} as T;
     }
     console.error(`Error reading ${filePath}:`, error);
@@ -474,6 +482,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
 
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
     const surveyPoints = await getSurveyPoints(assetId);
+    const savedAnalysis = await readJsonFile<{[key: string]: SavedAnalysisData}>(analysisResultsFilePath);
     const assetDeployments = deployments.filter(d => d.assetId === assetId);
 
     const dataMap = new Map<number, ChartablePoint>();
@@ -654,7 +663,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
               const analysis: AnalysisPeriod['analysis'] = {};
 
               // 1. Baseline Elevation
-              const baselineTime = event.startDate - (3 * 60 * 60 * 1000);
+              const baselineTime = event.startDate - (3 * 60 * 60 * 1000); // 3 hours prior
               const baselinePoints = sortedData.filter(p => p.timestamp <= baselineTime && p.waterLevel !== undefined);
               if (baselinePoints.length > 0) {
                  const baselinePoint = baselinePoints.reduce((prev, curr) => 
@@ -666,9 +675,11 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
 
               // 2. Peak Elevation
               const peakWindowEnd = event.startDate + (48 * 60 * 60 * 1000);
-              const peakPoints = sortedData.filter(p => p.timestamp >= event.startDate && p.timestamp <= peakWindowEnd && p.waterLevel !== undefined);
-              if (peakPoints.length > 0) {
-                analysis.peakElevation = Math.max(...peakPoints.map(p => p.waterLevel!));
+              const peakPointsInWindow = sortedData.filter(p => p.timestamp >= event.startDate && p.timestamp <= peakWindowEnd && p.waterLevel !== undefined);
+              if (peakPointsInWindow.length > 0) {
+                const peakPoint = peakPointsInWindow.reduce((max, p) => p.waterLevel! > max.waterLevel! ? p : max, peakPointsInWindow[0]);
+                analysis.peakElevation = peakPoint.waterLevel;
+                analysis.peakTimestamp = peakPoint.timestamp;
               }
               
               // 3. Post-Event Elevation
@@ -679,6 +690,32 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                     Math.abs(curr.timestamp - postEventTime) < Math.abs(prev.timestamp - postEventTime) ? curr : prev
                 );
                 analysis.postEventElevation = postEventPoint?.waterLevel;
+              }
+
+              // 4. Time to Baseline
+              if (analysis.peakTimestamp && analysis.baselineElevation) {
+                  const postPeakPoints = sortedData.filter(p => p.timestamp > analysis.peakTimestamp! && p.waterLevel !== undefined);
+                  const returnPoint = postPeakPoints.find(p => p.waterLevel! <= analysis.baselineElevation!);
+                  if (returnPoint) {
+                      analysis.timeToBaseline = formatDistance(new Date(analysis.peakTimestamp), new Date(returnPoint.timestamp));
+                  } else {
+                      analysis.timeToBaseline = "Did not return to baseline";
+                  }
+              }
+
+              // 5. Drawdown analysis (placeholder)
+              analysis.drawdownAnalysis = "Not yet implemented";
+              
+              // 6. Estimated True Baseline (placeholder)
+              if (analysis.postEventElevation) {
+                   analysis.estimatedTrueBaseline = analysis.postEventElevation; // Simplified for now
+              }
+
+              // 7. Merge saved analysis
+              const savedEventAnalysis = savedAnalysis[event.id];
+              if (savedEventAnalysis) {
+                  analysis.notes = savedEventAnalysis.notes;
+                  analysis.status = savedEventAnalysis.status;
               }
 
               event.analysis = analysis;
@@ -694,6 +731,41 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
   } catch (error) {
     console.error("Failed to get processed data:", error);
     return { data: [], weatherSummary: { totalPrecipitation: 0, events: [] } };
+  }
+}
+
+export async function saveAnalysis(data: any) {
+  const logPayload = { data };
+  const validatedFields = saveAnalysisSchema.safeParse(data);
+  if (!validatedFields.success) {
+    const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+    await writeLog({ action: 'saveAnalysis', status: 'failure', payload: logPayload, response });
+    return response;
+  }
+
+  const { eventId, notes, status } = validatedFields.data;
+
+  try {
+    const allAnalysis = await readJsonFile<{[key: string]: SavedAnalysisData}>(analysisResultsFilePath);
+    
+    allAnalysis[eventId] = {
+      notes,
+      status
+    };
+
+    await writeJsonFile(analysisResultsFilePath, allAnalysis);
+    
+    revalidatePath('/');
+
+    const response = { message: 'Analysis saved successfully' };
+    await writeLog({ action: 'saveAnalysis', status: 'success', payload: logPayload, response });
+    return response;
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'saveAnalysis', status: 'failure', payload: logPayload, response });
+    return response;
   }
 }
 
@@ -988,4 +1060,3 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-

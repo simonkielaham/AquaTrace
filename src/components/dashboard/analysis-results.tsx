@@ -11,14 +11,6 @@ import {
   CardDescription
 } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -28,9 +20,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save } from "lucide-react";
+import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2 } from "lucide-react";
 import { format, formatDistance } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useAssets } from "@/context/asset-context";
+import { useToast } from "@/hooks/use-toast";
 
 type AnalysisResultsProps = {
   weatherSummary: WeatherSummary | null;
@@ -41,14 +35,17 @@ const formatDuration = (start: number, end: number) => {
   return formatDistance(new Date(start), new Date(end), { includeSeconds: true });
 };
 
-const MetricCard = ({ title, value, unit, icon: Icon, iconColor, subValue }: { title: string, value?: number, unit: string, icon: React.ElementType, iconColor?: string, subValue?: string }) => {
+const MetricCard = ({ title, value, unit, icon: Icon, iconColor, subValue }: { title: string, value?: number | string, unit: string, icon: React.ElementType, iconColor?: string, subValue?: string }) => {
     return (
         <div className="flex items-start gap-3 rounded-lg border p-3">
             <Icon className={`h-5 w-5 mt-1 shrink-0 ${iconColor || 'text-muted-foreground'}`} />
             <div>
                 <p className="text-sm text-muted-foreground">{title}</p>
                 {value !== undefined && value !== null ? (
-                    <p className="text-xl font-bold font-headline">{value.toFixed(3)}<span className="text-sm font-normal font-body text-muted-foreground ml-1">{unit}</span></p>
+                    <p className="text-xl font-bold font-headline">
+                        {typeof value === 'number' ? value.toFixed(3) : value}
+                        {unit && <span className="text-sm font-normal font-body text-muted-foreground ml-1">{unit}</span>}
+                    </p>
                 ) : (
                      <p className="text-sm text-muted-foreground mt-2">Not available</p>
                 )}
@@ -59,12 +56,44 @@ const MetricCard = ({ title, value, unit, icon: Icon, iconColor, subValue }: { t
 }
 
 function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
+  const { saveAnalysis, dataVersion } = useAssets();
+  const { toast } = useToast();
   const [notes, setNotes] = React.useState(event.analysis?.notes || "");
   const [status, setStatus] = React.useState(event.analysis?.status || "normal");
-  
-  const timeToBaseline = "Not implemented";
-  const drawdownAnalysis = "Not implemented";
-  const estimatedBaseline = "Not implemented";
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    setNotes(event.analysis?.notes || "");
+    setStatus(event.analysis?.status || "normal");
+  }, [event.id, event.analysis, dataVersion]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    toast({
+      title: "Saving analysis...",
+    });
+    
+    const result = await saveAnalysis({
+      eventId: event.id,
+      notes: notes,
+      status: status,
+    });
+
+    if (result.message.startsWith('Error:')) {
+      toast({
+        variant: "destructive",
+        title: "Error Saving Analysis",
+        description: result.message
+      });
+    } else {
+       toast({
+        title: "Analysis Saved",
+        description: `Your notes and status for this event have been saved.`
+      });
+    }
+
+    setIsSaving(false);
+  }
 
   const peakDiff = React.useMemo(() => {
     if (event.analysis?.peakElevation && event.analysis?.baselineElevation) {
@@ -129,9 +158,9 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                 <div className="p-3 border rounded-lg col-span-full">
                     <p className="text-sm font-semibold">Detailed Analysis</p>
                     <div className="mt-2 text-sm text-muted-foreground space-y-1">
-                        <p><span className="font-medium">Time to Baseline:</span> {timeToBaseline}</p>
-                        <p><span className="font-medium">Drawdown Analysis:</span> {drawdownAnalysis}</p>
-                        <p><span className="font-medium">Estimated True Baseline:</span> {estimatedBaseline}</p>
+                        <p><span className="font-medium">Time to Baseline:</span> {event.analysis?.timeToBaseline || "N/A"}</p>
+                        <p><span className="font-medium">Drawdown Analysis:</span> {event.analysis?.drawdownAnalysis || "N/A"}</p>
+                        <p><span className="font-medium">Estimated True Baseline:</span> {event.analysis?.estimatedTrueBaseline ? `${event.analysis.estimatedTrueBaseline.toFixed(3)}m` : "N/A"}</p>
                     </div>
                 </div>
 
@@ -179,8 +208,8 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                         </div>
                     </RadioGroup>
                 </div>
-                <Button className="w-full">
-                    <Save className="mr-2 h-4 w-4" />
+                <Button className="w-full" onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                     Save Analysis
                 </Button>
             </div>
