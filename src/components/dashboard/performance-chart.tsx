@@ -9,7 +9,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { BarChart, AreaChart as AreaChartIcon, Save, TableIcon } from "lucide-react";
+import { BarChart, AreaChart as AreaChartIcon, Save, TableIcon, TrendingDown, TrendingUp } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -34,7 +34,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { ComposedChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter } from "recharts";
+import { ComposedChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter, Bar } from "recharts";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -155,6 +155,52 @@ const CustomLegend = ({ payload, chartConfig }: { payload?: any[], chartConfig: 
   );
 };
 
+const CustomTooltipContent = ({ active, payload, label, asset, config }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload as ChartablePoint;
+    const poolElevation = asset.permanentPoolElevation;
+    const offset = data.waterLevel !== undefined ? data.waterLevel - poolElevation : undefined;
+
+    const items = [
+      { key: "waterLevel", label: "Water Elevation", value: data.waterLevel, unit: "m" },
+      { key: "rawWaterLevel", label: "Raw Water Level", value: data.rawWaterLevel, unit: "m" },
+      { key: "precipitation", label: "Precipitation", value: data.precipitation, unit: "mm" },
+      { key: "elevation", label: "Survey Elevation", value: data.elevation, unit: "m" },
+      { key: "offset", label: "Offset from Pool", value: offset, unit: "m", showSign: true },
+    ];
+    
+    return (
+      <div className="grid min-w-[12rem] gap-1.5 rounded-lg border bg-background/95 p-3 text-sm shadow-xl backdrop-blur-sm">
+        <div className="mb-2 font-medium">{new Date(label).toLocaleString()}</div>
+        <div className="grid gap-1.5">
+          {items.map((item) => {
+            if (item.value !== undefined && item.value !== null) {
+              const itemConfig = config[item.key] || {};
+              const color = item.key === 'offset' ? (item.value > 0 ? 'hsl(var(--destructive))' : 'hsl(var(--chart-1))') : (itemConfig.color || 'hsl(var(--foreground))');
+              
+              return (
+                <div key={item.key} className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
+                    <span className="text-muted-foreground">{item.label}</span>
+                  </div>
+                  <span className="font-mono font-medium tabular-nums text-foreground">
+                    {item.showSign && item.value > 0 ? '+' : ''}
+                    {item.value.toFixed(2)}{item.unit}
+                  </span>
+                </div>
+              );
+            }
+            return null;
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
 
 export default function PerformanceChart({
   asset,
@@ -173,18 +219,22 @@ export default function PerformanceChart({
         label: "Water Elevation",
         color: "hsl(var(--chart-1))",
       },
+      rawWaterLevel: {
+        label: "Raw Water Level",
+        color: "hsl(var(--chart-4))",
+      },
       precipitation: {
         label: "Precipitation",
         color: "hsl(var(--chart-2))",
       },
       elevation: {
-        label: "Survey Points",
+        label: "Survey Elevation",
         color: "hsl(var(--accent))",
       },
        "Permanent Pool": {
         label: "Permanent Pool",
         color: "hsl(210 40% 50%)",
-    },
+      },
     };
   
     asset.designElevations.forEach((de, index) => {
@@ -365,53 +415,7 @@ export default function PerformanceChart({
             />
             <ChartTooltip
               cursor={false}
-              content={
-                <ChartTooltipContent
-                  labelFormatter={(label) => new Date(label as number).toLocaleString()}
-                  indicator="dot"
-                  formatter={(value, name, item) => {
-                      const dataKey = name as keyof ChartablePoint;
-                      const itemConfig = chartConfig[dataKey] || {};
-                      
-                      // Only render if the value is defined and not null.
-                      // For precipitation, we allow 0.
-                      if (value === undefined || value === null || (dataKey !== 'precipitation' && value === 0)) {
-                        return null;
-                      }
-
-                      let formattedValue: string;
-                      switch(dataKey) {
-                        case 'waterLevel':
-                        case 'elevation':
-                          formattedValue = `${(value as number).toFixed(2)}m`;
-                          break;
-                        case 'precipitation':
-                          formattedValue = `${(value as number).toFixed(1)}mm`;
-                          break;
-                        default:
-                          return null; // Don't show unknown data keys in tooltip
-                      }
-                      
-                      return (
-                         <div className="flex items-center gap-2">
-                           <div
-                             className="h-2.5 w-2.5 shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]"
-                             style={
-                              {
-                                "--color-bg": itemConfig.color || item.color,
-                                "--color-border": itemConfig.color || item.color,
-                              } as React.CSSProperties
-                            }
-                           />
-                            <div className="flex flex-1 justify-between">
-                               <span className="text-muted-foreground">{itemConfig.label || name}</span>
-                               <span className="font-bold">{formattedValue}</span>
-                            </div>
-                         </div>
-                      );
-                  }}
-                />
-              }
+              content={<CustomTooltipContent asset={asset} config={chartConfig} />}
             />
             <Area
               yAxisId="left"
@@ -425,13 +429,11 @@ export default function PerformanceChart({
               isAnimationActive={false}
               dot={false}
             />
-            <Area
+             <Bar
               yAxisId="right"
               dataKey="precipitation"
-              type="monotone"
               fill="var(--color-precipitation)"
               fillOpacity={0.4}
-              stroke="var(--color-precipitation)"
               name="Precipitation"
               isAnimationActive={false}
             />
