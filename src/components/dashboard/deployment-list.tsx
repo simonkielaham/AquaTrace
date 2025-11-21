@@ -455,33 +455,31 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                           First 10 rows of data from {selectedFilename}.
                         </CardDescription>
                       </CardHeader>
-                      <CardContent>
-                        <div className="relative h-48 rounded-md border">
-                            <div className="overflow-x-auto">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    {csvHeaders.map((header, i) => (
-                                      <TableHead key={i}>{header}</TableHead>
-                                    ))}
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {csvPreview.map((row, i) => (
-                                    <TableRow key={i}>
-                                      {csvPreview[i].map((cell, j) => (
-                                        <TableCell
-                                          key={j}
-                                          className="whitespace-nowrap"
-                                        >
-                                          {cell}
-                                        </TableCell>
-                                      ))}
-                                    </TableRow>
+                      <CardContent className="h-48 rounded-md border p-0">
+                        <div className="h-full overflow-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                {csvHeaders.map((header, i) => (
+                                  <TableHead key={i}>{header}</TableHead>
+                                ))}
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {csvPreview.map((row, i) => (
+                                <TableRow key={i}>
+                                  {row.map((cell, j) => (
+                                    <TableCell
+                                      key={j}
+                                      className="whitespace-nowrap"
+                                    >
+                                      {cell}
+                                    </TableCell>
                                   ))}
-                                </TableBody>
-                              </Table>
-                            </div>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
                         </div>
                       </CardContent>
                     </Card>
