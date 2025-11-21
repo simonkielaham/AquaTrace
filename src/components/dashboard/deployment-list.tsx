@@ -219,7 +219,7 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
       name: deployment.name || "",
       sensorId: deployment.sensorId,
       sensorElevation: deployment.sensorElevation,
-      stillwellTop: deployment.stillwellTop === null || deployment.stillwellTop === undefined ? '' : deployment.stillwellTop,
+      stillwellTop: deployment.stillwellTop === null || deployment.stillwellTop === undefined ? undefined : deployment.stillwellTop,
     },
   });
 
@@ -468,7 +468,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                             <TableBody>
                               {csvPreview.map((row, i) => (
                                 <TableRow key={i}>
-                                  {row.map((cell, j) => (
+                                  {csvPreview[i].map((cell, j) => (
                                     <TableCell
                                       key={j}
                                       className="whitespace-nowrap"
