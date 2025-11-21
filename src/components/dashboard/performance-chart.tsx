@@ -131,7 +131,7 @@ const CustomLegend = ({ payload, chartConfig }: { payload?: any[], chartConfig: 
   if (!payload) return null;
 
   const mainPayload = payload.filter(p => ["Water Elevation", "Precipitation", "Survey Points", "Daily Precipitation"].includes(p.value));
-  const sensorPayload = payload.filter(p => ["Temperature", "Sensor Pressure"].includes(p.value));
+  const sensorPayload = payload.filter(p => ["Temperature", "Sensor Pressure", "Barometer"].includes(p.value));
   const designPayload = payload.filter(p => !mainPayload.map(i=>i.value).includes(p.value) && !sensorPayload.map(i=>i.value).includes(p.value) );
   
   const renderLegendItems = (items: any[]) => (
@@ -176,6 +176,7 @@ const CustomTooltipContent = ({ active, payload, label, asset, config }: any) =>
       { key: "elevation", label: "Survey Elevation", value: data.elevation, unit: "m" },
       { key: "temperature", label: "Temperature", value: data.temperature, unit: "°C" },
       { key: "sensorPressure", label: "Sensor Pressure", value: data.sensorPressure, unit: "kPa" },
+      { key: "barometer", label: "Barometer", value: data.barometer, unit: "kPa" },
     ];
     
     return (
@@ -260,6 +261,11 @@ export default function PerformanceChart({
         label: "Sensor Pressure",
         color: "hsl(var(--chart-5))",
         icon: Gauge
+      },
+      barometer: {
+        label: "Barometer",
+        color: "hsl(var(--chart-4))",
+        icon: Wind,
       }
     };
   
@@ -341,6 +347,7 @@ export default function PerformanceChart({
     return {
         temperature: getDomain('temperature'),
         sensorPressure: getDomain('sensorPressure'),
+        barometer: getDomain('barometer'),
     };
   }, [chartData, brushRange]);
 
@@ -361,6 +368,7 @@ export default function PerformanceChart({
   
     if (visibleSensorData.temperature) payload.push({ value: 'Temperature', type: 'line', id: 'temperature', dataKey: 'temperature', color: chartConfig.temperature.color });
     if (visibleSensorData.sensorPressure) payload.push({ value: 'Sensor Pressure', type: 'line', id: 'sensorPressure', dataKey: 'sensorPressure', color: chartConfig.sensorPressure.color });
+    if (visibleSensorData.barometer) payload.push({ value: 'Barometer', type: 'line', id: 'barometer', dataKey: 'barometer', color: chartConfig.barometer.color });
 
     const allDesignElevations = [
       { name: 'Permanent Pool', elevation: asset.permanentPoolElevation },
@@ -493,6 +501,17 @@ export default function PerformanceChart({
               domain={sensorDomains.sensorPressure}
               hide={!visibleSensorData.sensorPressure}
             />
+            <YAxis
+              yAxisId="barometer"
+              orientation="right"
+              unit="kPa"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              type="number"
+              domain={sensorDomains.barometer}
+              hide={!visibleSensorData.barometer}
+            />
             <ChartTooltip
               cursor={false}
               content={<CustomTooltipContent asset={asset} config={chartConfig} />}
@@ -544,6 +563,7 @@ export default function PerformanceChart({
             {/* Sensor Data Lines */}
             {visibleSensorData.temperature && <Line yAxisId="temp" type="monotone" dataKey="temperature" stroke="var(--color-temperature)" dot={false} isAnimationActive={false} name="Temperature" />}
             {visibleSensorData.sensorPressure && <Line yAxisId="pressure" type="monotone" dataKey="sensorPressure" stroke="var(--color-sensorPressure)" dot={false} isAnimationActive={false} name="Sensor Pressure" />}
+            {visibleSensorData.barometer && <Line yAxisId="barometer" type="monotone" dataKey="barometer" stroke="var(--color-barometer)" dot={false} isAnimationActive={false} name="Barometer" />}
 
             <ReferenceLine
               yAxisId="left"

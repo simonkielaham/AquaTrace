@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlusCircle, Save, ChevronDown, CalendarIcon, Download, FileUp, Files, Trash2, Loader2, Database, Droplets, Undo2, Edit } from "lucide-react";
+import { PlusCircle, Save, ChevronDown, CalendarIcon, Download, FileUp, Files, Trash2, Loader2, Database, Droplets, Undo2, Edit, Wind } from "lucide-react";
 import { Button } from "../ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
@@ -99,6 +99,7 @@ const baseDatafileSchema = z.object({
   precipitationColumn: z.string().optional(),
   sensorPressureColumn: z.string().optional(),
   temperatureColumn: z.string().optional(),
+  barometerColumn: z.string().optional(),
   startRow: z.coerce.number().min(1, "Start row must be at least 1."),
 });
 
@@ -514,6 +515,23 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
                             </FormItem>
                         )}
                         />
+                         <FormField
+                        control={form.control}
+                        name="barometerColumn"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Barometer Column (Optional)</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
+                                <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            </FormItem>
+                        )}
+                        />
                     </>
                 )}
                 </div>
@@ -572,6 +590,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
         precipitationColumn: undefined,
         sensorPressureColumn: undefined,
         temperatureColumn: undefined,
+        barometerColumn: undefined,
     });
     setCsvHeaders([]);
     setCsvSample([]);

@@ -90,6 +90,7 @@ const baseDatafileSchema = z.object({
     precipitationColumn: z.string().optional(),
     sensorPressureColumn: z.string().optional(),
     temperatureColumn: z.string().optional(),
+    barometerColumn: z.string().optional(),
     startRow: z.coerce.number().min(1),
 });
 
@@ -344,7 +345,7 @@ export async function deleteStagedFile(filename: string) {
 
 // Reusable data processing function
 async function processCsvData(fileContent: string, columnMapping: Omit<z.infer<typeof baseDatafileSchema>, 'dataType'>) {
-    const { datetimeColumn, waterLevelColumn, precipitationColumn, sensorPressureColumn, temperatureColumn, startRow } = columnMapping;
+    const { datetimeColumn, waterLevelColumn, precipitationColumn, sensorPressureColumn, temperatureColumn, barometerColumn, startRow } = columnMapping;
 
     const parsedCsv = await new Promise<Papa.ParseResult<any>>((resolve, reject) => {
         Papa.parse(fileContent, {
@@ -373,7 +374,8 @@ async function processCsvData(fileContent: string, columnMapping: Omit<z.infer<t
             waterLevel: waterLevelColumn,
             precipitation: precipitationColumn,
             sensorPressure: sensorPressureColumn,
-            temperature: temperatureColumn
+            temperature: temperatureColumn,
+            barometer: barometerColumn
         };
         
         let hasValue = false;
@@ -409,6 +411,7 @@ export async function assignDatafileToDeployment(formData: FormData) {
     precipitationColumn: formData.get('precipitationColumn') || undefined,
     sensorPressureColumn: formData.get('sensorPressureColumn') || undefined,
     temperatureColumn: formData.get('temperatureColumn') || undefined,
+    barometerColumn: formData.get('barometerColumn') || undefined,
     startRow: formData.get('startRow'),
   };
   
@@ -483,6 +486,7 @@ export async function reassignDatafile(formData: FormData) {
     precipitationColumn: formData.get('precipitationColumn') || undefined,
     sensorPressureColumn: formData.get('sensorPressureColumn') || undefined,
     temperatureColumn: formData.get('temperatureColumn') || undefined,
+    barometerColumn: formData.get('barometerColumn') || undefined,
     startRow: formData.get('startRow'),
   };
 
@@ -697,6 +701,7 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
                 }
                 if (d.sensorPressure !== undefined && !isNaN(parseFloat(d.sensorPressure))) point.sensorPressure = d.sensorPressure;
                 if (d.temperature !== undefined && !isNaN(parseFloat(d.temperature))) point.temperature = d.temperature;
+                if (d.barometer !== undefined && !isNaN(parseFloat(d.barometer))) point.barometer = d.barometer;
                 if (d.precipitation !== undefined && !isNaN(parseFloat(d.precipitation))) point.precipitation = d.precipitation;
             });
 

@@ -27,6 +27,7 @@ export type DataFile = {
     precipitationColumn?: string;
     sensorPressureColumn?: string;
     temperatureColumn?: string;
+    barometerColumn?: string;
     startRow: number;
   }
 };
@@ -111,6 +112,7 @@ export type ChartablePoint = {
     dailyPrecipitation?: number;
     sensorPressure?: number;
     temperature?: number;
+    barometer?: number;
 }
 
 export type WeatherSummary = {
