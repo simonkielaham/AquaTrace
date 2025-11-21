@@ -3,6 +3,9 @@
 
 import type { WeatherSummary, AnalysisPeriod } from "@/lib/placeholder-data";
 import * as React from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 import {
   Card,
   CardContent,
@@ -56,35 +59,42 @@ const MetricCard = ({ title, value, unit, icon: Icon, iconColor, subValue }: { t
     )
 }
 
+const analysisFormSchema = z.object({
+  notes: z.string().optional(),
+  status: z.enum(["normal" , "not_normal" , "holding_water" , "leaking"]).optional(),
+  analystInitials: z.string().min(1, "Analyst initials are required."),
+});
+
+type AnalysisFormValues = z.infer<typeof analysisFormSchema>;
+
+
 function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
   const { saveAnalysis, assets, selectedAssetId } = useAssets();
   const { toast } = useToast();
-  const [notes, setNotes] = React.useState(event.analysis?.notes || "");
-  const [status, setStatus] = React.useState(event.analysis?.status || "normal");
-  const [analystInitials, setAnalystInitials] = React.useState(event.analysis?.analystInitials || "");
   const [isSaving, setIsSaving] = React.useState(false);
   
-  const selectedAsset = assets.find(a => a.id === selectedAssetId);
-
+  const form = useForm<AnalysisFormValues>({
+      resolver: zodResolver(analysisFormSchema),
+      defaultValues: {
+        notes: event.analysis?.notes || "",
+        status: event.analysis?.status || "normal",
+        analystInitials: event.analysis?.analystInitials || "",
+      }
+  });
+  
   // This effect ensures that if the event data changes from the parent
-  // (e.g. after a save and data refetch), the local state is updated.
+  // (e.g. after a save and data refetch), the local form state is updated.
   React.useEffect(() => {
-    setNotes(event.analysis?.notes || "");
-    setStatus(event.analysis?.status || "normal");
-    setAnalystInitials(event.analysis?.analystInitials || "");
-  }, [event.analysis]);
+    form.reset({
+        notes: event.analysis?.notes || "",
+        status: event.analysis?.status || "normal",
+        analystInitials: event.analysis?.analystInitials || "",
+    });
+  }, [event.analysis, form]);
 
 
-  const handleSave = async () => {
-    if (!analystInitials) {
-        toast({
-            variant: "destructive",
-            title: "Validation Error",
-            description: "Analyst initials are required to save."
-        });
-        return;
-    }
-    if (!selectedAsset) return;
+  const handleSave = async (data: AnalysisFormValues) => {
+    if (!selectedAssetId) return;
 
     setIsSaving(true);
     toast({
@@ -93,12 +103,10 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
     
     const analysisData = {
       eventId: event.id,
-      notes: notes,
-      status: status,
-      analystInitials: analystInitials,
+      ...data,
     };
 
-    const result = await saveAnalysis(selectedAsset.id, analysisData);
+    const result = await saveAnalysis(selectedAssetId, analysisData);
 
     if (result?.errors) {
        const errorMessages = Object.values(result.errors).flat().join('\n');
@@ -157,6 +165,8 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
   
 
   return (
+    <Form {...form}>
+    <form onSubmit={form.handleSubmit(handleSave)}>
     <div className="bg-muted/30 p-4 rounded-b-md">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -193,13 +203,22 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                 </div>
 
                 <div className="p-4 border bg-background rounded-lg col-span-full">
-                    <p className="font-medium text-sm mb-2">Analyst Notes</p>
-                    <Textarea 
-                        placeholder="Add notes about this event..."
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        className="min-h-[80px]"
-                    />
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="font-medium text-sm mb-2">Analyst Notes</FormLabel>
+                         <FormControl>
+                            <Textarea 
+                                placeholder="Add notes about this event..."
+                                className="min-h-[80px]"
+                                {...field}
+                            />
+                         </FormControl>
+                      </FormItem>
+                    )}
+                  />
                 </div>
             </div>
 
@@ -216,46 +235,74 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                      </div>
                 </div>
                  <div className="p-4 border bg-background rounded-lg">
-                    <p className="font-medium text-sm mb-3">Asset Status During Event</p>
-                    <RadioGroup value={status} onValueChange={(value) => setStatus(value as any)} className="space-y-2">
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="normal" id={`status-normal-${event.id}`} />
-                            <Label htmlFor={`status-normal-${event.id}`}>Operating Normally</Label>
-                        </div>
-                         <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="not_normal" id={`status-not-normal-${event.id}`} />
-                            <Label htmlFor={`status-not-normal-${event.id}`}>Not Operating Normally</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="holding_water" id={`status-holding-${event.id}`} />
-                            <Label htmlFor={`status-holding-${event.id}`}>Holding Water</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="leaking" id={`status-leaking-${event.id}`} />
-                            <Label htmlFor={`status-leaking-${event.id}`}>Potential Leak</Label>
-                        </div>
-                    </RadioGroup>
+                    <FormField
+                      control={form.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem className="space-y-3">
+                          <FormLabel className="font-medium text-sm">Asset Status During Event</FormLabel>
+                          <FormControl>
+                            <RadioGroup
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                              className="space-y-2"
+                            >
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl><RadioGroupItem value="normal" id={`status-normal-${event.id}`} /></FormControl>
+                                <Label htmlFor={`status-normal-${event.id}`} className="font-normal">Operating Normally</Label>
+                              </FormItem>
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl><RadioGroupItem value="not_normal" id={`status-not-normal-${event.id}`} /></FormControl>
+                                <Label htmlFor={`status-not-normal-${event.id}`} className="font-normal">Not Operating Normally</Label>
+                              </FormItem>
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl><RadioGroupItem value="holding_water" id={`status-holding-${event.id}`} /></FormControl>
+                                <Label htmlFor={`status-holding-${event.id}`} className="font-normal">Holding Water</Label>
+                              </FormItem>
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl><RadioGroupItem value="leaking" id={`status-leaking-${event.id}`} /></FormControl>
+                                <Label htmlFor={`status-leaking-${event.id}`} className="font-normal">Potential Leak</Label>
+                              </FormItem>
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                 </div>
                 <div className="p-4 border bg-background rounded-lg">
-                     <p className="font-medium text-sm mb-2">Analyst Sign-off</p>
-                     <div className="relative">
-                        <Edit className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                            placeholder="Enter your initials..."
-                            value={analystInitials}
-                            onChange={(e) => setAnalystInitials(e.target.value.toUpperCase())}
-                            className="pl-10"
-                            maxLength={5}
-                        />
-                     </div>
+                    <FormField
+                      control={form.control}
+                      name="analystInitials"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-medium text-sm">Analyst Sign-off</FormLabel>
+                          <div className="relative">
+                            <Edit className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                             <FormControl>
+                                <Input 
+                                    placeholder="Enter your initials..."
+                                    className="pl-10"
+                                    maxLength={5}
+                                    {...field}
+                                    onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                                />
+                             </FormControl>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                 </div>
-                <Button className="w-full" onClick={handleSave} disabled={isSaving || !analystInitials}>
+                <Button type="submit" className="w-full" disabled={isSaving || !form.formState.isValid}>
                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                     Save Analysis
                 </Button>
             </div>
         </div>
     </div>
+    </form>
+    </Form>
   )
 }
 

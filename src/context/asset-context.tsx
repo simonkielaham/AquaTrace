@@ -60,7 +60,7 @@ interface AssetContextType {
   deleteSurveyPoint: (pointId: string) => Promise<any>;
   getSurveyPoints: (assetId: string) => Promise<SurveyPoint[]>;
   dataVersion: number;
-  assetData: { [assetId: string]: { data: any[], weatherSummary: WeatherSummary | null } };
+  assetData: { [assetId: string]: { data: any[], weatherSummary: WeatherSummary | null, loading?: boolean } };
   fetchAssetData: (assetId: string) => Promise<void>;
 }
 
@@ -313,14 +313,46 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
         const result = await saveAnalysisAction(data);
         if (result && !result.errors) {
-            await fetchAssetData(assetId);
+            // Optimistically update the local state for immediate feedback
+            setAssetData(prev => {
+                const currentAssetData = prev[assetId];
+                if (!currentAssetData || !currentAssetData.weatherSummary) return prev;
+
+                const updatedEvents = currentAssetData.weatherSummary.events.map(event => {
+                    if (event.id === data.eventId) {
+                        const updatedAnalysis = {
+                            ...event.analysis,
+                            notes: data.notes,
+                            status: data.status,
+                            analystInitials: data.analystInitials,
+                        };
+                        return { ...event, analysis: updatedAnalysis };
+                    }
+                    return event;
+                });
+
+                const updatedWeatherSummary = {
+                    ...currentAssetData.weatherSummary,
+                    events: updatedEvents,
+                };
+                
+                return {
+                    ...prev,
+                    [assetId]: {
+                        ...currentAssetData,
+                        weatherSummary: updatedWeatherSummary,
+                    }
+                };
+            });
+            // You might still want to trigger a full refetch quietly in the background
+            // or rely on this optimistic update. For now, this provides instant UI feedback.
         }
         return result;
     } catch (error) {
         const message = await getErrorMessage(error);
         return { message: `Error: ${message}` };
     }
-  }, [fetchAssetData]);
+  }, []);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
