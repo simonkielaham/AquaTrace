@@ -50,6 +50,7 @@ const overallAnalysisSchema = z.object({
   furtherInvestigation: z.enum(['not_needed', 'recommended', 'required']).optional(),
   summary: z.string().optional(),
   analystInitials: z.string().min(1, "Analyst initials are required."),
+  status: z.enum(["ok", "warning", "error", "unknown"]),
 });
 
 type OverallAnalysisFormValues = z.infer<typeof overallAnalysisSchema>;
@@ -70,6 +71,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
         furtherInvestigation: undefined,
         summary: "",
         analystInitials: "",
+        status: asset.status || 'unknown',
     },
   });
 
@@ -78,24 +80,27 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
     const fetchAnalysis = async () => {
         setIsLoading(true);
         const data = await getOverallAnalysis(asset.id);
-        if (isMounted && data) {
+        if (isMounted) {
             form.reset({
-                permanentPoolPerformance: data.permanentPoolPerformance,
-                estimatedControlElevation: data.estimatedControlElevation,
-                rainResponse: data.rainResponse,
-                furtherInvestigation: data.furtherInvestigation,
-                summary: data.summary || "",
-                analystInitials: data.analystInitials || "",
+                permanentPoolPerformance: data?.permanentPoolPerformance,
+                estimatedControlElevation: data?.estimatedControlElevation,
+                rainResponse: data?.rainResponse,
+                furtherInvestigation: data?.furtherInvestigation,
+                summary: data?.summary || "",
+                analystInitials: data?.analystInitials || "",
+                status: data?.status || asset.status || 'unknown',
             });
-            if(data.lastUpdated) {
+            if(data?.lastUpdated) {
                 setLastUpdated(format(new Date(data.lastUpdated), "PPp"));
+            } else {
+                setLastUpdated(null);
             }
         }
         setIsLoading(false);
     }
     fetchAnalysis();
     return () => { isMounted = false };
-  }, [asset.id, getOverallAnalysis, form]);
+  }, [asset.id, asset.status, getOverallAnalysis, form]);
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
     setIsSubmitting(true);
@@ -230,6 +235,29 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
                                 <div className="space-y-6">
                                     <FormField
                                         control={form.control}
+                                        name="status"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                            <FormLabel>Asset Status</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                <SelectTrigger><SelectValue placeholder="Set asset status..." /></SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="unknown">Unknown</SelectItem>
+                                                    <SelectItem value="ok">OK</SelectItem>
+                                                    <SelectItem value="warning">Warning</SelectItem>
+                                                    <SelectItem value="error">Error</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormDescription>This will update the asset's overall status badge.</FormDescription>
+                                            <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
                                         name="analystInitials"
                                         render={({ field }) => (
                                             <FormItem>
@@ -242,6 +270,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
                                                         className="pl-10"
                                                         maxLength={5}
                                                         {...field}
+                                                        value={field.value ?? ''}
                                                         onChange={(e) => field.onChange(e.target.value.toUpperCase())}
                                                     />
                                                 </FormControl>
@@ -266,5 +295,3 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
     </Card>
   );
 }
-
-    

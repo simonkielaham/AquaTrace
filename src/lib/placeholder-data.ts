@@ -8,7 +8,7 @@ export type Asset = {
   longitude: number;
   permanentPoolElevation: number; // in meters
   designElevations: { name: string; elevation: number }[];
-  status: "ok" | "warning" | "error";
+  status: "ok" | "warning" | "error" | "unknown";
   imageId: string;
 };
 
@@ -91,6 +91,7 @@ export type OverallAnalysisData = {
     summary?: string;
     analystInitials?: string;
     lastUpdated?: string;
+    status?: "ok" | "warning" | "error" | "unknown";
 }
 
 export type AnalysisPeriod = {

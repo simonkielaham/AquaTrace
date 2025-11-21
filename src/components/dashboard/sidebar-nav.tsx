@@ -28,11 +28,13 @@ type SidebarNavProps = {
   onSelectAsset: (id: string) => void;
 };
 
-const statusColorMap = {
+const statusColorMap: Record<Asset['status'], string> = {
   ok: "bg-green-500",
   warning: "bg-yellow-500",
   error: "bg-red-500",
+  unknown: "bg-gray-400",
 };
+
 
 export default function SidebarNav({
   assets,
@@ -40,14 +42,6 @@ export default function SidebarNav({
   onSelectAsset,
 }: SidebarNavProps) {
   const pathname = usePathname();
-  const { toast } = useToast();
-
-  const handleNotImplemented = () => {
-    toast({
-      title: "Feature not implemented",
-      description: "This functionality is not yet available.",
-    });
-  };
 
   return (
     <>
@@ -94,8 +88,9 @@ export default function SidebarNav({
                 {asset.name}
                 <Badge
                   className={`ml-auto h-2 w-2 p-0 ${
-                    statusColorMap[asset.status]
+                    statusColorMap[asset.status] || statusColorMap['unknown']
                   }`}
+                  title={`Status: ${asset.status}`}
                 />
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -103,14 +98,6 @@ export default function SidebarNav({
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={handleNotImplemented}>
-              <Settings />
-              Settings
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
       </SidebarFooter>
     </>
   );

@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 import { getWeatherData } from '@/../sourceexamples/weather-service';
 import { formatDistance } from 'date-fns';
@@ -92,6 +92,7 @@ const saveOverallAnalysisSchema = z.object({
     furtherInvestigation: z.enum(['not_needed', 'recommended', 'required']).optional(),
     summary: z.string().optional(),
     analystInitials: z.string().min(1, "Analyst initials are required."),
+    status: z.enum(["ok", "warning", "error", "unknown"]),
 });
 
 // Zod schema definitions
@@ -1035,7 +1036,7 @@ export async function saveOverallAnalysis(data: any) {
         return response;
     }
     
-    const { assetId, ...analysisData } = validatedFields.data;
+    const { assetId, status, ...analysisData } = validatedFields.data;
 
     try {
         const allAnalysis = await readJsonFile<{[key: string]: OverallAnalysisData}>(overallAnalysisFilePath);
@@ -1043,11 +1044,20 @@ export async function saveOverallAnalysis(data: any) {
         allAnalysis[assetId] = {
             ...allAnalysis[assetId],
             ...analysisData,
+            status,
             assetId: assetId,
             lastUpdated: new Date().toISOString(),
         };
 
         await writeJsonFile(overallAnalysisFilePath, allAnalysis);
+
+        // Also update the master asset status
+        const assets = await readJsonFile<Asset[]>(assetsFilePath);
+        const assetIndex = assets.findIndex(a => a.id === assetId);
+        if (assetIndex !== -1) {
+            assets[assetIndex].status = status;
+            await writeJsonFile(assetsFilePath, assets);
+        }
         
         revalidatePath('/');
 
@@ -1273,7 +1283,7 @@ export async function createAsset(data: any) {
           name: de.name,
           elevation: parseFloat(de.elevation.toString())
       })),
-      status: 'ok', 
+      status: 'unknown', 
       imageId: validatedData.imageId || '',
     };
     

@@ -370,9 +370,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const saveOverallAnalysis = useCallback(async (data: any) => {
     try {
       const result = await saveOverallAnalysisAction(data);
-      if (result && !result.errors) {
-        // No need to re-fetch all data, we can just be optimistic
-        // or the parent component can handle refetching if necessary.
+      if (result && !result.errors && result.savedData) {
+        setAssets(prev => prev.map(a => a.id === result.savedData.assetId ? { ...a, status: result.savedData.status } : a));
       }
       return result;
     } catch (error) {

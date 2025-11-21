@@ -49,83 +49,6 @@ type PerformanceChartProps = {
   visibleSensorData: Record<string, boolean>;
 };
 
-const AnalysisDialog = ({ 
-    asset,
-    data, 
-    range,
-    isOpen,
-    onOpenChange
-}: { 
-    asset: Asset,
-    data: ChartablePoint[], 
-    range: { startIndex?: number, endIndex?: number },
-    isOpen: boolean,
-    onOpenChange: (open: boolean) => void,
-}) => {
-    
-    if (range.startIndex === undefined || range.endIndex === undefined) {
-        return null;
-    }
-    
-    const analysisData = data.slice(range.startIndex, range.endIndex + 1);
-    const startDate = new Date(data[range.startIndex]?.timestamp);
-    const endDate = new Date(data[range.endIndex]?.timestamp);
-    
-    // Placeholder for analysis logic
-    const analysisResult = React.useMemo(() => {
-        // This is where future logic for slope change will go.
-        return "Analysis has not been run yet."
-    }, [analysisData]);
-    
-    return (
-        <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[825px]">
-                 <DialogHeader>
-                    <DialogTitle>Drawdown Analysis for {asset.name}</DialogTitle>
-                    <DialogDescription>
-                        Analyzing data from {startDate.toLocaleString()} to {endDate.toLocaleString()}.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="grid grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto pr-4">
-                    <div className="space-y-4">
-                        <h4 className="font-semibold">Analysis Results</h4>
-                        <Card>
-                            <CardContent className="pt-6">
-                                <p className="text-sm text-muted-foreground">{analysisResult}</p>
-                            </CardContent>
-                        </Card>
-                    </div>
-                    <div className="space-y-4">
-                        <h4 className="font-semibold">Data Points in Range ({analysisData.length})</h4>
-                        <ScrollArea className="h-[400px] border rounded-md">
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Timestamp</TableHead>
-                                        <TableHead>Water Level</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {analysisData.map((d, i) => (
-                                        <TableRow key={i}>
-                                            <TableCell>{new Date(d.timestamp).toLocaleString()}</TableCell>
-                                            <TableCell>{d.waterLevel ? d.waterLevel.toFixed(4) + 'm' : 'N/A'}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </ScrollArea>
-                    </div>
-                </div>
-                 <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button><Save className="mr-2 h-4 w-4"/> Save Analysis</Button>
-                 </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-};
-
 
 const CustomLegend = ({ payload, chartConfig }: { payload?: any[], chartConfig: any }) => {
   if (!payload) return null;
@@ -221,7 +144,6 @@ export default function PerformanceChart({
   visibleElevations,
   visibleSensorData,
 }: PerformanceChartProps) {
-  const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = React.useState(false);
   const [isDataTableOpen, setIsDataTableOpen] = React.useState(false);
   const [yZoomRange, setYZoomRange] = React.useState<[number, number] | null>(null);
 
@@ -631,23 +553,8 @@ export default function PerformanceChart({
                 <TableIcon className="mr-2 h-4 w-4" />
                 View Data
             </Button>
-             <Button 
-                onClick={() => setIsAnalysisDialogOpen(true)}
-                disabled={!brushRange || brushRange.startIndex === undefined || brushRange.endIndex === undefined}
-             >
-                <AreaChartIcon className="mr-2 h-4 w-4" />
-                Analyze Selected Range
-            </Button>
         </div>
         
-        {brushRange && <AnalysisDialog 
-            asset={asset}
-            isOpen={isAnalysisDialogOpen}
-            onOpenChange={setIsAnalysisDialogOpen}
-            data={chartData}
-            range={brushRange}
-        />}
-
         <Dialog open={isDataTableOpen} onOpenChange={setIsDataTableOpen}>
             <DialogContent className="sm:max-w-[725px]">
                 <DialogHeader>
