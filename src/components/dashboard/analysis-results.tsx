@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { WeatherSummary, AnalysisPeriod } from "@/lib/placeholder-data";

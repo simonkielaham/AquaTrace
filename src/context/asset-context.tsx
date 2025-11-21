@@ -314,36 +314,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
         const result = await saveAnalysisAction(data);
         if (result && !result.errors) {
-            // Instead of a full refetch, lets update the local data optimistically
-            setAssetData(prev => {
-                const newAssetData = { ...prev };
-                const currentAsset = newAssetData[assetId];
-                if (currentAsset && currentAsset.weatherSummary) {
-                    const eventIndex = currentAsset.weatherSummary.events.findIndex(e => e.id === data.eventId);
-                    if (eventIndex > -1) {
-                        const updatedEvent = { 
-                            ...currentAsset.weatherSummary.events[eventIndex],
-                            analysis: {
-                                ...currentAsset.weatherSummary.events[eventIndex].analysis,
-                                notes: data.notes,
-                                status: data.status,
-                                analystInitials: data.analystInitials
-                            }
-                        };
-                        currentAsset.weatherSummary.events[eventIndex] = updatedEvent;
-                    }
-                }
-                return newAssetData;
-            });
-            // We still increment data version to ensure background consistency if needed, but UI is instant
-             incrementDataVersion();
+            await fetchAssetData(assetId);
         }
         return result;
     } catch (error) {
         const message = await getErrorMessage(error);
         return { message: `Error: ${message}` };
     }
-  }, [incrementDataVersion]);
+  }, [fetchAssetData]);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
