@@ -9,7 +9,8 @@ import {
   StagedFile,
   SurveyPoint,
   SavedAnalysisData,
-  WeatherSummary
+  WeatherSummary,
+  ChartablePoint
 } from '@/lib/placeholder-data';
 import { 
   createAsset as createAssetAction, 
@@ -64,7 +65,7 @@ interface AssetContextType {
   deleteSurveyPoint: (pointId: string) => Promise<any>;
   getSurveyPoints: (assetId: string) => Promise<SurveyPoint[]>;
   dataVersion: number;
-  assetData: { [assetId: string]: { data: any[], weatherSummary: WeatherSummary | null, loading?: boolean } };
+  assetData: { [assetId: string]: { data: ChartablePoint[], weatherSummary: WeatherSummary | null, loading?: boolean } };
   fetchAssetData: (assetId: string) => Promise<void>;
 }
 
@@ -130,13 +131,13 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   
   const fetchAssetData = useCallback(async (assetId: string) => {
     if (!assetId) return;
-    setAssetData(prev => ({ ...prev, [assetId]: { ...prev[assetId], loading: true } }));
+    setAssetData(prev => ({ ...prev, [assetId]: { ...prev[assetId], data: [], weatherSummary: null, loading: true } }));
     try {
         const result = await getProcessedData(assetId, dataVersion);
-        setAssetData(prev => ({ ...prev, [assetId]: { ...result, loading: false } }));
+        setAssetData(prev => ({ ...prev, [assetId]: { data: result.data, weatherSummary: result.weatherSummary, loading: false } }));
     } catch (error) {
         console.error(`Failed to fetch data for asset ${assetId}:`, error);
-        setAssetData(prev => ({ ...prev, [assetId]: { ...prev[assetId], loading: false } }));
+        setAssetData(prev => ({ ...prev, [assetId]: { data: [], weatherSummary: null, loading: false } }));
     }
   }, [dataVersion]);
 
@@ -343,14 +344,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
         const result = await saveAnalysisAction(data);
         if (result && !result.errors) {
-            await fetchAssetData(assetId);
+            incrementDataVersion();
         }
         return result;
     } catch (error) {
         const message = await getErrorMessage(error);
         return { message: `Error: ${message}` };
     }
-  }, [fetchAssetData]);
+  }, [incrementDataVersion]);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {

@@ -43,6 +43,24 @@ export default function DashboardLayout() {
     }
   }, [selectedAssetId, assets, setSelectedAssetId, loading]);
 
+  // This effect will re-fetch data for the current asset when dataVersion changes
+  React.useEffect(() => {
+    if (selectedAssetId) {
+      const { id: toastId } = toast({
+        title: "Fetching Data...",
+        description: `Querying sensor and weather data.`,
+      });
+
+      fetchAssetData(selectedAssetId).then(() => {
+          toast({
+            id: toastId,
+            title: "Data Loaded Successfully",
+            description: `Sensor data processed for the current asset.`,
+        });
+      });
+    }
+  }, [dataVersion, selectedAssetId, fetchAssetData, toast]);
+
   React.useEffect(() => {
     if (selectedAsset) {
       const initialVisibility = selectedAsset.designElevations.reduce((acc, de) => {
@@ -54,29 +72,10 @@ export default function DashboardLayout() {
       setVisibleSensorData({
         temperature: false,
         sensorPressure: false,
-      });
-      
-      const { id: toastId } = toast({
-        title: "Fetching Data...",
-        description: `Querying sensor and weather data for ${selectedAsset.name}.`,
-      });
-
-      fetchAssetData(selectedAsset.id).then(() => {
-          toast({
-            id: toastId,
-            title: "Data Loaded Successfully",
-            description: `Sensor data processed for ${selectedAsset.name}.`,
-        });
+        barometer: false,
       });
     }
-  }, [selectedAsset, fetchAssetData, toast]);
-
-  // This effect will re-fetch data for the current asset when dataVersion changes
-  React.useEffect(() => {
-    if (selectedAssetId) {
-        fetchAssetData(selectedAssetId);
-    }
-  }, [dataVersion, selectedAssetId, fetchAssetData]);
+  }, [selectedAsset]);
 
   
   const handleSelectEventTimeRange = React.useCallback((eventStartDate: number, eventEndDate: number) => {
