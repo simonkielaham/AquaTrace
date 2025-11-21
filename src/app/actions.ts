@@ -93,45 +93,16 @@ const baseDatafileSchema = z.object({
     startRow: z.coerce.number().min(1),
 });
 
-const refinedDatafileSchema = baseDatafileSchema.refine(data => data.dataType !== 'water-level' || !!data.waterLevelColumn, {
-    message: "Water Level column is required for Water Level data type.",
-    path: ['waterLevelColumn'],
-}).refine(data => data.dataType !== 'precipitation' || !!data.precipitationColumn, {
-    message: "Precipitation column is required for Precipitation data type.",
-    path: ['precipitationColumn'],
-}).refine(data => data.dataType !== 'sensor-suite' || !!data.waterLevelColumn, {
-    message: "Water Level column is required for Sensor Suite data type.",
-    path: ['waterLevelColumn']
-});
-
 const assignDatafileSchema = baseDatafileSchema.extend({
   deploymentId: z.string(),
   assetId: z.string(),
   filename: z.string(),
-}).refine(data => data.dataType !== 'water-level' || !!data.waterLevelColumn, {
-    message: "Water Level column is required for Water Level data type.",
-    path: ['waterLevelColumn'],
-}).refine(data => data.dataType !== 'precipitation' || !!data.precipitationColumn, {
-    message: "Precipitation column is required for Precipitation data type.",
-    path: ['precipitationColumn'],
-}).refine(data => data.dataType !== 'sensor-suite' || !!data.waterLevelColumn, {
-    message: "Water Level column is required for Sensor Suite data type.",
-    path: ['waterLevelColumn']
 });
 
 const reassignDatafileSchema = baseDatafileSchema.extend({
   deploymentId: z.string(),
   fileId: z.string(),
   filename: z.string(),
-}).refine(data => data.dataType !== 'water-level' || !!data.waterLevelColumn, {
-    message: "Water Level column is required for Water Level data type.",
-    path: ['waterLevelColumn'],
-}).refine(data => data.dataType !== 'precipitation' || !!data.precipitationColumn, {
-    message: "Precipitation column is required for Precipitation data type.",
-    path: ['precipitationColumn'],
-}).refine(data => data.dataType !== 'sensor-suite' || !!data.waterLevelColumn, {
-    message: "Water Level column is required for Sensor Suite data type.",
-    path: ['waterLevelColumn']
 });
 
 
