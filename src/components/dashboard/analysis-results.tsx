@@ -58,18 +58,23 @@ const MetricCard = ({ title, value, unit, icon: Icon, iconColor, subValue }: { t
 }
 
 function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
-  const { saveAnalysis, dataVersion } = useAssets();
+  const { saveAnalysis, assets, selectedAssetId } = useAssets();
   const { toast } = useToast();
   const [notes, setNotes] = React.useState(event.analysis?.notes || "");
   const [status, setStatus] = React.useState(event.analysis?.status || "normal");
   const [analystInitials, setAnalystInitials] = React.useState(event.analysis?.analystInitials || "");
   const [isSaving, setIsSaving] = React.useState(false);
+  
+  const selectedAsset = assets.find(a => a.id === selectedAssetId);
 
+  // This effect ensures that if the event data changes from the parent
+  // (e.g. after a save and data refetch), the local state is updated.
   React.useEffect(() => {
     setNotes(event.analysis?.notes || "");
     setStatus(event.analysis?.status || "normal");
     setAnalystInitials(event.analysis?.analystInitials || "");
-  }, [event.id, event.analysis, dataVersion]);
+  }, [event.analysis]);
+
 
   const handleSave = async () => {
     if (!analystInitials) {
@@ -80,17 +85,21 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
         });
         return;
     }
+    if (!selectedAsset) return;
+
     setIsSaving(true);
     toast({
       title: "Saving analysis...",
     });
     
-    const result = await saveAnalysis({
+    const analysisData = {
       eventId: event.id,
       notes: notes,
       status: status,
       analystInitials: analystInitials,
-    });
+    };
+
+    const result = await saveAnalysis(selectedAsset.id, analysisData);
 
     if (result?.errors) {
        const errorMessages = Object.values(result.errors).flat().join('\n');
@@ -301,7 +310,7 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                         >
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-left flex-1 items-center text-sm">
                                  <div className="font-medium flex items-center gap-2">
-                                    {isReviewed && <CheckCircle className="h-4 w-4 text-green-500" />}
+                                    {isReviewed && <CheckCircle className="h-4 w-4 text-green-500" title="Reviewed"/>}
                                     {format(new Date(event.startDate), 'Pp')}
                                  </div>
                                  <div>{formatDuration(event.startDate, event.endDate)}</div>

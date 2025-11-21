@@ -22,16 +22,19 @@ import { useToast } from "@/hooks/use-toast";
 
 
 export default function DashboardLayout() {
-  const { assets, selectedAssetId, setSelectedAssetId, deployments, loading, dataVersion } = useAssets();
+  const { assets, selectedAssetId, setSelectedAssetId, deployments, loading, dataVersion, fetchAssetData, assetData } = useAssets();
   const { toast } = useToast();
-  const [chartData, setChartData] = React.useState<ChartablePoint[]>([]);
-  const [weatherSummary, setWeatherSummary] = React.useState<WeatherSummary | null>(null);
-  const [isChartLoading, setIsChartLoading] = React.useState(true);
+  
   const [chartBrushRange, setChartBrushRange] = React.useState<{startIndex?: number, endIndex?: number}>({});
   const [visibleElevations, setVisibleElevations] = React.useState<Record<string, boolean>>({});
   const [visibleSensorData, setVisibleSensorData] = React.useState<Record<string, boolean>>({});
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
+  const currentAssetData = selectedAssetId ? assetData[selectedAssetId] : null;
+  const isChartLoading = !currentAssetData;
+  const chartData = currentAssetData?.data || [];
+  const weatherSummary = currentAssetData?.weatherSummary || null;
+
   
   // Handle case where selected asset is not found or none is selected
   React.useEffect(() => {
@@ -53,56 +56,31 @@ export default function DashboardLayout() {
         barometer: false,
         sensorPressure: false,
       });
-    }
-  }, [selectedAsset]);
-
-  React.useEffect(() => {
-    let isMounted = true;
-    const fetchData = async () => {
-      if (!selectedAsset) return;
-      setIsChartLoading(true);
-
-      const { id: toastId } = toast({
-        title: "Fetching Data...",
-        description: `Querying sensor and weather data for ${selectedAsset.name}.`,
-      });
       
-      const processedDataResult = await getProcessedDataAction(selectedAsset.id);
-      
-      if (isMounted) {
-        const { data: combinedData, weatherSummary } = processedDataResult;
-
-        setChartData(combinedData);
-        setWeatherSummary(weatherSummary);
-        setChartBrushRange({}); // Reset brush on new data
-        setIsChartLoading(false);
-        
-        toast({
-            id: toastId,
-            title: "Data Loaded Successfully",
-            description: (
-              <div>
-                <p>Sensor data processed for {selectedAsset.name}.</p>
-                {weatherSummary && (
-                  <p>
-                    Found{" "}
-                    <span className="font-bold">
-                      {weatherSummary.events.length}
-                    </span>{" "}
-                    precipitation events totaling{" "}
-                    <span className="font-bold">
-                        {weatherSummary.totalPrecipitation.toFixed(2)}mm
-                    </span>.
-                  </p>
-                )}
-              </div>
-            ),
-        });
+      // Fetch data for the selected asset if not already available
+      if (!assetData[selectedAsset.id]) {
+          const { id: toastId } = toast({
+            title: "Fetching Data...",
+            description: `Querying sensor and weather data for ${selectedAsset.name}.`,
+          });
+          fetchAssetData(selectedAsset.id).then(() => {
+             toast({
+                id: toastId,
+                title: "Data Loaded Successfully",
+                description: `Sensor data processed for ${selectedAsset.name}.`,
+            });
+          });
       }
-    };
-    fetchData();
-    return () => { isMounted = false };
-  }, [selectedAsset, dataVersion, toast]);
+    }
+  }, [selectedAsset, assetData, fetchAssetData, toast]);
+
+  // This effect will re-fetch data for the current asset when dataVersion changes
+  React.useEffect(() => {
+    if (selectedAssetId) {
+        fetchAssetData(selectedAssetId);
+    }
+  }, [dataVersion, selectedAssetId, fetchAssetData]);
+
   
   const handleSelectEventTimeRange = React.useCallback((eventStartDate: number, eventEndDate: number) => {
     if (!chartData || chartData.length === 0) return;

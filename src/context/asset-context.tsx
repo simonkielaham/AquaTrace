@@ -8,7 +8,9 @@ import {
   Deployment,
   DataPoint,
   StagedFile,
-  SurveyPoint
+  SurveyPoint,
+  SavedAnalysisData,
+  WeatherSummary
 } from '@/lib/placeholder-data';
 import { 
   createAsset as createAssetAction, 
@@ -28,6 +30,7 @@ import {
   unassignDatafile as unassignDatafileAction,
   deleteDatafile as deleteDatafileAction,
   saveAnalysis as saveAnalysisAction,
+  getProcessedData,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -47,7 +50,7 @@ interface AssetContextType {
   assignDatafileToDeployment: (formData: FormData) => Promise<any>;
   unassignDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   deleteDatafile: (deploymentId: string, fileId: string) => Promise<any>;
-  saveAnalysis: (data: { eventId: string; notes?: string; status?: "normal" | "not_normal" | "holding_water" | "leaking"; analystInitials: string; }) => Promise<any>;
+  saveAnalysis: (assetId: string, data: SavedAnalysisData & { eventId: string }) => Promise<any>;
   loading: boolean;
   stagedFiles: StagedFile[];
   loadingStagedFiles: boolean;
@@ -58,6 +61,8 @@ interface AssetContextType {
   deleteSurveyPoint: (pointId: string) => Promise<any>;
   getSurveyPoints: (assetId: string) => Promise<SurveyPoint[]>;
   dataVersion: number;
+  assetData: { [assetId: string]: { data: any[], weatherSummary: WeatherSummary | null } };
+  fetchAssetData: (assetId: string) => void;
 }
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
@@ -103,6 +108,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
   const [loadingStagedFiles, setLoadingStagedFiles] = useState(true);
   const [dataVersion, setDataVersion] = useState(0);
+  const [assetData, setAssetData] = useState<AssetContextType['assetData']>({});
+
 
   const incrementDataVersion = useCallback(() => setDataVersion(v => v + 1), []);
 
@@ -117,6 +124,19 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       setLoadingStagedFiles(false);
     }
   }, []);
+  
+  const fetchAssetData = useCallback(async (assetId: string) => {
+    if (!assetId) return;
+    setAssetData(prev => ({ ...prev, [assetId]: { ...prev[assetId], loading: true } }));
+    try {
+        const result = await getProcessedData(assetId);
+        setAssetData(prev => ({ ...prev, [assetId]: { ...result, loading: false } }));
+    } catch (error) {
+        console.error(`Failed to fetch data for asset ${assetId}:`, error);
+        setAssetData(prev => ({ ...prev, [assetId]: { ...prev[assetId], loading: false } }));
+    }
+  }, []);
+
 
   useEffect(() => {
     setAssets(initialAssets);
@@ -290,10 +310,43 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [incrementDataVersion]);
 
-  const saveAnalysis = useCallback(async (data: { eventId: string; notes?: string; status?: "normal" | "not_normal" | "holding_water" | "leaking"; analystInitials: string; }) => {
+  const saveAnalysis = useCallback(async (assetId: string, data: SavedAnalysisData & { eventId: string }) => {
       try {
         const result = await saveAnalysisAction(data);
         if (result && !result.errors) {
+            // Manually update the local state to avoid a full refresh race condition
+            setAssetData(prev => {
+                const currentAssetData = prev[assetId];
+                if (!currentAssetData || !currentAssetData.weatherSummary) return prev;
+
+                const updatedEvents = currentAssetData.weatherSummary.events.map(event => {
+                    if (event.id === data.eventId) {
+                        return {
+                            ...event,
+                            analysis: {
+                                ...event.analysis,
+                                notes: data.notes,
+                                status: data.status,
+                                analystInitials: data.analystInitials
+                            }
+                        }
+                    }
+                    return event;
+                });
+                
+                return {
+                    ...prev,
+                    [assetId]: {
+                        ...currentAssetData,
+                        weatherSummary: {
+                            ...currentAssetData.weatherSummary,
+                            events: updatedEvents
+                        }
+                    }
+                }
+            });
+            // We can still increment this to ensure other parts of the app update if needed,
+            // but our primary update is now manual and immediate.
             incrementDataVersion();
         }
         return result;
@@ -365,7 +418,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   }, [incrementDataVersion]);
 
 
-  const value = {
+  const value: AssetContextType = {
     assets,
     selectedAssetId,
     setSelectedAssetId: handleSetSelectedAssetId,
@@ -390,6 +443,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     deleteSurveyPoint,
     getSurveyPoints: getSurveyPointsAction,
     dataVersion,
+    assetData,
+    fetchAssetData,
   };
 
   return (
