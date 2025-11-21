@@ -1,16 +1,19 @@
 
 "use client";
 
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAssets } from "@/context/asset-context";
 import { useToast } from "@/hooks/use-toast";
-import { OverallAnalysisData } from "@/lib/placeholder-data";
+import { generateReport } from "@/lib/report-generator";
+import * as React from "react";
+
 
 export default function PageHeader() {
   const { toast } = useToast();
-  const { selectedAssetId, assetData, getOverallAnalysis } = useAssets();
+  const { selectedAssetId, assets, deployments, getOverallAnalysis, assetData } = useAssets();
   const currentAssetData = selectedAssetId ? assetData[selectedAssetId] : null;
+  const [isGenerating, setIsGenerating] = React.useState(false);
 
   const handleGenerateReport = async () => {
     if (!selectedAssetId || !currentAssetData) {
@@ -23,12 +26,27 @@ export default function PageHeader() {
     }
     
     toast({
+        id: "report-status",
         title: "Verifying Report Data...",
         description: "Please wait while we check your analysis.",
     });
 
+    setIsGenerating(true);
+
     const overallAnalysis = await getOverallAnalysis(selectedAssetId);
     const events = currentAssetData.weatherSummary?.events || [];
+    const asset = assets.find(a => a.id === selectedAssetId);
+    const assetDeployments = deployments.filter(d => d.assetId === selectedAssetId);
+
+    if (!asset) {
+         toast({
+            variant: "destructive",
+            title: "Asset Not Found",
+            description: "Could not find the selected asset details.",
+        });
+        setIsGenerating(false);
+        return;
+    }
 
     const missingOverallFields: string[] = [];
     if (!overallAnalysis) {
@@ -64,12 +82,46 @@ export default function PageHeader() {
           </pre>
         ),
       });
+      setIsGenerating(false);
     } else {
       // All checks passed, proceed with report generation
       toast({
+        id: "report-status",
         title: "Generating Report...",
-        description: "Your report will be downloaded shortly.",
+        description: "This may take a moment. Please wait.",
       });
+
+      try {
+        await generateReport({
+            asset: asset,
+            deployments: assetDeployments,
+            chartData: currentAssetData.data,
+            weatherSummary: currentAssetData.weatherSummary,
+            overallAnalysis: overallAnalysis!,
+        }, (progress) => {
+             toast({
+                id: "report-status",
+                title: "Generating Report...",
+                description: progress,
+            });
+        });
+
+         toast({
+            id: "report-status",
+            title: "Report Generated!",
+            description: "Your PDF download will begin shortly.",
+        });
+
+      } catch (error) {
+         toast({
+            id: "report-status",
+            variant: "destructive",
+            title: "Error Generating Report",
+            description: error instanceof Error ? error.message : "An unknown error occurred.",
+        });
+      } finally {
+        setIsGenerating(false);
+      }
     }
   };
 
@@ -86,10 +138,11 @@ export default function PageHeader() {
           variant="outline"
           className="gap-1"
           onClick={handleGenerateReport}
+          disabled={isGenerating}
         >
-          <Download className="h-3.5 w-3.5" />
+          {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
           <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-            Generate Report
+            {isGenerating ? "Generating..." : "Generate Report"}
           </span>
         </Button>
       </div>

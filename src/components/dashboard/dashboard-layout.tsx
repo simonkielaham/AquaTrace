@@ -30,6 +30,9 @@ export default function DashboardLayout() {
   const [visibleElevations, setVisibleElevations] = React.useState<Record<string, boolean>>({});
   const [visibleSensorData, setVisibleSensorData] = React.useState<Record<string, boolean>>({});
 
+  // State for the offscreen chart used for report generation
+  const [reportChartRange, setReportChartRange] = React.useState<{startDate: number, endDate: number} | null>(null);
+
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   const currentAssetData = selectedAssetId ? assetData[selectedAssetId] : null;
   const isChartLoading = !currentAssetData || (currentAssetData as any).loading;
@@ -77,6 +80,25 @@ export default function DashboardLayout() {
       });
     }
   }, [selectedAsset]);
+
+  // Listener for report generation chart rendering
+  React.useEffect(() => {
+    const handleRenderRequest = (event: Event) => {
+        const customEvent = event as CustomEvent;
+        setReportChartRange(customEvent.detail);
+    };
+
+    const chartContainer = document.getElementById('performance-chart-container-for-report');
+    if (chartContainer) {
+        chartContainer.addEventListener('render-chart-for-report', handleRenderRequest);
+    }
+
+    return () => {
+        if (chartContainer) {
+            chartContainer.removeEventListener('render-chart-for-report', handleRenderRequest);
+        }
+    };
+  }, []);
 
   
   const handleSelectEventTimeRange = React.useCallback((eventStartDate: number, eventEndDate: number) => {
@@ -184,6 +206,23 @@ export default function DashboardLayout() {
             </div>
           </main>
         </div>
+      </div>
+      {/* Offscreen chart for report generation */}
+      <div id="performance-chart-container-for-report" className="fixed -left-[9999px] top-0 w-[1000px] bg-background p-4">
+        {selectedAsset && chartData && reportChartRange && (
+            <PerformanceChart
+                asset={selectedAsset}
+                chartData={chartData}
+                loading={false}
+                brushRange={{
+                    startIndex: chartData.findIndex(d => d.timestamp >= reportChartRange.startDate),
+                    endIndex: chartData.findIndex(d => d.timestamp >= reportChartRange.endDate)
+                }}
+                onBrushChange={() => {}} // No-op for report chart
+                visibleElevations={{ ...visibleElevations, [selectedAsset.permanentPoolElevation.toString()]: true }} // Ensure pool is visible
+                visibleSensorData={visibleSensorData}
+            />
+        )}
       </div>
     </SidebarProvider>
   );
