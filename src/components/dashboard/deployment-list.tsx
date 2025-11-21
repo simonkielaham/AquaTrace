@@ -455,8 +455,8 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                           First 10 rows of data from {selectedFilename}.
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className="h-48 rounded-md border p-0">
-                        <div className="h-full overflow-auto">
+                      <CardContent className="border rounded-md p-0">
+                        <div className="h-48 overflow-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
