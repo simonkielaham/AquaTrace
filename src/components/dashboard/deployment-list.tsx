@@ -4,7 +4,7 @@
 import type { Deployment, Asset, DataFile, StagedFile } from "@/lib/placeholder-data";
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import {
   Card,
@@ -315,8 +315,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isParsing, setIsParsing] = React.useState(false);
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
-  const [csvRows, setCsvRows] = React.useState<string[][]>([]);
-  const [selectedPreviewRowIndex, setSelectedPreviewRowIndex] = React.useState<string | undefined>();
+  const [csvSample, setCsvSample] = React.useState<string[][]>([]);
   
   const form = useForm<AssignDatafileValues>({
     resolver: zodResolver(assignDatafileSchema),
@@ -324,12 +323,12 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   });
   
   const selectedFilename = form.watch("filename");
+  const startRow = useWatch({ control: form.control, name: 'startRow'});
 
   const resetDialogState = React.useCallback(() => {
     form.reset({ startRow: 2, filename: undefined, datetimeColumn: undefined, valueColumn: undefined, dataType: undefined });
     setCsvHeaders([]);
-    setCsvRows([]);
-    setSelectedPreviewRowIndex(undefined);
+    setCsvSample([]);
     setIsSubmitting(false);
     setIsParsing(false);
   }, [form]);
@@ -365,9 +364,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
     form.setValue("datetimeColumn", undefined);
     form.setValue("valueColumn", undefined);
     setCsvHeaders([]);
-    setCsvRows([]);
-    setSelectedPreviewRowIndex(undefined);
-
+    setCsvSample([]);
 
     setIsParsing(true);
     toast({ title: "Parsing File...", description: "Reading headers and sample rows from the selected CSV file."});
@@ -386,10 +383,8 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
         complete: (results) => {
             const data = results.data as string[][];
             if (data.length > 0) {
-              const headers = data[0].filter(h => h);
-              const rows = data.slice(1);
-              setCsvHeaders(headers);
-              setCsvRows(rows);
+              setCsvHeaders(data[0].filter(h => h));
+              setCsvSample(data); // Store all raw rows including header
               toast({ title: "File Parsed", description: "Please map the required columns." });
             } else {
                toast({ variant: "destructive", title: "Parsing Error", description: "Could not parse CSV. Check file format." });
@@ -411,7 +406,13 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
     }
   }
   
-  const currentPreviewData = selectedPreviewRowIndex !== undefined ? csvRows[parseInt(selectedPreviewRowIndex)] : null;
+  const currentPreviewRow = React.useMemo(() => {
+    const rowIndex = startRow - 1; // startRow is 1-based, array is 0-based
+    if (csvSample && rowIndex >= 0 && rowIndex < csvSample.length) {
+      return csvSample[rowIndex];
+    }
+    return null;
+  }, [startRow, csvSample]);
 
 
   return (
@@ -522,30 +523,25 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                       )}
                     />
                   </div>
-                  {csvRows.length > 0 && (
+                  {csvSample.length > 0 && (
                     <div className="space-y-2">
-                       <Label>Preview Data Row</Label>
-                       <Select onValueChange={setSelectedPreviewRowIndex} value={selectedPreviewRowIndex}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a row to preview..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {csvRows.map((_, index) => (
-                               <SelectItem key={index} value={String(index)}>
-                                Row {index + (form.getValues('startRow') || 2)}
-                               </SelectItem>
-                            ))}
-                          </SelectContent>
-                       </Select>
-
-                       {currentPreviewData && (
+                       <Label>Preview of Data at Start Row ({startRow})</Label>
+                       {currentPreviewRow ? (
                           <div className="p-2 border rounded-md max-h-40 overflow-y-auto text-xs space-y-1">
-                            {csvHeaders.map((header, index) => (
-                               <div key={header} className="grid grid-cols-2 gap-2">
-                                  <span className="font-semibold text-muted-foreground truncate">{header}:</span>
-                                  <span className="font-mono truncate" title={currentPreviewData[index]}>{currentPreviewData[index] ?? <span className="text-muted-foreground/50">empty</span>}</span>
-                               </div>
-                            ))}
+                            {csvHeaders.map((header, index) => {
+                                const cellNode = document.createElement('div');
+                                cellNode.textContent = currentPreviewRow[index] ?? '';
+                                return (
+                                   <div key={header} className="grid grid-cols-2 gap-2">
+                                      <span className="font-semibold text-muted-foreground truncate">{header}:</span>
+                                      <span className="font-mono truncate" title={cellNode.textContent || ''}>{cellNode.textContent || <span className="text-muted-foreground/50">empty</span>}</span>
+                                   </div>
+                                )
+                            })}
+                          </div>
+                       ) : (
+                          <div className="p-2 border rounded-md text-center text-xs text-muted-foreground">
+                            Start row is outside the preview range.
                           </div>
                        )}
                     </div>
@@ -900,3 +896,5 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
+
+    
