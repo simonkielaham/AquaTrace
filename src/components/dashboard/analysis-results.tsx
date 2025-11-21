@@ -24,6 +24,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit } from "lucide-react";
 import { format, formatDistance } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -69,7 +77,7 @@ type AnalysisFormValues = z.infer<typeof analysisFormSchema>;
 
 
 function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
-  const { saveAnalysis, assets, selectedAssetId } = useAssets();
+  const { saveAnalysis, selectedAssetId } = useAssets();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = React.useState(false);
   
@@ -82,8 +90,6 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
       }
   });
   
-  // This effect ensures that if the event data changes from the parent
-  // (e.g. after a save and data refetch), the local form state is updated.
   React.useEffect(() => {
     form.reset({
         notes: event.analysis?.notes || "",
