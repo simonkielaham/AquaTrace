@@ -443,13 +443,10 @@ export default function PerformanceChart({
               connectNulls
               dot={false}
             />
-             <Area
+            <Bar
               yAxisId="right"
               dataKey="precipitation"
-              type="monotone"
               fill="var(--color-precipitation)"
-              fillOpacity={0.8}
-              stroke="var(--color-precipitation)"
               name="Precipitation"
             />
             <Scatter 
