@@ -163,10 +163,10 @@ const CustomTooltipContent = ({ active, payload, label, asset, config }: any) =>
 
     const items = [
       { key: "waterLevel", label: "Water Elevation", value: data.waterLevel, unit: "m" },
+      { key: "offset", label: "Offset from Pool", value: offset, unit: "m", showSign: true },
       { key: "rawWaterLevel", label: "Raw Water Level", value: data.rawWaterLevel, unit: "m" },
       { key: "precipitation", label: "Precipitation", value: data.precipitation, unit: "mm" },
       { key: "elevation", label: "Survey Elevation", value: data.elevation, unit: "m" },
-      { key: "offset", label: "Offset from Pool", value: offset, unit: "m", showSign: true },
     ];
     
     return (
@@ -429,11 +429,13 @@ export default function PerformanceChart({
               isAnimationActive={false}
               dot={false}
             />
-             <Bar
+             <Area
               yAxisId="right"
               dataKey="precipitation"
+              type="monotone"
               fill="var(--color-precipitation)"
               fillOpacity={0.4}
+              stroke="var(--color-precipitation)"
               name="Precipitation"
               isAnimationActive={false}
             />
