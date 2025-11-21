@@ -369,65 +369,34 @@ export default function PerformanceChart({
                 <ChartTooltipContent
                   labelFormatter={(label) => new Date(label as number).toLocaleString()}
                   indicator="dot"
-                  formatter={(value, name) => {
-                      if (name === "elevation" && value) {
-                        return (
-                           <div className="flex items-center gap-2">
-                             <div
-                               className="h-2.5 w-2.5 shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]"
-                               style={
-                                {
-                                  "--color-bg": chartConfig.elevation.color,
-                                  "--color-border": chartConfig.elevation.color,
-                                } as React.CSSProperties
-                              }
-                             />
-                              <div className="flex flex-1 justify-between">
-                                 <span className="text-muted-foreground">Survey Point</span>
-                                 <span>{typeof value === 'number' && value.toFixed(2)}m</span>
-                              </div>
-                           </div>
-                        )
+                  formatter={(value, name, item) => {
+                      const itemConfig = chartConfig[name as string] || {};
+                      let formattedValue: string | null = null;
+                      if (typeof value === 'number') {
+                          if (name === 'waterLevel') formattedValue = `${value.toFixed(2)}m`;
+                          if (name === 'precipitation' && value > 0) formattedValue = `${value.toFixed(1)}mm`;
+                          if (name === 'elevation') formattedValue = `${value.toFixed(2)}m`;
                       }
-                      if (name === "precipitation" && typeof value === 'number' && value > 0) {
-                        return (
-                           <div className="flex items-center gap-2">
-                             <div
-                               className="h-2.5 w-2.5 shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]"
-                               style={
-                                {
-                                  "--color-bg": chartConfig.precipitation.color,
-                                  "--color-border": chartConfig.precipitation.color,
-                                } as React.CSSProperties
-                              }
-                             />
-                              <div className="flex flex-1 justify-between">
-                                 <span className="text-muted-foreground">Precipitation</span>
-                                 <span>{typeof value === 'number' && value.toFixed(1)}mm</span>
-                              </div>
-                           </div>
-                        )
-                      }
-                      if (name === "waterLevel" && value) {
-                        return (
-                          <div className="flex items-center gap-2">
-                             <div
-                               className="h-2.5 w-2.5 shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]"
-                               style={
-                                {
-                                  "--color-bg": chartConfig.waterLevel.color,
-                                  "--color-border": chartConfig.waterLevel.color,
-                                } as React.CSSProperties
-                              }
-                             />
-                              <div className="flex flex-1 justify-between">
-                                 <span className="text-muted-foreground">Water Elevation</span>
-                                 <span>{typeof value === 'number' && value.toFixed(2)}m</span>
-                              </div>
-                           </div>
-                        )
-                      }
-                      return null;
+                      
+                      if (!formattedValue) return null;
+                      
+                      return (
+                         <div className="flex items-center gap-2">
+                           <div
+                             className="h-2.5 w-2.5 shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]"
+                             style={
+                              {
+                                "--color-bg": itemConfig.color || item.color,
+                                "--color-border": itemConfig.color || item.color,
+                              } as React.CSSProperties
+                            }
+                           />
+                            <div className="flex flex-1 justify-between">
+                               <span className="text-muted-foreground">{itemConfig.label || name}</span>
+                               <span className="font-bold">{formattedValue}</span>
+                            </div>
+                         </div>
+                      );
                   }}
                 />
               }
@@ -443,10 +412,13 @@ export default function PerformanceChart({
               connectNulls
               dot={false}
             />
-            <Bar
+            <Area
               yAxisId="right"
               dataKey="precipitation"
+              type="monotone"
               fill="var(--color-precipitation)"
+              fillOpacity={0.4}
+              stroke="var(--color-precipitation)"
               name="Precipitation"
             />
             <Scatter 
