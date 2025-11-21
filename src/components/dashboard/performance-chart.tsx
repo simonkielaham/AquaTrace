@@ -370,16 +370,27 @@ export default function PerformanceChart({
                   labelFormatter={(label) => new Date(label as number).toLocaleString()}
                   indicator="dot"
                   formatter={(value, name, item) => {
-                      const itemConfig = chartConfig[name as string] || {};
-                      let formattedValue: string | null = null;
-                      if (typeof value === 'number') {
-                          if (name === 'waterLevel') formattedValue = `${value.toFixed(2)}m`;
-                          if (name === 'precipitation') formattedValue = `${value.toFixed(1)}mm`;
-                          if (name === 'elevation') formattedValue = `${value.toFixed(2)}m`;
-                      }
+                      const dataKey = name as keyof ChartablePoint;
+                      const itemConfig = chartConfig[dataKey] || {};
                       
-                      if (formattedValue === null && value !== 0) return null;
-                      if (name === 'precipitation' && value === 0) return null;
+                      // Only render if the value is defined and not null.
+                      // For precipitation, we allow 0.
+                      if (value === undefined || value === null || (dataKey !== 'precipitation' && value === 0)) {
+                        return null;
+                      }
+
+                      let formattedValue: string;
+                      switch(dataKey) {
+                        case 'waterLevel':
+                        case 'elevation':
+                          formattedValue = `${(value as number).toFixed(2)}m`;
+                          break;
+                        case 'precipitation':
+                          formattedValue = `${(value as number).toFixed(1)}mm`;
+                          break;
+                        default:
+                          return null; // Don't show unknown data keys in tooltip
+                      }
                       
                       return (
                          <div className="flex items-center gap-2">
@@ -394,7 +405,7 @@ export default function PerformanceChart({
                            />
                             <div className="flex flex-1 justify-between">
                                <span className="text-muted-foreground">{itemConfig.label || name}</span>
-                               <span className="font-bold">{formattedValue || value}</span>
+                               <span className="font-bold">{formattedValue}</span>
                             </div>
                          </div>
                       );
@@ -411,8 +422,8 @@ export default function PerformanceChart({
               stroke="var(--color-waterLevel)"
               name="Water Elevation"
               connectNulls
-              dot={false}
               isAnimationActive={false}
+              dot={false}
             />
             <Area
               yAxisId="right"
@@ -546,5 +557,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    
