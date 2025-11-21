@@ -399,6 +399,27 @@ export function EditAssetDialog({ asset, children }: { asset: Asset, children: R
     },
   });
 
+  React.useEffect(() => {
+    if (asset) {
+      form.reset({
+        name: asset.name,
+        location: asset.location,
+        latitude: asset.latitude,
+        longitude: asset.longitude,
+        permanentPoolElevation: asset.permanentPoolElevation,
+        designElevations: asset.designElevations.map(de => {
+          const isStandard = elevationOptions.includes(de.name);
+          return {
+            name: isStandard ? de.name : "Custom",
+            customName: isStandard ? "" : de.name,
+            elevation: de.elevation,
+          };
+        }),
+        imageId: asset.imageId,
+      });
+    }
+  }, [asset, form]);
+
   const handleEditSubmit = async (data: AssetFormValues) => {
     setIsSubmitting(true);
     toast({
