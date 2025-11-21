@@ -20,6 +20,15 @@ export type DataFile = {
   startDate: string;
   endDate: string;
   rowCount: number;
+  columnMapping: {
+    dataType: 'water-level' | 'precipitation' | 'sensor-suite';
+    datetimeColumn: string;
+    waterLevelColumn?: string;
+    precipitationColumn?: string;
+    sensorPressureColumn?: string;
+    temperatureColumn?: string;
+    startRow: number;
+  }
 };
 
 export type StagedFile = {

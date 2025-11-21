@@ -21,6 +21,7 @@ const surveyPointsFilePath = path.join(dataDir, 'survey-points.json');
 const analysisResultsFilePath = path.join(dataDir, 'analysis-results.json');
 const stagedDir = path.join(process.cwd(), 'staged');
 const processedDir = path.join(dataDir, 'processed');
+const sourcefileDir = path.join(dataDir, 'sourcefiles');
 
 
 // Define the schema for the form data
@@ -79,6 +80,58 @@ const saveAnalysisSchema = z.object({
   notes: z.string().optional(),
   status: z.enum(["normal" , "not_normal" , "holding_water" , "leaking"]).optional(),
   analystInitials: z.string().min(1, "Analyst initials are required."),
+});
+
+// Zod schema definitions
+const baseDatafileSchema = z.object({
+    dataType: z.enum(['water-level', 'precipitation', 'sensor-suite']),
+    datetimeColumn: z.string(),
+    waterLevelColumn: z.string().optional(),
+    precipitationColumn: z.string().optional(),
+    sensorPressureColumn: z.string().optional(),
+    temperatureColumn: z.string().optional(),
+    startRow: z.coerce.number().min(1),
+});
+
+const refinedDatafileSchema = baseDatafileSchema.refine(data => data.dataType !== 'water-level' || !!data.waterLevelColumn, {
+    message: "Water Level column is required for Water Level data type.",
+    path: ['waterLevelColumn'],
+}).refine(data => data.dataType !== 'precipitation' || !!data.precipitationColumn, {
+    message: "Precipitation column is required for Precipitation data type.",
+    path: ['precipitationColumn'],
+}).refine(data => data.dataType !== 'sensor-suite' || !!data.waterLevelColumn, {
+    message: "Water Level column is required for Sensor Suite data type.",
+    path: ['waterLevelColumn']
+});
+
+const assignDatafileSchema = baseDatafileSchema.extend({
+  deploymentId: z.string(),
+  assetId: z.string(),
+  filename: z.string(),
+}).refine(data => data.dataType !== 'water-level' || !!data.waterLevelColumn, {
+    message: "Water Level column is required for Water Level data type.",
+    path: ['waterLevelColumn'],
+}).refine(data => data.dataType !== 'precipitation' || !!data.precipitationColumn, {
+    message: "Precipitation column is required for Precipitation data type.",
+    path: ['precipitationColumn'],
+}).refine(data => data.dataType !== 'sensor-suite' || !!data.waterLevelColumn, {
+    message: "Water Level column is required for Sensor Suite data type.",
+    path: ['waterLevelColumn']
+});
+
+const reassignDatafileSchema = baseDatafileSchema.extend({
+  deploymentId: z.string(),
+  fileId: z.string(),
+  filename: z.string(),
+}).refine(data => data.dataType !== 'water-level' || !!data.waterLevelColumn, {
+    message: "Water Level column is required for Water Level data type.",
+    path: ['waterLevelColumn'],
+}).refine(data => data.dataType !== 'precipitation' || !!data.precipitationColumn, {
+    message: "Precipitation column is required for Precipitation data type.",
+    path: ['precipitationColumn'],
+}).refine(data => data.dataType !== 'sensor-suite' || !!data.waterLevelColumn, {
+    message: "Water Level column is required for Sensor Suite data type.",
+    path: ['waterLevelColumn']
 });
 
 
@@ -289,6 +342,17 @@ export async function getStagedFileContent(filename: string): Promise<string | n
     }
 }
 
+export async function getSourceFileContent(filename: string): Promise<string | null> {
+    const filePath = path.join(sourcefileDir, filename);
+    try {
+        await fs.access(filePath);
+        return await fs.readFile(filePath, 'utf-8');
+    } catch (error) {
+        console.error(`Failed to read source file ${filename}:`, error);
+        return null;
+    }
+}
+
 export async function deleteStagedFile(filename: string) {
   const logPayload = { filename };
   try {
@@ -307,81 +371,28 @@ export async function deleteStagedFile(filename: string) {
   }
 }
 
-export async function assignDatafileToDeployment(formData: FormData) {
-  const deploymentId = formData.get('deploymentId') as string;
-  const assetId = formData.get('assetId') as string;
-  const filename = formData.get('filename') as string;
-  
-  const rawData = {
-    dataType: formData.get('dataType'),
-    datetimeColumn: formData.get('datetimeColumn'),
-    waterLevelColumn: formData.get('waterLevelColumn') || undefined,
-    precipitationColumn: formData.get('precipitationColumn') || undefined,
-    sensorPressureColumn: formData.get('sensorPressureColumn') || undefined,
-    temperatureColumn: formData.get('temperatureColumn') || undefined,
-    startRow: formData.get('startRow'),
-  };
-  const logPayload = { assetId, deploymentId, filename, ...rawData };
+// Reusable data processing function
+async function processCsvData(fileContent: string, columnMapping: Omit<z.infer<typeof baseDatafileSchema>, 'dataType'>) {
+    const { datetimeColumn, waterLevelColumn, precipitationColumn, sensorPressureColumn, temperatureColumn, startRow } = columnMapping;
 
-  const addDatafileSchema = z.object({
-    dataType: z.enum(['water-level', 'precipitation', 'sensor-suite']),
-    datetimeColumn: z.string(),
-    waterLevelColumn: z.string().optional(),
-    precipitationColumn: z.string().optional(),
-    sensorPressureColumn: z.string().optional(),
-    temperatureColumn: z.string().optional(),
-    startRow: z.coerce.number().min(1),
-  }).refine(data => data.dataType !== 'water-level' || !!data.waterLevelColumn, {
-    message: "Water Level column is required for Water Level data type.",
-    path: ['waterLevelColumn'],
-  }).refine(data => data.dataType !== 'precipitation' || !!data.precipitationColumn, {
-    message: "Precipitation column is required for Precipitation data type.",
-    path: ['precipitationColumn'],
-  }).refine(data => data.dataType !== 'sensor-suite' || !!data.waterLevelColumn, {
-      message: "Water Level column is required for Sensor Suite data type.",
-      path: ['waterLevelColumn']
-  });
-
-  const validatedFields = addDatafileSchema.safeParse(rawData);
-  if (!validatedFields.success) {
-     const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
-     await writeLog({ action: 'assignDatafile', status: 'failure', payload: logPayload, response });
-     return response;
-  }
-  const { 
-      dataType, 
-      datetimeColumn,
-      waterLevelColumn,
-      precipitationColumn,
-      sensorPressureColumn,
-      temperatureColumn, 
-      startRow 
-    } = validatedFields.data;
-
-  const stagedFilePath = path.join(stagedDir, filename);
-
-  try {
-    const fileContent = await fs.readFile(stagedFilePath, 'utf-8');
-    
     const parsedCsv = await new Promise<Papa.ParseResult<any>>((resolve, reject) => {
         Papa.parse(fileContent, {
             header: true,
             skipEmptyLines: true,
             complete: (results: Papa.ParseResult<any>) => {
-              if (!results.meta.fields || results.meta.fields.length === 0) {
-                 return reject(new Error("Could not determine headers from CSV."));
-              }
-              // Manually handle startRow logic
-              const data = startRow > 1 ? results.data.slice(startRow - 2) : results.data;
-              resolve({ ...results, data });
+                if (!results.meta.fields || results.meta.fields.length === 0) {
+                    return reject(new Error("Could not determine headers from CSV."));
+                }
+                const data = startRow > 1 ? results.data.slice(startRow - 2) : results.data;
+                resolve({ ...results, data });
             },
+            error: (err) => reject(err),
         });
     });
 
     const processedData = parsedCsv.data.map((row: any) => {
         const dateValue = row[datetimeColumn];
         if (!dateValue) return null;
-        
         const timestamp = new Date(dateValue);
         if (isNaN(timestamp.getTime())) return null;
 
@@ -406,12 +417,43 @@ export async function assignDatafileToDeployment(formData: FormData) {
         }
         
         return hasValue ? record : null;
-
     }).filter(p => p !== null) as { timestamp: string, value: number }[];
 
     if (processedData.length === 0) {
       throw new Error("No valid data points could be processed. Check column mapping and start row.");
     }
+    
+    return processedData;
+}
+
+
+export async function assignDatafileToDeployment(formData: FormData) {
+  const rawData = {
+    deploymentId: formData.get('deploymentId'),
+    assetId: formData.get('assetId'),
+    filename: formData.get('filename'),
+    dataType: formData.get('dataType'),
+    datetimeColumn: formData.get('datetimeColumn'),
+    waterLevelColumn: formData.get('waterLevelColumn') || undefined,
+    precipitationColumn: formData.get('precipitationColumn') || undefined,
+    sensorPressureColumn: formData.get('sensorPressureColumn') || undefined,
+    temperatureColumn: formData.get('temperatureColumn') || undefined,
+    startRow: formData.get('startRow'),
+  };
+  
+  const validatedFields = assignDatafileSchema.safeParse(rawData);
+  if (!validatedFields.success) {
+     const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+     await writeLog({ action: 'assignDatafile', status: 'failure', payload: rawData, response });
+     return response;
+  }
+  
+  const { filename, deploymentId, ...columnMapping } = validatedFields.data;
+  const stagedFilePath = path.join(stagedDir, filename);
+
+  try {
+    const fileContent = await fs.readFile(stagedFilePath, 'utf-8');
+    const processedData = await processCsvData(fileContent, columnMapping);
     
     const timestamps = processedData.map(p => new Date(p.timestamp).getTime());
     const minDate = new Date(Math.min(...timestamps));
@@ -420,41 +462,110 @@ export async function assignDatafileToDeployment(formData: FormData) {
     const newDataFile: DataFile = {
       id: `file-${Date.now()}`,
       filename: filename,
-      dataType: dataType,
+      dataType: columnMapping.dataType,
+      columnMapping: columnMapping, // Save the mapping
       uploadDate: new Date().toISOString(),
       startDate: minDate.toISOString(),
       endDate: maxDate.toISOString(),
       rowCount: processedData.length
     };
     
-    // Save processed data to a new file in the processed directory
+    // Save processed data and archive source file
     await fs.mkdir(processedDir, { recursive: true });
+    await fs.mkdir(sourcefileDir, { recursive: true });
     const processedFilePath = path.join(processedDir, `${newDataFile.id}.json`);
-    await writeJsonFile(processedFilePath, processedData);
+    const sourceFilePath = path.join(sourcefileDir, `${newDataFile.id}.csv`);
 
-    // Update the deployments file with the new datafile metadata
+    await writeJsonFile(processedFilePath, processedData);
+    await fs.rename(stagedFilePath, sourceFilePath); // Move instead of delete
+
+    // Update deployments metadata
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
     const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
     if (deploymentIndex === -1) throw new Error('Deployment not found');
     
-    const existingFiles = deployments[deploymentIndex].files || [];
-    deployments[deploymentIndex].files = [...existingFiles, newDataFile];
-    
+    deployments[deploymentIndex].files = [...(deployments[deploymentIndex].files || []), newDataFile];
     await writeJsonFile(deploymentsFilePath, deployments);
-
-    // Delete the file from staging
-    await fs.unlink(stagedFilePath);
 
     revalidatePath('/');
     
     const response = { message: 'Datafile assigned successfully', newFile: newDataFile };
-    await writeLog({ action: 'assignDatafile', status: 'success', payload: logPayload, response });
+    await writeLog({ action: 'assignDatafile', status: 'success', payload: validatedFields.data, response });
     return response;
 
   } catch(error) {
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
-    await writeLog({ action: 'assignDatafile', status: 'failure', payload: logPayload, response });
+    await writeLog({ action: 'assignDatafile', status: 'failure', payload: validatedFields.data, response });
+    return response;
+  }
+}
+
+export async function reassignDatafile(formData: FormData) {
+  const rawData = {
+    deploymentId: formData.get('deploymentId'),
+    fileId: formData.get('fileId'),
+    filename: formData.get('filename'),
+    dataType: formData.get('dataType'),
+    datetimeColumn: formData.get('datetimeColumn'),
+    waterLevelColumn: formData.get('waterLevelColumn') || undefined,
+    precipitationColumn: formData.get('precipitationColumn') || undefined,
+    sensorPressureColumn: formData.get('sensorPressureColumn') || undefined,
+    temperatureColumn: formData.get('temperatureColumn') || undefined,
+    startRow: formData.get('startRow'),
+  };
+
+  const validatedFields = reassignDatafileSchema.safeParse(rawData);
+   if (!validatedFields.success) {
+     const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+     await writeLog({ action: 'reassignDatafile', status: 'failure', payload: rawData, response });
+     return response;
+  }
+  
+  const { fileId, deploymentId, filename, ...columnMapping } = validatedFields.data;
+  const sourceFilePath = path.join(sourcefileDir, `${fileId}.csv`);
+
+  try {
+    const fileContent = await fs.readFile(sourceFilePath, 'utf-8');
+    const processedData = await processCsvData(fileContent, columnMapping);
+
+    const timestamps = processedData.map(p => new Date(p.timestamp).getTime());
+    const minDate = new Date(Math.min(...timestamps));
+    const maxDate = new Date(Math.max(...timestamps));
+
+    // Overwrite existing processed file
+    const processedFilePath = path.join(processedDir, `${fileId}.json`);
+    await writeJsonFile(processedFilePath, processedData);
+
+    // Update the datafile metadata within the deployment
+    const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
+    if (deploymentIndex === -1) throw new Error('Deployment not found');
+
+    const fileIndex = deployments[deploymentIndex].files?.findIndex(f => f.id === fileId);
+    if (fileIndex === undefined || fileIndex === -1) throw new Error('Datafile not found in deployment');
+
+    deployments[deploymentIndex].files![fileIndex] = {
+        ...deployments[deploymentIndex].files![fileIndex],
+        dataType: columnMapping.dataType,
+        columnMapping: columnMapping,
+        startDate: minDate.toISOString(),
+        endDate: maxDate.toISOString(),
+        rowCount: processedData.length,
+    };
+
+    await writeJsonFile(deploymentsFilePath, deployments);
+
+    revalidatePath('/');
+    
+    const response = { message: 'Datafile re-assigned successfully', updatedFile: deployments[deploymentIndex].files![fileIndex] };
+    await writeLog({ action: 'reassignDatafile', status: 'success', payload: validatedFields.data, response });
+    return response;
+
+  } catch(error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'reassignDatafile', status: 'failure', payload: validatedFields.data, response });
     return response;
   }
 }
@@ -466,20 +577,23 @@ export async function unassignDatafile(deploymentId: string, fileId: string) {
         const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
         const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
 
-        if (deploymentIndex === -1) {
-            throw new Error("Deployment not found.");
-        }
+        if (deploymentIndex === -1) throw new Error("Deployment not found.");
         
         const deployment = deployments[deploymentIndex];
         const file = deployment.files?.find(f => f.id === fileId);
         
-        if (!file) {
-            throw new Error("Datafile not found in this deployment.");
-        }
+        if (!file) throw new Error("Datafile not found in this deployment.");
 
-        // Remove file from deployment
-        deployments[deploymentIndex].files = deployment.files?.filter(f => f.id !== fileId);
-        await writeJsonFile(deploymentsFilePath, deployments);
+        // Move source file back to staging
+        const sourceFilePath = path.join(sourcefileDir, `${fileId}.csv`);
+        const stagedFilePath = path.join(stagedDir, file.filename);
+        try {
+            await fs.rename(sourceFilePath, stagedFilePath);
+        } catch (e) {
+            if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+                console.error(`Could not move source file back to staging ${sourceFilePath}:`, e);
+            }
+        }
 
         // Delete processed file
         const processedFilePath = path.join(processedDir, `${fileId}.json`);
@@ -488,12 +602,15 @@ export async function unassignDatafile(deploymentId: string, fileId: string) {
         } catch (e) {
             if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
                 console.error(`Could not delete processed file ${processedFilePath}:`, e);
-                // Continue even if file deletion fails to ensure metadata is updated
             }
         }
+
+        // Remove file from deployment metadata
+        deployments[deploymentIndex].files = deployment.files?.filter(f => f.id !== fileId);
+        await writeJsonFile(deploymentsFilePath, deployments);
         
         revalidatePath('/');
-        const response = { message: `File ${file.filename} unassigned successfully.` };
+        const response = { message: `File ${file.filename} unassigned and returned to staging.` };
         await writeLog({ action: 'unassignDatafile', status: 'success', assetId: deployment.assetId, deploymentId, payload: logPayload, response });
         return response;
     } catch (error) {
@@ -505,9 +622,46 @@ export async function unassignDatafile(deploymentId: string, fileId: string) {
 }
 
 export async function deleteDatafile(deploymentId: string, fileId: string) {
-    // This action is identical to unassign for now, as unassign already deletes the processed file.
-    // If "unassign" logic changes to move the file back to staging, this action will remain as a permanent delete.
-    return await unassignDatafile(deploymentId, fileId);
+    const logPayload = { deploymentId, fileId };
+    try {
+        const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+        const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
+
+        if (deploymentIndex === -1) throw new Error("Deployment not found.");
+        const deployment = deployments[deploymentIndex];
+        const file = deployment.files?.find(f => f.id === fileId);
+        if (!file) throw new Error("Datafile not found in this deployment.");
+
+        // Remove file from deployment metadata
+        deployments[deploymentIndex].files = deployment.files?.filter(f => f.id !== fileId);
+        await writeJsonFile(deploymentsFilePath, deployments);
+
+        // Delete processed file
+        const processedFilePath = path.join(processedDir, `${fileId}.json`);
+        try {
+            await fs.unlink(processedFilePath);
+        } catch (e) {
+             if ((e as NodeJS.ErrnoException).code !== 'ENOENT') console.error(`Could not delete processed file ${processedFilePath}:`, e);
+        }
+        
+        // Delete source file
+        const sourceFilePath = path.join(sourcefileDir, `${fileId}.csv`);
+         try {
+            await fs.unlink(sourceFilePath);
+        } catch (e) {
+             if ((e as NodeJS.ErrnoException).code !== 'ENOENT') console.error(`Could not delete source file ${sourceFilePath}:`, e);
+        }
+        
+        revalidatePath('/');
+        const response = { message: `File ${file.filename} permanently deleted.` };
+        await writeLog({ action: 'deleteDatafile', status: 'success', assetId: deployment.assetId, deploymentId, payload: logPayload, response });
+        return response;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "An unknown error occurred.";
+        const response = { message: `Error: ${message}` };
+        await writeLog({ action: 'deleteDatafile', status: 'failure', payload: logPayload, response });
+        return response;
+    }
 }
 
 

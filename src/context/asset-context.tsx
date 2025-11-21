@@ -19,10 +19,12 @@ import {
   downloadLogs as downloadLogsAction,
   deleteAsset as deleteAssetAction,
   assignDatafileToDeployment as assignDatafileToDeploymentAction,
+  reassignDatafile as reassignDatafileAction,
   uploadStagedFile as uploadStagedFileAction,
   getStagedFiles as getStagedFilesAction,
   deleteStagedFile as deleteStagedFileAction,
   getStagedFileContent as getStagedFileContentAction,
+  getSourceFileContent as getSourceFileContentAction,
   addSurveyPoint as addSurveyPointAction,
   deleteSurveyPoint as deleteSurveyPointAction,
   getSurveyPoints as getSurveyPointsAction,
@@ -47,6 +49,7 @@ interface AssetContextType {
   createDeployment: (assetId: string, data: any) => Promise<any>;
   downloadLogs: (assetId: string) => Promise<any>;
   assignDatafileToDeployment: (formData: FormData) => Promise<any>;
+  reassignDatafile: (formData: FormData) => Promise<any>;
   unassignDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   deleteDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   saveAnalysis: (assetId: string, data: SavedAnalysisData & { eventId: string }) => Promise<any>;
@@ -56,6 +59,7 @@ interface AssetContextType {
   uploadStagedFile: (formData: FormData) => Promise<any>;
   deleteStagedFile: (filename: string) => Promise<any>;
   getStagedFileContent: (filename: string) => Promise<string | null>;
+  getSourceFileContent: (filename: string) => Promise<string | null>;
   addSurveyPoint: (assetId: string, data: any) => Promise<any>;
   deleteSurveyPoint: (pointId: string) => Promise<any>;
   getSurveyPoints: (assetId: string) => Promise<SurveyPoint[]>;
@@ -261,8 +265,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
           }
           return d;
         }));
-        await fetchStagedFiles(); // Refresh staged files list
-        incrementDataVersion(); // Increment version to trigger re-fetch
+        await fetchStagedFiles();
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
@@ -270,6 +274,31 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
        return { message: `Error: ${message}` };
     }
   }, [fetchStagedFiles, incrementDataVersion]);
+
+  const reassignDatafile = useCallback(async (formData: FormData) => {
+      try {
+          const result = await reassignDatafileAction(formData);
+          if (result.updatedFile) {
+              const deploymentId = formData.get('deploymentId') as string;
+              setDeployments(prev => prev.map(d => {
+                  if (d.id === deploymentId) {
+                      const fileIndex = d.files?.findIndex(f => f.id === result.updatedFile.id);
+                      if (fileIndex !== undefined && fileIndex !== -1) {
+                          const newFiles = [...(d.files || [])];
+                          newFiles[fileIndex] = result.updatedFile;
+                          return { ...d, files: newFiles };
+                      }
+                  }
+                  return d;
+              }));
+              incrementDataVersion();
+          }
+          return result;
+      } catch (error) {
+          const message = await getErrorMessage(error);
+          return { message: `Error: ${message}` };
+      }
+  }, [incrementDataVersion]);
 
   const unassignDatafile = useCallback(async (deploymentId: string, fileId: string) => {
     try {
@@ -281,6 +310,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
                 }
                 return d;
             }));
+            await fetchStagedFiles();
             incrementDataVersion();
         }
         return result;
@@ -288,7 +318,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
         const message = await getErrorMessage(error);
         return { message: `Error: ${message}` };
     }
-  }, [incrementDataVersion]);
+  }, [fetchStagedFiles, incrementDataVersion]);
 
   const deleteDatafile = useCallback(async (deploymentId: string, fileId: string) => {
     try {
@@ -313,46 +343,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
         const result = await saveAnalysisAction(data);
         if (result && !result.errors) {
-            // Optimistically update the local state for immediate feedback
-            setAssetData(prev => {
-                const currentAssetData = prev[assetId];
-                if (!currentAssetData || !currentAssetData.weatherSummary) return prev;
-
-                const updatedEvents = currentAssetData.weatherSummary.events.map(event => {
-                    if (event.id === data.eventId) {
-                        const updatedAnalysis = {
-                            ...event.analysis,
-                            notes: data.notes,
-                            status: data.status,
-                            analystInitials: data.analystInitials,
-                        };
-                        return { ...event, analysis: updatedAnalysis };
-                    }
-                    return event;
-                });
-
-                const updatedWeatherSummary = {
-                    ...currentAssetData.weatherSummary,
-                    events: updatedEvents,
-                };
-                
-                return {
-                    ...prev,
-                    [assetId]: {
-                        ...currentAssetData,
-                        weatherSummary: updatedWeatherSummary,
-                    }
-                };
-            });
-            // You might still want to trigger a full refetch quietly in the background
-            // or rely on this optimistic update. For now, this provides instant UI feedback.
+            await fetchAssetData(assetId);
         }
         return result;
     } catch (error) {
         const message = await getErrorMessage(error);
         return { message: `Error: ${message}` };
     }
-  }, []);
+  }, [fetchAssetData]);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
@@ -387,6 +385,15 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       const message = await getErrorMessage(error);
       console.error(message);
+      return null;
+    }
+  }, []);
+  
+  const getSourceFileContent = useCallback(async (filename: string) => {
+    try {
+        return await getSourceFileContentAction(filename);
+    } catch (error) {
+      console.error(error);
       return null;
     }
   }, []);
@@ -433,6 +440,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     updateDeployment,
     downloadLogs,
     assignDatafileToDeployment,
+    reassignDatafile,
     unassignDatafile,
     deleteDatafile,
     saveAnalysis,
@@ -442,6 +450,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     uploadStagedFile,
     deleteStagedFile,
     getStagedFileContent,
+    getSourceFileContent,
     addSurveyPoint,
     deleteSurveyPoint,
     getSurveyPoints,
