@@ -443,7 +443,6 @@ export default function PerformanceChart({
           <ComposedChart
             data={chartData}
             margin={{ top: 5, right: 50, left: 20, bottom: 90 }}
-            allowDataOverflow={true}
             syncMethod="index"
           >
             <CartesianGrid vertical={false} />
@@ -503,7 +502,7 @@ export default function PerformanceChart({
               hide={!visibleSensorData.sensorPressure}
             />
             <YAxis
-              yAxisId="barometer"
+              yAxisId="baro"
               orientation="right"
               unit="kPa"
               tickLine={false}
@@ -563,7 +562,7 @@ export default function PerformanceChart({
 
             {/* Sensor Data Lines */}
             {visibleSensorData.temperature && <Line yAxisId="temp" type="monotone" dataKey="temperature" stroke="var(--color-temperature)" dot={false} isAnimationActive={false} name="Temperature" />}
-            {visibleSensorData.barometer && <Line yAxisId="barometer" type="monotone" dataKey="barometer" stroke="var(--color-barometer)" dot={false} isAnimationActive={false} name="Barometer" />}
+            {visibleSensorData.barometer && <Line yAxisId="baro" type="monotone" dataKey="barometer" stroke="var(--color-barometer)" dot={false} isAnimationActive={false} name="Barometer" />}
             {visibleSensorData.sensorPressure && <Line yAxisId="pressure" type="monotone" dataKey="sensorPressure" stroke="var(--color-sensorPressure)" dot={false} isAnimationActive={false} name="Sensor Pressure" />}
 
             <ReferenceLine
