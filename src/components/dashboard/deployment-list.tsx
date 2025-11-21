@@ -456,30 +456,32 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="overflow-x-auto h-48 rounded-md border">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                {csvHeaders.map((header, i) => (
-                                  <TableHead key={i}>{header}</TableHead>
-                                ))}
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {csvPreview.map((row, i) => (
-                                <TableRow key={i}>
-                                  {csvPreview[i].map((cell, j) => (
-                                    <TableCell
-                                      key={j}
-                                      className="whitespace-nowrap"
-                                    >
-                                      {cell}
-                                    </TableCell>
+                        <div className="relative h-48 rounded-md border">
+                            <div className="overflow-x-auto">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    {csvHeaders.map((header, i) => (
+                                      <TableHead key={i}>{header}</TableHead>
+                                    ))}
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {csvPreview.map((row, i) => (
+                                    <TableRow key={i}>
+                                      {csvPreview[i].map((cell, j) => (
+                                        <TableCell
+                                          key={j}
+                                          className="whitespace-nowrap"
+                                        >
+                                          {cell}
+                                        </TableCell>
+                                      ))}
+                                    </TableRow>
                                   ))}
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                                </TableBody>
+                              </Table>
+                            </div>
                         </div>
                       </CardContent>
                     </Card>
