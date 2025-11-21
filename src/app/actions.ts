@@ -20,6 +20,7 @@ const activityLogFilePath = path.join(dataDir, 'activity-log.json');
 const surveyPointsFilePath = path.join(dataDir, 'survey-points.json');
 const analysisResultsFilePath = path.join(dataDir, 'analysis-results.json');
 const overallAnalysisFilePath = path.join(dataDir, 'overall-analysis.json');
+const eventsFilePath = path.join(dataDir, 'events.json');
 const stagedDir = path.join(process.cwd(), 'staged');
 const processedDir = path.join(dataDir, 'processed');
 const sourcefileDir = path.join(dataDir, 'sourcefiles');
@@ -660,14 +661,11 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
   try {
     const cachedResult = await readJsonFile<{ data: ChartablePoint[], weatherSummary: WeatherSummary, version: number}>(cacheFilePath);
     if (cachedResult.version === dataVersion) {
-        // console.log(`Serving cached data for asset ${assetId} version ${dataVersion}`);
         return { data: cachedResult.data, weatherSummary: cachedResult.weatherSummary };
     }
   } catch (error) {
-    // Cache file doesn't exist or is invalid, proceed to process data
+    // Cache miss, proceed to process data
   }
-
-  // console.log(`Processing data for asset ${assetId} version ${dataVersion}`);
 
   try {
     const assets = await readJsonFile<Asset[]>(assetsFilePath);
@@ -680,11 +678,13 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
     const surveyPoints = await getSurveyPoints(assetId);
     const savedAnalysis = await readJsonFile<{[key: string]: SavedAnalysisData}>(analysisResultsFilePath);
+    const allSavedEvents = await readJsonFile<AnalysisPeriod[]>(eventsFilePath);
+
     const assetDeployments = deployments.filter(d => d.assetId === assetId);
 
     const dataMap = new Map<number, ChartablePoint>();
-    let minDate: Date | null = null;
-    let maxDate: Date | null = null;
+    let minDataDate: Date | null = null;
+    let maxDataDate: Date | null = null;
 
     // First pass: Collect all data and determine the date range
     for (const deployment of assetDeployments) {
@@ -698,8 +698,8 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
                 const timestamp = new Date(d.timestamp).getTime();
                 if (isNaN(timestamp)) return;
 
-                if (!minDate || timestamp < minDate.getTime()) minDate = new Date(timestamp);
-                if (!maxDate || timestamp > maxDate.getTime()) maxDate = new Date(timestamp);
+                if (!minDataDate || timestamp < minDataDate.getTime()) minDataDate = new Date(timestamp);
+                if (!maxDataDate || timestamp > maxDataDate.getTime()) maxDataDate = new Date(timestamp);
 
                 if (!dataMap.has(timestamp)) {
                     dataMap.set(timestamp, { timestamp });
@@ -726,14 +726,13 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
         }
       }
     }
+    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
 
     // Second pass: merge survey points
-    const sensorDataPoints = Array.from(dataMap.values());
     surveyPoints.forEach(sp => {
-        // Find the nearest timestamp in the sensor data to align the survey point
         let nearestTimestamp = sp.timestamp;
-        if (sensorDataPoints.length > 0) {
-            const nearestSensorPoint = sensorDataPoints.reduce((prev, curr) => {
+        if (sortedData.length > 0) {
+            const nearestSensorPoint = sortedData.reduce((prev, curr) => {
                return (Math.abs(curr.timestamp - sp.timestamp) < Math.abs(prev.timestamp - sp.timestamp) ? curr : prev);
             });
             nearestTimestamp = nearestSensorPoint.timestamp;
@@ -743,17 +742,16 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
            dataMap.set(nearestTimestamp, { timestamp: nearestTimestamp });
         }
         const point = dataMap.get(nearestTimestamp)!;
-        point.elevation = sp.elevation; // Add the manual elevation
+        point.elevation = sp.elevation;
       });
 
     
+    let processedEvents: AnalysisPeriod[] = [];
     const weatherSummary: WeatherSummary = { totalPrecipitation: 0, events: [] };
-    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
 
-    // If we have data, fetch and process external weather data if no precipitation data is present
-    if (sortedData.length > 0 && minDate && maxDate) {
+    // If we have data, fetch weather and process events
+    if (sortedData.length > 0 && minDataDate && maxDataDate) {
         const hasInternalPrecip = sortedData.some(d => d.precipitation !== undefined && d.precipitation > 0);
-        
         let weatherData: {date: string, precipitation: number}[] = [];
 
         if (!hasInternalPrecip) {
@@ -761,134 +759,100 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
                 const weatherCsv = await getWeatherData({
                     latitude: asset.latitude,
                     longitude: asset.longitude,
-                    startDate: minDate.toISOString(),
-                    endDate: maxDate.toISOString(),
+                    startDate: minDataDate.toISOString(),
+                    endDate: maxDataDate.toISOString(),
                 });
-                if (weatherCsv) {
-                    weatherData = Papa.parse(weatherCsv, { header: true, dynamicTyping: true }).data as {date: string, precipitation: number}[];
-                }
-            } catch (error) {
-                console.error("Failed to get or process weather data:", error);
-            }
+                if (weatherCsv) weatherData = Papa.parse(weatherCsv, { header: true, dynamicTyping: true }).data as any;
+            } catch (error) { console.error("Failed to get or process weather data:", error); }
         } else {
-            // Use internal precipitation data
-            weatherData = sortedData
-                .filter(d => d.precipitation !== undefined)
-                .map(d => ({ date: new Date(d.timestamp).toISOString(), precipitation: d.precipitation! }));
+            weatherData = sortedData.filter(d => d.precipitation !== undefined).map(d => ({ date: new Date(d.timestamp).toISOString(), precipitation: d.precipitation! }));
         }
 
         if (weatherData.length > 0) {
           const dailyPrecipitationMap = new Map<string, number>();
-          weatherData.forEach(weatherPoint => {
-            if (!weatherPoint.date) return;
-            const dateKey = new Date(weatherPoint.date).toISOString().split('T')[0];
-            const currentTotal = dailyPrecipitationMap.get(dateKey) || 0;
-            dailyPrecipitationMap.set(dateKey, currentTotal + (weatherPoint.precipitation || 0));
+          weatherData.forEach(p => {
+            if (p.date) {
+                const dateKey = new Date(p.date).toISOString().split('T')[0];
+                dailyPrecipitationMap.set(dateKey, (dailyPrecipitationMap.get(dateKey) || 0) + (p.precipitation || 0));
+            }
           });
 
-
           let sensorDataIndex = 0;
-
-          // Aggregate precipitation onto the chart data
-          weatherData.forEach(weatherPoint => {
-              if (!weatherPoint.date || sensorDataIndex >= sortedData.length) return;
-              
-              const weatherTimestamp = new Date(weatherPoint.date).getTime();
-              const precipitation = weatherPoint.precipitation ?? 0;
-              const dateKey = new Date(weatherPoint.date).toISOString().split('T')[0];
-
-              // Find the correct sensor data "bucket" for this weather point
-              while (
-                  sensorDataIndex < sortedData.length - 1 &&
-                  sortedData[sensorDataIndex + 1].timestamp <= weatherTimestamp
-              ) {
+          weatherData.forEach(p => {
+              if (!p.date || sensorDataIndex >= sortedData.length) return;
+              const weatherTimestamp = new Date(p.date).getTime();
+              const dateKey = new Date(p.date).toISOString().split('T')[0];
+              while (sensorDataIndex < sortedData.length - 1 && sortedData[sensorDataIndex + 1].timestamp <= weatherTimestamp) {
                   sensorDataIndex++;
               }
-              
-              // Add precipitation to the current sensor data point
               if (sortedData[sensorDataIndex]) {
-                  // Only add external weather if no internal precip exists at this point
-                  if (!hasInternalPrecip) {
-                    sortedData[sensorDataIndex].precipitation = (sortedData[sensorDataIndex].precipitation || 0) + precipitation;
-                  }
+                  if (!hasInternalPrecip) sortedData[sensorDataIndex].precipitation = (sortedData[sensorDataIndex].precipitation || 0) + (p.precipitation || 0);
                   sortedData[sensorDataIndex].dailyPrecipitation = dailyPrecipitationMap.get(dateKey);
               }
           });
+
+          // == Event Detection Logic ==
+          const assetSavedEvents = allSavedEvents.filter(e => e.assetId === assetId);
+          const lastEventEndDate = assetSavedEvents.length > 0 ? Math.max(...assetSavedEvents.map(e => e.endDate)) : 0;
           
-          // Logic for precipitation event definition
-          const MEASURABLE_RAIN_THRESHOLD = 0.2; // mm
-          const DRY_PERIOD_HOURS = 6;
-          let lastRainTimestamp: number | null = null;
-          let currentEvent: AnalysisPeriod | null = null;
+          const newDataToScanForEvents = weatherData.filter(p => new Date(p.date).getTime() > lastEventEndDate);
           
-          weatherData.forEach(weatherPoint => {
-              if (!weatherPoint.date) return;
-              
-              const currentTimestamp = new Date(weatherPoint.date).getTime();
-              const precipitation = weatherPoint.precipitation ?? 0;
-              
-              if (precipitation >= MEASURABLE_RAIN_THRESHOLD) {
-                  weatherSummary.totalPrecipitation += precipitation;
-                  
-                  if (currentEvent === null) {
-                      // Start of a new event
-                      currentEvent = {
-                          id: `event-${currentTimestamp}`,
-                          assetId: asset.id,
-                          startDate: currentTimestamp,
-                          endDate: currentTimestamp,
-                          totalPrecipitation: 0,
-                          dataPoints: []
-                      };
-                      weatherSummary.events.push(currentEvent);
-                  }
-                  
-                  currentEvent.endDate = currentTimestamp;
-                  currentEvent.totalPrecipitation += precipitation;
+          let newEvents: AnalysisPeriod[] = [];
+          if(newDataToScanForEvents.length > 0) {
+            const MEASURABLE_RAIN_THRESHOLD = 0.2; // mm
+            const DRY_PERIOD_HOURS = 6;
+            let currentEvent: AnalysisPeriod | null = null;
+            let lastRainTimestamp: number | null = null;
+            
+            newDataToScanForEvents.forEach(p => {
+                if (!p.date) return;
+                const currentTimestamp = new Date(p.date).getTime();
+                const precipitation = p.precipitation ?? 0;
+                
+                if (precipitation >= MEASURABLE_RAIN_THRESHOLD) {
+                    if (currentEvent === null) {
+                        currentEvent = { id: "", assetId: asset.id, startDate: currentTimestamp, endDate: currentTimestamp, totalPrecipitation: 0, dataPoints: [] };
+                        newEvents.push(currentEvent);
+                    }
+                    currentEvent.endDate = currentTimestamp;
+                    currentEvent.totalPrecipitation += precipitation;
+                    lastRainTimestamp = currentTimestamp;
+                } else {
+                    if (currentEvent && lastRainTimestamp) {
+                         const hoursSinceLastRain = (currentTimestamp - lastRainTimestamp) / (1000 * 60 * 60);
+                         if (hoursSinceLastRain >= DRY_PERIOD_HOURS) currentEvent = null;
+                    }
+                }
+            });
 
-                  lastRainTimestamp = currentTimestamp;
+            // Filter insignificant new events and assign stable IDs
+            newEvents = newEvents.filter(event => {
+              const durationSeconds = (event.endDate - event.startDate) / 1000;
+              return durationSeconds > 5 || event.totalPrecipitation >= 1;
+            }).map(event => ({ ...event, id: `${event.assetId}-${event.startDate}` }));
 
-              } else { // No measurable rain
-                  if (currentEvent && lastRainTimestamp) {
-                       const hoursSinceLastRain = (currentTimestamp - lastRainTimestamp) / (1000 * 60 * 60);
-                       if (hoursSinceLastRain >= DRY_PERIOD_HOURS) {
-                           // End the current event
-                           currentEvent = null;
-                       }
-                  }
-              }
-          });
+            if (newEvents.length > 0) {
+              const updatedAllEvents = [...allSavedEvents, ...newEvents.map(({ dataPoints, analysis, ...rest}) => rest)];
+              await writeJsonFile(eventsFilePath, updatedAllEvents);
+            }
+          }
+          
+          processedEvents = [...assetSavedEvents, ...newEvents];
 
-          // Finalize data for each event and filter out insignificant ones
-          const significantEvents = weatherSummary.events.filter(event => {
-            const durationSeconds = (event.endDate - event.startDate) / 1000;
-            // Keep event if duration > 5 seconds OR precipitation >= 1mm
-            return durationSeconds > 5 || event.totalPrecipitation >= 1;
-          });
-          weatherSummary.events = significantEvents;
-
-          weatherSummary.events.forEach(event => {
-              event.id = `${event.assetId}-${event.startDate}`;
-
+          // == Analysis Logic for all events ==
+          processedEvents.forEach(event => {
+              weatherSummary.totalPrecipitation += event.totalPrecipitation;
               event.dataPoints = sortedData.filter(d => d.timestamp >= event.startDate && d.timestamp <= event.endDate);
-              
               const analysis: AnalysisPeriod['analysis'] = {};
-              
-              // Set Margin of Error based on 4m HOBO logger (conservative)
-              analysis.marginOfError = 0.016; // meters
+              analysis.marginOfError = 0.016; // meters for HOBO logger
 
-              // 1. Baseline Elevation
-              const baselineTime = event.startDate - (3 * 60 * 60 * 1000); // 3 hours prior
+              const baselineTime = event.startDate - (3 * 60 * 60 * 1000);
               const baselinePoints = sortedData.filter(p => p.timestamp <= baselineTime && p.waterLevel !== undefined);
               if (baselinePoints.length > 0) {
-                 const baselinePoint = baselinePoints.reduce((prev, curr) => 
-                    Math.abs(curr.timestamp - baselineTime) < Math.abs(prev.timestamp - baselineTime) ? curr : prev
-                 );
+                 const baselinePoint = baselinePoints.reduce((prev, curr) => Math.abs(curr.timestamp - baselineTime) < Math.abs(prev.timestamp - baselineTime) ? curr : prev);
                  analysis.baselineElevation = baselinePoint?.waterLevel;
               }
 
-
-              // 2. Peak Elevation
               const peakWindowEnd = event.startDate + (48 * 60 * 60 * 1000);
               const peakPointsInWindow = sortedData.filter(p => p.timestamp >= event.startDate && p.timestamp <= peakWindowEnd && p.waterLevel !== undefined);
               if (peakPointsInWindow.length > 0) {
@@ -897,63 +861,38 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
                 analysis.peakTimestamp = peakPoint.timestamp;
               }
               
-              // 3. Post-Event Elevation
               const postEventTime = event.endDate + (48 * 60 * 60 * 1000);
               const postEventPoints = sortedData.filter(p => p.timestamp >= postEventTime && p.waterLevel !== undefined);
               if (postEventPoints.length > 0) {
-                const postEventPoint = postEventPoints.reduce((prev, curr) =>
-                    Math.abs(curr.timestamp - postEventTime) < Math.abs(prev.timestamp - postEventTime) ? curr : prev
-                );
+                const postEventPoint = postEventPoints.reduce((prev, curr) => Math.abs(curr.timestamp - postEventTime) < Math.abs(prev.timestamp - postEventTime) ? curr : prev);
                 analysis.postEventElevation = postEventPoint?.waterLevel;
               }
 
-              // 4. Time to Baseline
               if (analysis.peakTimestamp && analysis.baselineElevation) {
-                  const postPeakPoints = sortedData.filter(p => p.timestamp > analysis.peakTimestamp! && p.waterLevel !== undefined);
-                  const returnPoint = postPeakPoints.find(p => p.waterLevel! <= analysis.baselineElevation!);
-                  if (returnPoint) {
-                      analysis.timeToBaseline = formatDistance(new Date(analysis.peakTimestamp), new Date(returnPoint.timestamp));
-                  } else {
-                      analysis.timeToBaseline = "Did not return to baseline";
-                  }
+                  const returnPoint = sortedData.find(p => p.timestamp > analysis.peakTimestamp! && p.waterLevel !== undefined && p.waterLevel! <= analysis.baselineElevation!);
+                  analysis.timeToBaseline = returnPoint ? formatDistance(new Date(analysis.peakTimestamp), new Date(returnPoint.timestamp)) : "Did not return to baseline";
               }
 
-              // 5. Drawdown analysis
               analysis.drawdownAnalysis = "No interruption detected";
               if (analysis.peakTimestamp) {
                 const postPeakPoints = sortedData.filter(p => p.timestamp > analysis.peakTimestamp! && p.waterLevel !== undefined);
-                const INTERVAL = 3 * 60 * 60 * 1000; // 3 hours
-                const RISE_THRESHOLD = 0.01; // 1 cm
-                
                 for (let i = 0; i < postPeakPoints.length; i++) {
                     const currentPoint = postPeakPoints[i];
-                    const intervalEndTime = currentPoint.timestamp + INTERVAL;
-                    
-                    const pointsInInterval = postPeakPoints.filter(p => p.timestamp >= currentPoint.timestamp && p.timestamp <= intervalEndTime);
-                    
+                    const pointsInInterval = postPeakPoints.filter(p => p.timestamp >= currentPoint.timestamp && p.timestamp <= currentPoint.timestamp + (3 * 60 * 60 * 1000));
                     if (pointsInInterval.length < 2) continue;
-                    
                     const endPoint = pointsInInterval[pointsInInterval.length - 1];
-                    
-                    if (endPoint.waterLevel! > currentPoint.waterLevel! + RISE_THRESHOLD) {
-                        // Potential interruption. Check for rain in this interval.
+                    if (endPoint.waterLevel! > currentPoint.waterLevel! + 0.01) {
                         const totalPrecipInInterval = pointsInInterval.reduce((sum, p) => sum + (p.precipitation || 0), 0);
-                        
-                        if (totalPrecipInInterval < MEASURABLE_RAIN_THRESHOLD) {
-                           const durationFromPeak = formatDistance(new Date(analysis.peakTimestamp!), new Date(currentPoint.timestamp));
-                           analysis.drawdownAnalysis = `Interruption detected ${durationFromPeak} after peak.`;
-                           break; // Found the first interruption, so we can stop.
+                        if (totalPrecipInInterval < 0.2) {
+                           analysis.drawdownAnalysis = `Interruption detected ${formatDistance(new Date(analysis.peakTimestamp!), new Date(currentPoint.timestamp))} after peak.`;
+                           break;
                         }
                     }
                 }
               }
               
-              // 6. Estimated True Baseline
-              if (analysis.postEventElevation) {
-                   analysis.estimatedTrueBaseline = analysis.postEventElevation; // Simplified for now
-              }
+              if (analysis.postEventElevation) analysis.estimatedTrueBaseline = analysis.postEventElevation;
 
-              // 7. Merge saved analysis
               const savedEventAnalysis = savedAnalysis[event.id];
               if (savedEventAnalysis) {
                   analysis.notes = savedEventAnalysis.notes;
@@ -964,14 +903,13 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
 
               event.analysis = analysis;
           });
+
+          weatherSummary.events = processedEvents.sort((a,b) => b.startDate - a.startDate);
         }
     }
     
     const result = { data: sortedData, weatherSummary };
-    
-    // Save to cache before returning
     await writeJsonFile(cacheFilePath, { ...result, version: dataVersion });
-
     return result;
 
   } catch (error) {
@@ -1365,5 +1303,3 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-
-    
