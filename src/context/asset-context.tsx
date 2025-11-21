@@ -129,13 +129,13 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     if (!assetId) return;
     setAssetData(prev => ({ ...prev, [assetId]: { ...prev[assetId], loading: true } }));
     try {
-        const result = await getProcessedData(assetId);
+        const result = await getProcessedData(assetId, dataVersion);
         setAssetData(prev => ({ ...prev, [assetId]: { ...result, loading: false } }));
     } catch (error) {
         console.error(`Failed to fetch data for asset ${assetId}:`, error);
         setAssetData(prev => ({ ...prev, [assetId]: { ...prev[assetId], loading: false } }));
     }
-  }, []);
+  }, [dataVersion]);
 
 
   useEffect(() => {

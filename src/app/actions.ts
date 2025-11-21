@@ -13,6 +13,7 @@ import { formatDistance } from 'date-fns';
 
 // Define paths to data files
 const dataDir = path.join(process.cwd(), 'data');
+const cacheDir = path.join(dataDir, 'cache');
 const assetsFilePath = path.join(dataDir, 'assets.json');
 const deploymentsFilePath = path.join(dataDir, 'deployments.json');
 const activityLogFilePath = path.join(dataDir, 'activity-log.json');
@@ -510,7 +511,22 @@ export async function deleteDatafile(deploymentId: string, fileId: string) {
 }
 
 
-export async function getProcessedData(assetId: string): Promise<{ data: ChartablePoint[], weatherSummary: WeatherSummary }> {
+export async function getProcessedData(assetId: string, dataVersion: number): Promise<{ data: ChartablePoint[], weatherSummary: WeatherSummary }> {
+  await fs.mkdir(cacheDir, { recursive: true });
+  const cacheFilePath = path.join(cacheDir, `asset-${assetId}.json`);
+  
+  try {
+    const cachedResult = await readJsonFile<{ data: ChartablePoint[], weatherSummary: WeatherSummary, version: number}>(cacheFilePath);
+    if (cachedResult.version === dataVersion) {
+        // console.log(`Serving cached data for asset ${assetId} version ${dataVersion}`);
+        return { data: cachedResult.data, weatherSummary: cachedResult.weatherSummary };
+    }
+  } catch (error) {
+    // Cache file doesn't exist or is invalid, proceed to process data
+  }
+
+  // console.log(`Processing data for asset ${assetId} version ${dataVersion}`);
+
   try {
     const assets = await readJsonFile<Asset[]>(assetsFilePath);
     const asset = assets.find(a => a.id === assetId);
@@ -804,7 +820,12 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
         }
     }
     
-    return { data: sortedData, weatherSummary };
+    const result = { data: sortedData, weatherSummary };
+    
+    // Save to cache before returning
+    await writeJsonFile(cacheFilePath, { ...result, version: dataVersion });
+
+    return result;
 
   } catch (error) {
     console.error("Failed to get processed data:", error);
@@ -1139,5 +1160,3 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-
-    

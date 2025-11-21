@@ -31,7 +31,7 @@ export default function DashboardLayout() {
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   const currentAssetData = selectedAssetId ? assetData[selectedAssetId] : null;
-  const isChartLoading = !currentAssetData;
+  const isChartLoading = !currentAssetData || (currentAssetData as any).loading;
   const chartData = currentAssetData?.data || [];
   const weatherSummary = currentAssetData?.weatherSummary || null;
 
@@ -57,22 +57,20 @@ export default function DashboardLayout() {
         sensorPressure: false,
       });
       
-      // Fetch data for the selected asset if not already available
-      if (!assetData[selectedAsset.id]) {
-          const { id: toastId } = toast({
-            title: "Fetching Data...",
-            description: `Querying sensor and weather data for ${selectedAsset.name}.`,
-          });
-          fetchAssetData(selectedAsset.id).then(() => {
-             toast({
-                id: toastId,
-                title: "Data Loaded Successfully",
-                description: `Sensor data processed for ${selectedAsset.name}.`,
-            });
-          });
-      }
+      const { id: toastId } = toast({
+        title: "Fetching Data...",
+        description: `Querying sensor and weather data for ${selectedAsset.name}.`,
+      });
+
+      fetchAssetData(selectedAsset.id).then(() => {
+          toast({
+            id: toastId,
+            title: "Data Loaded Successfully",
+            description: `Sensor data processed for ${selectedAsset.name}.`,
+        });
+      });
     }
-  }, [selectedAsset, assetData, fetchAssetData, toast]);
+  }, [selectedAsset, fetchAssetData, toast]);
 
   // This effect will re-fetch data for the current asset when dataVersion changes
   React.useEffect(() => {
