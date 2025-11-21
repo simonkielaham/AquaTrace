@@ -349,14 +349,16 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
       const result = await saveAnalysisAction(data);
       if (result && !result.errors) {
-        await fetchAssetData(assetId);
+        // Here is the critical change: we must trigger a data refresh.
+        // The simplest way is to increment the dataVersion, which the dashboard already watches.
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
       const message = await getErrorMessage(error);
       return { message: `Error: ${message}` };
     }
-  }, [fetchAssetData]);
+  }, [incrementDataVersion]);
 
   const getOverallAnalysis = useCallback(async (assetId: string) => {
       try {
