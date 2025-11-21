@@ -592,3 +592,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    

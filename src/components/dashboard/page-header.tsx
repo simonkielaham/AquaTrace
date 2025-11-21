@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Download, LogOut, Settings } from "lucide-react";
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAssets } from "@/context/asset-context";
 import { useToast } from "@/hooks/use-toast";
@@ -96,3 +96,5 @@ export default function PageHeader() {
     </header>
   );
 }
+
+    

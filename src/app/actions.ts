@@ -464,7 +464,7 @@ export async function assignDatafileToDeployment(formData: FormData) {
     const sourceFilePath = path.join(sourcefileDir, `${newDataFile.id}.csv`);
 
     await writeJsonFile(processedFilePath, processedData);
-    await fs.rename(stagedFilePath, sourceFilePath); // Move instead of delete
+    await fs.rename(stagedFilePath, sourceFilePath); // Move and rename with ID
 
     // Update deployments metadata
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
@@ -1365,3 +1365,5 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
+
+    
