@@ -41,7 +41,7 @@ export default function DashboardLayout() {
   React.useEffect(() => {
     if (selectedAsset) {
       const initialVisibility = selectedAsset.designElevations.reduce((acc, de) => {
-        acc[de.name] = true;
+        acc[de.name] = false;
         return acc;
       }, {} as Record<string, boolean>);
       setVisibleElevations(initialVisibility);
