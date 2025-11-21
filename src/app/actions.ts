@@ -837,7 +837,8 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
           processedEvents.forEach(event => {
               weatherSummary.totalPrecipitation += event.totalPrecipitation;
               event.dataPoints = sortedData.filter(d => d.timestamp >= event.startDate && d.timestamp <= event.endDate);
-              const analysis: AnalysisPeriod['analysis'] = {};
+              
+              const analysis: AnalysisPeriod['analysis'] = event.analysis || {};
               analysis.marginOfError = 0.016; // meters for HOBO logger
 
               const baselineTime = event.startDate - (3 * 60 * 60 * 1000);
