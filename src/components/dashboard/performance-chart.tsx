@@ -330,6 +330,27 @@ export default function PerformanceChart({
     return [dataMin - padding, dataMax + padding];
   }, [chartData, asset, loading, brushRange, visibleElevations]);
 
+  const sensorDomains = React.useMemo(() => {
+    const dataToConsider = brushRange && brushRange.startIndex !== undefined && brushRange.endIndex !== undefined
+      ? chartData.slice(brushRange.startIndex, brushRange.endIndex + 1)
+      : chartData;
+
+    const getDomain = (key: keyof ChartablePoint) => {
+        const values = dataToConsider.map(d => d[key]).filter(v => typeof v === 'number') as number[];
+        if (values.length === 0) return ['auto', 'auto'];
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        const padding = (max - min) * 0.15 || 1;
+        return [min - padding, max + padding];
+    };
+
+    return {
+        temperature: getDomain('temperature'),
+        barometer: getDomain('barometer'),
+        sensorPressure: getDomain('sensorPressure'),
+    };
+  }, [chartData, brushRange]);
+
 
   React.useEffect(() => {
     if (!loading) {
@@ -441,7 +462,6 @@ export default function PerformanceChart({
               domain={yZoomRange || yAxisBounds}
               tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
               allowDataOverflow={true}
-              label={{ value: 'Water Elevation (m)', angle: -90, position: 'insideLeft', offset: -15 }}
             />
              <YAxis
               yAxisId="right"
@@ -454,7 +474,6 @@ export default function PerformanceChart({
               domain={[0, (dataMax: number) => Math.max(1, dataMax * 1.1)]}
               reversed={true}
               tickFormatter={(value) => (value as number).toFixed(0)}
-              label={{ value: 'Precipitation (mm)', angle: 90, position: 'right', offset: 15 }}
             />
              <YAxis
               yAxisId="temp"
@@ -464,21 +483,33 @@ export default function PerformanceChart({
               axisLine={false}
               tickMargin={8}
               type="number"
-              domain={['dataMin - 2', 'dataMax + 2']}
+              domain={sensorDomains.temperature}
               hide={!visibleSensorData.temperature}
-              label={{ value: 'Temp (°C)', angle: 90, position: 'right', offset: 35 }}
+              label={{ value: 'Temp (°C)', angle: 90, position: 'insideRight', offset: 15 }}
             />
              <YAxis
               yAxisId="pressure"
-              orientation="left"
+              orientation="right"
               unit="kPa"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
               type="number"
-              domain={['dataMin - 1', 'dataMax + 1']}
-              hide={!visibleSensorData.barometer && !visibleSensorData.sensorPressure}
-              label={{ value: 'Pressure (kPa)', angle: -90, position: 'left', offset: -35 }}
+              domain={sensorDomains.sensorPressure}
+              hide={!visibleSensorData.sensorPressure}
+              label={{ value: 'Pressure (kPa)', angle: 90, position: 'insideRight', offset: 35 }}
+            />
+            <YAxis
+              yAxisId="barometer"
+              orientation="right"
+              unit="kPa"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              type="number"
+              domain={sensorDomains.barometer}
+              hide={!visibleSensorData.barometer}
+              label={{ value: 'Barometer (kPa)', angle: 90, position: 'insideRight', offset: 55 }}
             />
             <ChartTooltip
               cursor={false}
@@ -530,7 +561,7 @@ export default function PerformanceChart({
 
             {/* Sensor Data Lines */}
             {visibleSensorData.temperature && <Line yAxisId="temp" type="monotone" dataKey="temperature" stroke="var(--color-temperature)" dot={false} isAnimationActive={false} name="Temperature" />}
-            {visibleSensorData.barometer && <Line yAxisId="pressure" type="monotone" dataKey="barometer" stroke="var(--color-barometer)" dot={false} isAnimationActive={false} name="Barometer" />}
+            {visibleSensorData.barometer && <Line yAxisId="barometer" type="monotone" dataKey="barometer" stroke="var(--color-barometer)" dot={false} isAnimationActive={false} name="Barometer" />}
             {visibleSensorData.sensorPressure && <Line yAxisId="pressure" type="monotone" dataKey="sensorPressure" stroke="var(--color-sensorPressure)" dot={false} isAnimationActive={false} name="Sensor Pressure" />}
 
             <ReferenceLine
