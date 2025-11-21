@@ -84,8 +84,8 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
                 estimatedControlElevation: data.estimatedControlElevation,
                 rainResponse: data.rainResponse,
                 furtherInvestigation: data.furtherInvestigation,
-                summary: data.summary,
-                analystInitials: data.analystInitials,
+                summary: data.summary || "",
+                analystInitials: data.analystInitials || "",
             });
             if(data.lastUpdated) {
                 setLastUpdated(format(new Date(data.lastUpdated), "PPp"));
@@ -164,7 +164,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
                                     render={({ field }) => (
                                         <FormItem>
                                         <FormLabel>Estimated Control Elevation (m)</FormLabel>
-                                        <FormControl><Input type="number" step="0.01" placeholder="e.g., 125.42" {...field} /></FormControl>
+                                        <FormControl><Input type="number" step="0.01" placeholder="e.g., 125.42" {...field} value={field.value ?? ''} /></FormControl>
                                         <FormMessage />
                                         </FormItem>
                                     )}
@@ -220,7 +220,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
                                             <FormItem>
                                             <FormLabel>Analysis Summary</FormLabel>
                                             <FormControl>
-                                                <Textarea placeholder="Provide a summary of the asset's overall performance, observations, and recommendations..." className="min-h-[120px]" {...field} />
+                                                <Textarea placeholder="Provide a summary of the asset's overall performance, observations, and recommendations..." className="min-h-[120px]" {...field} value={field.value ?? ''} />
                                             </FormControl>
                                             <FormMessage />
                                             </FormItem>
@@ -266,3 +266,5 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
     </Card>
   );
 }
+
+    
