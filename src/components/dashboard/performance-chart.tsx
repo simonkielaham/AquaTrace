@@ -34,7 +34,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { ComposedChart, Area, Bar, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter } from "recharts";
+import { ComposedChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter } from "recharts";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -374,11 +374,12 @@ export default function PerformanceChart({
                       let formattedValue: string | null = null;
                       if (typeof value === 'number') {
                           if (name === 'waterLevel') formattedValue = `${value.toFixed(2)}m`;
-                          if (name === 'precipitation' && value > 0) formattedValue = `${value.toFixed(1)}mm`;
+                          if (name === 'precipitation') formattedValue = `${value.toFixed(1)}mm`;
                           if (name === 'elevation') formattedValue = `${value.toFixed(2)}m`;
                       }
                       
-                      if (!formattedValue) return null;
+                      if (formattedValue === null && value !== 0) return null;
+                      if (name === 'precipitation' && value === 0) return null;
                       
                       return (
                          <div className="flex items-center gap-2">
@@ -393,7 +394,7 @@ export default function PerformanceChart({
                            />
                             <div className="flex flex-1 justify-between">
                                <span className="text-muted-foreground">{itemConfig.label || name}</span>
-                               <span className="font-bold">{formattedValue}</span>
+                               <span className="font-bold">{formattedValue || value}</span>
                             </div>
                          </div>
                       );
@@ -411,6 +412,7 @@ export default function PerformanceChart({
               name="Water Elevation"
               connectNulls
               dot={false}
+              isAnimationActive={false}
             />
             <Area
               yAxisId="right"
@@ -420,12 +422,14 @@ export default function PerformanceChart({
               fillOpacity={0.4}
               stroke="var(--color-precipitation)"
               name="Precipitation"
+              isAnimationActive={false}
             />
             <Scatter 
               yAxisId="left"
               dataKey="elevation" 
               fill="var(--color-elevation)" 
               name="Survey Points"
+              isAnimationActive={false}
             />
             <ReferenceLine
               yAxisId="left"
@@ -542,3 +546,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
