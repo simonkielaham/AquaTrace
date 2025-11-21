@@ -717,7 +717,6 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
 
               event.dataPoints = sortedData.filter(d => d.timestamp >= event.startDate && d.timestamp <= event.endDate);
               
-              // New Analysis Logic
               const analysis: AnalysisPeriod['analysis'] = {};
 
               // 1. Baseline Elevation
@@ -761,10 +760,36 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                   }
               }
 
-              // 5. Drawdown analysis (placeholder)
-              analysis.drawdownAnalysis = "Not yet implemented";
+              // 5. Drawdown analysis
+              analysis.drawdownAnalysis = "No interruption detected";
+              if (analysis.peakTimestamp) {
+                const postPeakPoints = sortedData.filter(p => p.timestamp > analysis.peakTimestamp! && p.waterLevel !== undefined);
+                const INTERVAL = 3 * 60 * 60 * 1000; // 3 hours
+                const RISE_THRESHOLD = 0.01; // 1 cm
+                
+                for (let i = 0; i < postPeakPoints.length; i++) {
+                    const currentPoint = postPeakPoints[i];
+                    const intervalEndTime = currentPoint.timestamp + INTERVAL;
+                    
+                    const pointsInInterval = postPeakPoints.filter(p => p.timestamp >= currentPoint.timestamp && p.timestamp <= intervalEndTime);
+                    
+                    if (pointsInInterval.length < 2) continue;
+                    
+                    const endPoint = pointsInInterval[pointsInInterval.length - 1];
+                    
+                    if (endPoint.waterLevel! > currentPoint.waterLevel! + RISE_THRESHOLD) {
+                        // Potential interruption. Check for rain in this interval.
+                        const totalPrecipInInterval = pointsInInterval.reduce((sum, p) => sum + (p.precipitation || 0), 0);
+                        
+                        if (totalPrecipInInterval < MEASURABLE_RAIN_THRESHOLD) {
+                           analysis.drawdownAnalysis = `Interruption detected at ${new Date(currentPoint.timestamp).toLocaleString()}`;
+                           break; // Found the first interruption, so we can stop.
+                        }
+                    }
+                }
+              }
               
-              // 6. Estimated True Baseline (placeholder)
+              // 6. Estimated True Baseline
               if (analysis.postEventElevation) {
                    analysis.estimatedTrueBaseline = analysis.postEventElevation; // Simplified for now
               }
