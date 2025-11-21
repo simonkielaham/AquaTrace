@@ -23,6 +23,8 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
 } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
 import {
@@ -124,6 +126,38 @@ const AnalysisDialog = ({
 };
 
 
+const CustomLegend = ({ payload, chartConfig }: { payload?: any[], chartConfig: any }) => {
+  if (!payload) return null;
+
+  const mainPayload = payload.filter(p => ["Water Elevation", "Precipitation", "Survey Points"].includes(p.value));
+  const designPayload = payload.filter(p => !["Water Elevation", "Precipitation", "Survey Points"].includes(p.value));
+  
+  const renderLegendItems = (items: any[]) => (
+    items.map((entry, index) => {
+      const config = chartConfig[entry.value] || {};
+      const color = config.color || entry.color;
+      return (
+        <div key={`item-${index}`} className="flex items-center space-x-2 text-sm text-muted-foreground cursor-pointer">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+          <span>{entry.value}</span>
+        </div>
+      );
+    })
+  );
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 pt-4">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            {renderLegendItems(mainPayload)}
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            {renderLegendItems(designPayload)}
+        </div>
+    </div>
+  );
+};
+
+
 export default function PerformanceChart({
   asset,
   chartData,
@@ -151,13 +185,12 @@ export default function PerformanceChart({
       },
        "Permanent Pool": {
         label: "Permanent Pool",
-        color: "hsl(210 40% 50%)", // A distinct blue
+        color: "hsl(210 40% 50%)",
     },
     };
   
     asset.designElevations.forEach((de, index) => {
-      // Use modulo operator to cycle through chart colors if there are more elevations than colors
-      const chartColorIndex = ((index + 2) % 5) + 1; // Start from chart-3
+      const chartColorIndex = ((index + 2) % 5) + 1;
       config[de.name] = {
         label: de.name,
         color: `hsl(var(--chart-${chartColorIndex}))`
@@ -222,10 +255,10 @@ export default function PerformanceChart({
     }
   }, [yAxisBounds, loading]);
   
-  const { mainLegendPayload, designLegendPayload } = React.useMemo(() => {
+  const legendPayload = React.useMemo(() => {
     const mainPayload = [
-      { value: 'Water Elevation', type: 'area', id: 'waterLevel', color: chartConfig.waterLevel.color },
-      { value: 'Precipitation', type: 'bar', id: 'precipitation', color: chartConfig.precipitation.color },
+      { value: 'Water Elevation', type: 'line', id: 'waterLevel', color: chartConfig.waterLevel.color },
+      { value: 'Precipitation', type: 'rect', id: 'precipitation', color: chartConfig.precipitation.color },
       { value: 'Survey Points', type: 'scatter', id: 'elevation', color: chartConfig.elevation.color },
     ];
   
@@ -241,7 +274,7 @@ export default function PerformanceChart({
       color: chartConfig[de.name]?.color,
     }));
 
-    return { mainLegendPayload: mainPayload, designLegendPayload: designPayload };
+    return [...mainPayload, ...designPayload];
   }, [asset.designElevations, asset.permanentPoolElevation, chartConfig]);
 
 
@@ -338,8 +371,8 @@ export default function PerformanceChart({
                 <ChartTooltipContent
                   labelFormatter={(label) => new Date(label as number).toLocaleString()}
                   indicator="dot"
-                  formatter={(value, name, props) => {
-                      if (name === "elevation") {
+                  formatter={(value, name) => {
+                      if (name === "elevation" && value) {
                         return (
                            <div className="flex items-center gap-2">
                              <div
@@ -408,7 +441,6 @@ export default function PerformanceChart({
               fill="var(--color-waterLevel)"
               fillOpacity={0.4}
               stroke="var(--color-waterLevel)"
-              stackId="a"
               name="Water Elevation"
               connectNulls
               dot={false}
@@ -457,8 +489,12 @@ export default function PerformanceChart({
                     onBrushChange({startIndex: range.startIndex, endIndex: range.endIndex})
                 }}
             />
-            <Legend verticalAlign="bottom" wrapperStyle={{ paddingTop: '20px' }} payload={mainLegendPayload} />
-            <Legend verticalAlign="bottom" wrapperStyle={{ paddingTop: '45px' }} payload={designLegendPayload} />
+             <Legend
+              content={<CustomLegend chartConfig={chartConfig} />}
+              verticalAlign="bottom"
+              wrapperStyle={{ paddingTop: '20px' }}
+              payload={legendPayload}
+            />
           </ComposedChart>
         </ChartContainer>
         {yZoomRange && Array.isArray(yAxisBounds) && typeof yAxisBounds[0] === 'number' && typeof yAxisBounds[1] === 'number' && (
