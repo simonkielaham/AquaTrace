@@ -350,14 +350,45 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
       const result = await saveAnalysisAction(data);
       if (result && !result.errors) {
-        incrementDataVersion();
+        // Targeted state update instead of full refresh
+        setAssetData(prev => {
+            const currentAsset = prev[selectedAssetId];
+            if (!currentAsset || !currentAsset.weatherSummary) return prev;
+
+            const updatedEvents = currentAsset.weatherSummary.events.map(event => {
+                if (event.id === data.eventId) {
+                    return {
+                        ...event,
+                        analysis: {
+                            ...event.analysis,
+                            notes: data.notes,
+                            status: data.status,
+                            analystInitials: data.analystInitials,
+                            disregarded: data.disregarded,
+                        }
+                    };
+                }
+                return event;
+            });
+
+            return {
+                ...prev,
+                [selectedAssetId]: {
+                    ...currentAsset,
+                    weatherSummary: {
+                        ...currentAsset.weatherSummary,
+                        events: updatedEvents,
+                    }
+                }
+            };
+        });
       }
       return result;
     } catch (error) {
       const message = await getErrorMessage(error);
       return { message: `Error: ${message}` };
     }
-  }, [incrementDataVersion]);
+  }, [selectedAssetId]);
 
   const getOverallAnalysis = useCallback(async (assetId: string) => {
       try {
