@@ -88,7 +88,7 @@ const getErrorMessage = async (error: any): Promise<string> => {
              // Attempt to find a different error format if the first fails
             const titleMatch = text.match(/<title>(.*?)<\/title>/s);
             if (titleMatch && titleMatch[1]) {
-                 return `Server Error: ${titleMatch[1]}`;
+                 return `Server Error: ${titleMatch[1].replace(/<[^>]+>/g, '')}`;
             }
             return `An unexpected response was received from the server. Status: ${error.status}`;
         } catch (e) {
