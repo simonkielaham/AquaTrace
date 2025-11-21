@@ -15,7 +15,7 @@ export type Asset = {
 export type DataFile = {
   id: string;
   filename: string;
-  dataType: 'water-level' | 'precipitation';
+  dataType: 'water-level' | 'precipitation' | 'sensor-suite';
   uploadDate: string;
   startDate: string;
   endDate: string;
@@ -97,6 +97,9 @@ export type ChartablePoint = {
     elevation?: number;
     precipitation?: number;
     dailyPrecipitation?: number;
+    barometer?: number;
+    sensorPressure?: number;
+    temperature?: number;
 }
 
 export type WeatherSummary = {

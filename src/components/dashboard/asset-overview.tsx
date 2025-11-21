@@ -1,9 +1,10 @@
 
+
 import type { Asset } from "@/lib/placeholder-data";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Target, Globe, FilePenLine, Trash2 } from "lucide-react";
+import { MapPin, Target, Globe, FilePenLine, Trash2, Thermometer, Gauge, Wind } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EditAssetDialog, DeleteAssetDialog } from "@/app/asset-management/page";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ type AssetOverviewProps = {
   asset: Asset;
   visibleElevations: Record<string, boolean>;
   onElevationVisibilityChange: (name: string, visible: boolean) => void;
+  visibleSensorData: Record<string, boolean>;
+  onSensorDataVisibilityChange: (name: string, visible: boolean) => void;
 };
 
 const statusVariantMap = {
@@ -24,7 +27,7 @@ const statusVariantMap = {
   error: "destructive",
 } as const;
 
-export default function AssetOverview({ asset, visibleElevations, onElevationVisibilityChange }: AssetOverviewProps) {
+export default function AssetOverview({ asset, visibleElevations, onElevationVisibilityChange, visibleSensorData, onSensorDataVisibilityChange }: AssetOverviewProps) {
   const router = useRouter();
   const [_, startTransition] = React.useTransition();
   
@@ -34,6 +37,12 @@ export default function AssetOverview({ asset, visibleElevations, onElevationVis
   }, [asset.designElevations]);
 
   const imageUrl = asset.imageId;
+
+  const sensorDataOptions = [
+      { key: 'temperature', label: 'Temperature', icon: Thermometer },
+      { key: 'barometer', label: 'Barometer', icon: Wind },
+      { key: 'sensorPressure', label: 'Sensor Pressure', icon: Gauge },
+  ];
 
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm">
@@ -88,8 +97,8 @@ export default function AssetOverview({ asset, visibleElevations, onElevationVis
               />
             </div>
           )}
-          <div className={cn("md:col-span-2 space-y-4", !imageUrl && "md:col-span-3")}>
-            <div className="flex items-start space-x-3 rounded-lg border p-3">
+          <div className={cn("md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4", !imageUrl && "md:col-span-3")}>
+             <div className="flex items-start space-x-3 rounded-lg border p-3 col-span-full">
               <Target className="h-5 w-5 mt-1 text-primary" />
               <div>
                 <h4 className="font-semibold">Permanent Pool Elevation</h4>
@@ -101,9 +110,10 @@ export default function AssetOverview({ asset, visibleElevations, onElevationVis
                 </p>
               </div>
             </div>
+
             <div className="space-y-2">
               <h4 className="font-semibold text-sm">Design Elevations</h4>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              <div className="grid grid-cols-1 gap-y-3 text-sm">
                 {sortedDesignElevations.map((de) => (
                   <div key={de.name} className="flex items-center justify-between rounded-md bg-muted/50 p-2 pr-3">
                     <div className="flex flex-col">
@@ -111,7 +121,7 @@ export default function AssetOverview({ asset, visibleElevations, onElevationVis
                         <span className="font-semibold">{de.elevation.toFixed(2)}m</span>
                     </div>
                      <Switch
-                        id={`switch-${de.name}`}
+                        id={`switch-de-${de.name}`}
                         checked={visibleElevations[de.name]}
                         onCheckedChange={(checked) => onElevationVisibilityChange(de.name, checked)}
                         aria-label={`Toggle ${de.name} visibility`}
@@ -120,6 +130,27 @@ export default function AssetOverview({ asset, visibleElevations, onElevationVis
                 ))}
               </div>
             </div>
+
+             <div className="space-y-2">
+              <h4 className="font-semibold text-sm">Other Sensor Data</h4>
+              <div className="grid grid-cols-1 gap-y-3 text-sm">
+                {sensorDataOptions.map((option) => (
+                   <div key={option.key} className="flex items-center justify-between rounded-md bg-muted/50 p-2 pr-3">
+                    <div className="flex items-center gap-2">
+                       <option.icon className="h-4 w-4 text-muted-foreground" />
+                       <span className="text-muted-foreground">{option.label}</span>
+                    </div>
+                     <Switch
+                        id={`switch-sd-${option.key}`}
+                        checked={visibleSensorData[option.key]}
+                        onCheckedChange={(checked) => onSensorDataVisibilityChange(option.key, checked)}
+                        aria-label={`Toggle ${option.label} visibility`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
       </CardContent>

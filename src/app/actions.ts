@@ -314,16 +314,33 @@ export async function assignDatafileToDeployment(formData: FormData) {
   const rawData = {
     dataType: formData.get('dataType'),
     datetimeColumn: formData.get('datetimeColumn'),
-    valueColumn: formData.get('valueColumn'),
+    waterLevelColumn: formData.get('waterLevelColumn') || undefined,
+    precipitationColumn: formData.get('precipitationColumn') || undefined,
+    barometerColumn: formData.get('barometerColumn') || undefined,
+    sensorPressureColumn: formData.get('sensorPressureColumn') || undefined,
+    temperatureColumn: formData.get('temperatureColumn') || undefined,
     startRow: formData.get('startRow'),
   };
   const logPayload = { assetId, deploymentId, filename, ...rawData };
 
   const addDatafileSchema = z.object({
-    dataType: z.enum(['water-level', 'precipitation']),
+    dataType: z.enum(['water-level', 'precipitation', 'sensor-suite']),
     datetimeColumn: z.string(),
-    valueColumn: z.string(),
+    waterLevelColumn: z.string().optional(),
+    precipitationColumn: z.string().optional(),
+    barometerColumn: z.string().optional(),
+    sensorPressureColumn: z.string().optional(),
+    temperatureColumn: z.string().optional(),
     startRow: z.coerce.number().min(1),
+  }).refine(data => data.dataType !== 'water-level' || !!data.waterLevelColumn, {
+    message: "Water Level column is required for Water Level data type.",
+    path: ['waterLevelColumn'],
+  }).refine(data => data.dataType !== 'precipitation' || !!data.precipitationColumn, {
+    message: "Precipitation column is required for Precipitation data type.",
+    path: ['precipitationColumn'],
+  }).refine(data => data.dataType !== 'sensor-suite' || !!data.waterLevelColumn, {
+      message: "Water Level column is required for Sensor Suite data type.",
+      path: ['waterLevelColumn']
   });
 
   const validatedFields = addDatafileSchema.safeParse(rawData);
@@ -332,7 +349,16 @@ export async function assignDatafileToDeployment(formData: FormData) {
      await writeLog({ action: 'assignDatafile', status: 'failure', payload: logPayload, response });
      return response;
   }
-  const { dataType, datetimeColumn, valueColumn, startRow } = validatedFields.data;
+  const { 
+      dataType, 
+      datetimeColumn,
+      waterLevelColumn,
+      precipitationColumn,
+      barometerColumn,
+      sensorPressureColumn,
+      temperatureColumn, 
+      startRow 
+    } = validatedFields.data;
 
   const stagedFilePath = path.join(stagedDir, filename);
 
@@ -356,17 +382,34 @@ export async function assignDatafileToDeployment(formData: FormData) {
 
     const processedData = parsedCsv.data.map((row: any) => {
         const dateValue = row[datetimeColumn];
-        const val = row[valueColumn];
+        if (!dateValue) return null;
         
-        if (dateValue && (val !== null && val !== undefined && val !== '')) {
-            const timestamp = new Date(dateValue);
-            const value = parseFloat(val);
+        const timestamp = new Date(dateValue);
+        if (isNaN(timestamp.getTime())) return null;
 
-            if (!isNaN(timestamp.getTime()) && !isNaN(value)) {
-                return { timestamp: timestamp.toISOString(), value };
+        const record: { timestamp: string; [key: string]: number | string } = { timestamp: timestamp.toISOString() };
+        
+        const columnMap = {
+            waterLevel: waterLevelColumn,
+            precipitation: precipitationColumn,
+            barometer: barometerColumn,
+            sensorPressure: sensorPressureColumn,
+            temperature: temperatureColumn
+        };
+        
+        let hasValue = false;
+        for (const [key, colName] of Object.entries(columnMap)) {
+            if (colName && row[colName] !== null && row[colName] !== undefined && row[colName] !== '') {
+                const value = parseFloat(row[colName]);
+                if (!isNaN(value)) {
+                    record[key] = value;
+                    hasValue = true;
+                }
             }
         }
-        return null;
+        
+        return hasValue ? record : null;
+
     }).filter(p => p !== null) as { timestamp: string, value: number }[];
 
     if (processedData.length === 0) {
@@ -489,15 +532,13 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
     let minDate: Date | null = null;
     let maxDate: Date | null = null;
 
-    // First pass: Collect all water level data and determine the date range
+    // First pass: Collect all data and determine the date range
     for (const deployment of assetDeployments) {
       if (deployment.files) {
         for (const file of deployment.files) {
-          if (file.dataType !== 'water-level') continue;
-
           const filePath = path.join(processedDir, `${file.id}.json`);
           try {
-            const fileData = await readJsonFile<{ timestamp: string, value: number }[]>(filePath);
+            const fileData = await readJsonFile<any[]>(filePath);
             
             fileData.forEach(d => {
                 const timestamp = new Date(d.timestamp).getTime();
@@ -511,14 +552,16 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                 }
                 const point = dataMap.get(timestamp)!;
                 
-                const waterLevel = parseFloat(d.value.toString()) + parseFloat(deployment.sensorElevation.toString());
-                const rawWaterLevel = parseFloat(d.value.toString());
-                if(!isNaN(waterLevel)) {
-                    point.waterLevel = waterLevel;
+                if (d.waterLevel !== undefined) {
+                    const waterLevel = parseFloat(d.waterLevel.toString()) + parseFloat(deployment.sensorElevation.toString());
+                    const rawWaterLevel = parseFloat(d.waterLevel.toString());
+                    if(!isNaN(waterLevel)) point.waterLevel = waterLevel;
+                    if(!isNaN(rawWaterLevel)) point.rawWaterLevel = rawWaterLevel;
                 }
-                if(!isNaN(rawWaterLevel)) {
-                    point.rawWaterLevel = rawWaterLevel;
-                }
+                if (d.barometer !== undefined && !isNaN(parseFloat(d.barometer))) point.barometer = d.barometer;
+                if (d.sensorPressure !== undefined && !isNaN(parseFloat(d.sensorPressure))) point.sensorPressure = d.sensorPressure;
+                if (d.temperature !== undefined && !isNaN(parseFloat(d.temperature))) point.temperature = d.temperature;
+                if (d.precipitation !== undefined && !isNaN(parseFloat(d.precipitation))) point.precipitation = d.precipitation;
             });
 
           } catch (e) {
@@ -553,19 +596,34 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
     const weatherSummary: WeatherSummary = { totalPrecipitation: 0, events: [] };
     const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
 
-    // If we have data, fetch and process weather data
+    // If we have data, fetch and process external weather data if no precipitation data is present
     if (sortedData.length > 0 && minDate && maxDate) {
-      try {
-        const weatherCsv = await getWeatherData({
-          latitude: asset.latitude,
-          longitude: asset.longitude,
-          startDate: minDate.toISOString(),
-          endDate: maxDate.toISOString(),
-        });
+        const hasInternalPrecip = sortedData.some(d => d.precipitation !== undefined && d.precipitation > 0);
+        
+        let weatherData: {date: string, precipitation: number}[] = [];
 
-        if (weatherCsv) {
-          const weatherData = Papa.parse(weatherCsv, { header: true, dynamicTyping: true }).data as {date: string, precipitation: number}[];
-          
+        if (!hasInternalPrecip) {
+            try {
+                const weatherCsv = await getWeatherData({
+                    latitude: asset.latitude,
+                    longitude: asset.longitude,
+                    startDate: minDate.toISOString(),
+                    endDate: maxDate.toISOString(),
+                });
+                if (weatherCsv) {
+                    weatherData = Papa.parse(weatherCsv, { header: true, dynamicTyping: true }).data as {date: string, precipitation: number}[];
+                }
+            } catch (error) {
+                console.error("Failed to get or process weather data:", error);
+            }
+        } else {
+            // Use internal precipitation data
+            weatherData = sortedData
+                .filter(d => d.precipitation !== undefined)
+                .map(d => ({ date: new Date(d.timestamp).toISOString(), precipitation: d.precipitation! }));
+        }
+
+        if (weatherData.length > 0) {
           const dailyPrecipitationMap = new Map<string, number>();
           weatherData.forEach(weatherPoint => {
             if (!weatherPoint.date) return;
@@ -595,7 +653,10 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
               
               // Add precipitation to the current sensor data point
               if (sortedData[sensorDataIndex]) {
-                  sortedData[sensorDataIndex].precipitation = (sortedData[sensorDataIndex].precipitation || 0) + precipitation;
+                  // Only add external weather if no internal precip exists at this point
+                  if (!hasInternalPrecip) {
+                    sortedData[sensorDataIndex].precipitation = (sortedData[sensorDataIndex].precipitation || 0) + precipitation;
+                  }
                   sortedData[sensorDataIndex].dailyPrecipitation = dailyPrecipitationMap.get(dateKey);
               }
           });
@@ -721,9 +782,6 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
               event.analysis = analysis;
           });
         }
-      } catch (error) {
-          console.error("Failed to get or process weather data:", error);
-      }
     }
     
     return { data: sortedData, weatherSummary };

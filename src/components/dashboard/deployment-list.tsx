@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { Deployment, Asset, DataFile, StagedFile } from "@/lib/placeholder-data";
@@ -93,10 +94,22 @@ type DeploymentFormValues = z.infer<typeof deploymentFormSchema>;
 
 const assignDatafileSchema = z.object({
   filename: z.string({ required_error: "Please select a file to assign."}).min(1, "Please select a file to assign."),
-  dataType: z.enum(['water-level', 'precipitation'], { required_error: "Please select a data type."}),
+  dataType: z.enum(['water-level', 'precipitation', 'sensor-suite'], { required_error: "Please select a data type."}),
   datetimeColumn: z.string({ required_error: "Please select the date/time column."}).min(1, "Please select the date/time column."),
-  valueColumn: z.string({ required_error: "Please select the value column."}).min(1, "Please select the value column."),
+  waterLevelColumn: z.string().optional(),
+  precipitationColumn: z.string().optional(),
+  barometerColumn: z.string().optional(),
+  sensorPressureColumn: z.string().optional(),
+  temperatureColumn: z.string().optional(),
   startRow: z.coerce.number().min(1, "Start row must be at least 1."),
+}).refine(data => {
+    if (data.dataType === 'water-level') return !!data.waterLevelColumn;
+    if (data.dataType === 'precipitation') return !!data.precipitationColumn;
+    if (data.dataType === 'sensor-suite') return !!data.waterLevelColumn;
+    return true;
+}, {
+    message: "A primary value column is required for the selected data type.",
+    path: ["waterLevelColumn"], 
 });
 type AssignDatafileValues = z.infer<typeof assignDatafileSchema>;
 
@@ -319,14 +332,25 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   
   const form = useForm<AssignDatafileValues>({
     resolver: zodResolver(assignDatafileSchema),
-    defaultValues: { startRow: 2, filename: undefined, datetimeColumn: undefined, valueColumn: undefined },
+    defaultValues: { startRow: 2, filename: undefined, datetimeColumn: undefined },
   });
   
   const selectedFilename = form.watch("filename");
   const startRow = useWatch({ control: form.control, name: 'startRow'});
+  const dataType = form.watch('dataType');
 
   const resetDialogState = React.useCallback(() => {
-    form.reset({ startRow: 2, filename: undefined, datetimeColumn: undefined, valueColumn: undefined, dataType: undefined });
+    form.reset({ 
+        startRow: 2, 
+        filename: undefined, 
+        datetimeColumn: undefined,
+        dataType: undefined,
+        waterLevelColumn: undefined,
+        precipitationColumn: undefined,
+        barometerColumn: undefined,
+        sensorPressureColumn: undefined,
+        temperatureColumn: undefined,
+    });
     setCsvHeaders([]);
     setCsvSample([]);
     setIsSubmitting(false);
@@ -340,7 +364,9 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
     formData.append('deploymentId', deployment.id);
     formData.append('assetId', deployment.assetId);
     Object.entries(data).forEach(([key, value]) => {
-      formData.append(key, String(value));
+      if (value !== undefined) {
+        formData.append(key, String(value));
+      }
     });
     
     const result = await assignDatafileToDeployment(formData);
@@ -362,7 +388,6 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
 
     form.setValue("filename", filename);
     form.setValue("datetimeColumn", undefined);
-    form.setValue("valueColumn", undefined);
     setCsvHeaders([]);
     setCsvSample([]);
 
@@ -468,6 +493,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                             <SelectContent>
                                <SelectItem value="water-level">Water Level</SelectItem>
                                <SelectItem value="precipitation">Precipitation</SelectItem>
+                               <SelectItem value="sensor-suite">Sensor Suite (multiple readings)</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -504,24 +530,103 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
                         </FormItem>
                       )}
                     />
-                    <FormField
-                      control={form.control}
-                      name="valueColumn"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Value Column</FormLabel>
-                           <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
-                             <FormControl>
-                              <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+
+                    {(dataType === "water-level" || dataType === "sensor-suite") && (
+                        <FormField
+                        control={form.control}
+                        name="waterLevelColumn"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Water Level Column</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
+                                <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                    )}
+                    {(dataType === "precipitation" || dataType === "sensor-suite") && (
+                        <FormField
+                        control={form.control}
+                        name="precipitationColumn"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Precipitation Column</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
+                                <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                    )}
+
+                    {dataType === "sensor-suite" && (
+                        <>
+                         <FormField
+                            control={form.control}
+                            name="barometerColumn"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Barometer Column (Optional)</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
+                                    <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                    {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                </FormItem>
+                            )}
+                            />
+                            <FormField
+                            control={form.control}
+                            name="sensorPressureColumn"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Sensor Pressure Column (Optional)</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
+                                    <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                    {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                </FormItem>
+                            )}
+                            />
+                            <FormField
+                            control={form.control}
+                            name="temperatureColumn"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Temperature Column (Optional)</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value} disabled={csvHeaders.length === 0}>
+                                    <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                    {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                </FormItem>
+                            )}
+                            />
+                        </>
+                    )}
                   </div>
                   {csvSample.length > 0 && (
                     <div className="space-y-2">
@@ -896,5 +1001,3 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
-
-    

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -28,6 +29,7 @@ export default function DashboardLayout() {
   const [isChartLoading, setIsChartLoading] = React.useState(true);
   const [chartBrushRange, setChartBrushRange] = React.useState<{startIndex?: number, endIndex?: number}>({});
   const [visibleElevations, setVisibleElevations] = React.useState<Record<string, boolean>>({});
+  const [visibleSensorData, setVisibleSensorData] = React.useState<Record<string, boolean>>({});
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   
@@ -45,6 +47,12 @@ export default function DashboardLayout() {
         return acc;
       }, {} as Record<string, boolean>);
       setVisibleElevations(initialVisibility);
+
+      setVisibleSensorData({
+        temperature: false,
+        barometer: false,
+        sensorPressure: false,
+      });
     }
   }, [selectedAsset]);
 
@@ -119,6 +127,10 @@ export default function DashboardLayout() {
   const handleElevationVisibilityChange = (name: string, visible: boolean) => {
     setVisibleElevations(prev => ({ ...prev, [name]: visible }));
   };
+  
+  const handleSensorDataVisibilityChange = (name: string, visible: boolean) => {
+    setVisibleSensorData(prev => ({ ...prev, [name]: visible }));
+  }
 
   if (loading) {
      return (
@@ -174,6 +186,8 @@ export default function DashboardLayout() {
                 asset={selectedAsset} 
                 visibleElevations={visibleElevations}
                 onElevationVisibilityChange={handleElevationVisibilityChange}
+                visibleSensorData={visibleSensorData}
+                onSensorDataVisibilityChange={handleSensorDataVisibilityChange}
               />
               <PerformanceChart 
                 asset={selectedAsset} 
@@ -182,6 +196,7 @@ export default function DashboardLayout() {
                 brushRange={chartBrushRange}
                 onBrushChange={setChartBrushRange}
                 visibleElevations={visibleElevations}
+                visibleSensorData={visibleSensorData}
               />
               <AnalysisResults 
                 weatherSummary={weatherSummary} 
