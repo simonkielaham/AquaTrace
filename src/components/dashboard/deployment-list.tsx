@@ -315,7 +315,6 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isParsing, setIsParsing] = React.useState(false);
   const [csvHeaders, setCsvHeaders] = React.useState<string[]>([]);
-  const [csvPreview, setCsvPreview] = React.useState<string[][]>([]);
   
   const form = useForm<AssignDatafileValues>({
     resolver: zodResolver(assignDatafileSchema),
@@ -327,7 +326,6 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   const resetDialogState = React.useCallback(() => {
     form.reset({ startRow: 2, filename: undefined, datetimeColumn: undefined, valueColumn: undefined, dataType: undefined });
     setCsvHeaders([]);
-    setCsvPreview([]);
     setIsSubmitting(false);
     setIsParsing(false);
   }, [form]);
@@ -363,10 +361,9 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
     form.setValue("datetimeColumn", undefined);
     form.setValue("valueColumn", undefined);
     setCsvHeaders([]);
-    setCsvPreview([]);
 
     setIsParsing(true);
-    toast({ title: "Parsing File...", description: "Reading headers and preview from the selected CSV file."});
+    toast({ title: "Parsing File...", description: "Reading headers from the selected CSV file."});
     
     const fileContent = await getStagedFileContent(filename);
     
@@ -377,7 +374,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
     }
 
     Papa.parse(fileContent, {
-        preview: 11, // 1 header row + 10 data rows
+        preview: 1, // Only need the header row
         skipEmptyLines: true,
         complete: (results) => {
             const data = results.data as string[][];
@@ -385,7 +382,6 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
 
             if (headers.length > 0) {
               setCsvHeaders(headers);
-              setCsvPreview(data.slice(1));
               toast({ title: "File Parsed", description: "Please map the required columns." });
             } else {
                toast({ variant: "destructive", title: "Parsing Error", description: "Could not parse CSV headers. Check file format." });
@@ -405,17 +401,6 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
     if (!open) {
       resetDialogState();
     }
-  }
-
-  const SanitizeCell = ({ cell }: { cell: string }) => {
-    const cellRef = React.useRef<HTMLTableCellElement>(null);
-    React.useEffect(() => {
-        if(cellRef.current) {
-            cellRef.current.textContent = cell;
-        }
-    }, [cell]);
-
-    return <TableCell ref={cellRef} className="whitespace-nowrap" />;
   }
 
 
@@ -457,39 +442,6 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
               {(isParsing || (selectedFilename && csvHeaders.length > 0)) && (
                 <>
                  {isParsing && <div className="flex items-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Parsing file...</div>}
-                 
-                  {csvPreview.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">Data Preview</CardTitle>
-                        <CardDescription>
-                          First 10 rows of data from {selectedFilename}.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="h-48 border rounded-md">
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                {csvHeaders.map((header, i) => (
-                                  <TableHead key={i}>{header}</TableHead>
-                                ))}
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {csvPreview.map((row, i) => (
-                                <TableRow key={i}>
-                                  {row.map((cell, j) => (
-                                    <SanitizeCell key={j} cell={cell} />
-                                  ))}
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
@@ -909,5 +861,3 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
-
-    
