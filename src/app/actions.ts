@@ -654,18 +654,12 @@ export async function deleteDatafile(deploymentId: string, fileId: string) {
 }
 
 
-export async function getProcessedData(assetId: string, dataVersion: number): Promise<{ data: ChartablePoint[], weatherSummary: WeatherSummary }> {
+export async function getProcessedData(assetId: string): Promise<{ data: ChartablePoint[], weatherSummary: WeatherSummary }> {
   await fs.mkdir(cacheDir, { recursive: true });
   const cacheFilePath = path.join(cacheDir, `asset-${assetId}.json`);
   
-  try {
-    const cachedResult = await readJsonFile<{ data: ChartablePoint[], weatherSummary: WeatherSummary, version: number}>(cacheFilePath);
-    if (cachedResult.version === dataVersion) {
-        return { data: cachedResult.data, weatherSummary: cachedResult.weatherSummary };
-    }
-  } catch (error) {
-    // Cache miss, proceed to process data
-  }
+  // Note: Skipping cache check for now to ensure data is always fresh after fixes.
+  // This can be re-enabled later for performance.
 
   try {
     const assets = await readJsonFile<Asset[]>(assetsFilePath);
@@ -909,7 +903,8 @@ export async function getProcessedData(assetId: string, dataVersion: number): Pr
     }
     
     const result = { data: sortedData, weatherSummary };
-    await writeJsonFile(cacheFilePath, { ...result, version: dataVersion });
+    // Not caching for now to ensure freshness during development
+    // await writeJsonFile(cacheFilePath, { ...result, version: dataVersion });
     return result;
 
   } catch (error) {
