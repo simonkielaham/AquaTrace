@@ -9,6 +9,7 @@ import {
   StagedFile,
   SurveyPoint,
   SavedAnalysisData,
+  OverallAnalysisData,
   WeatherSummary,
   ChartablePoint
 } from '@/lib/placeholder-data';
@@ -33,6 +34,8 @@ import {
   deleteDatafile as deleteDatafileAction,
   saveAnalysis as saveAnalysisAction,
   getProcessedData,
+  getOverallAnalysis as getOverallAnalysisAction,
+  saveOverallAnalysis as saveOverallAnalysisAction,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -54,6 +57,8 @@ interface AssetContextType {
   unassignDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   deleteDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   saveAnalysis: (assetId: string, data: SavedAnalysisData & { eventId: string }) => Promise<any>;
+  getOverallAnalysis: (assetId: string) => Promise<OverallAnalysisData | null>;
+  saveOverallAnalysis: (data: any) => Promise<any>;
   loading: boolean;
   stagedFiles: StagedFile[];
   loadingStagedFiles: boolean;
@@ -344,42 +349,35 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
       const result = await saveAnalysisAction(data);
       if (result && !result.errors) {
-        // After a successful save, update the asset data in the context
-        setAssetData(prev => {
-          const currentAssetData = prev[assetId];
-          if (currentAssetData && currentAssetData.weatherSummary) {
-            const updatedEvents = currentAssetData.weatherSummary.events.map(event => {
-              if (event.id === data.eventId) {
-                return {
-                  ...event,
-                  analysis: {
-                    ...event.analysis,
-                    notes: data.notes,
-                    status: data.status,
-                    analystInitials: data.analystInitials,
-                  }
-                };
-              }
-              return event;
-            });
-            return {
-              ...prev,
-              [assetId]: {
-                ...currentAssetData,
-                weatherSummary: {
-                  ...currentAssetData.weatherSummary,
-                  events: updatedEvents,
-                }
-              }
-            };
-          }
-          return prev;
-        });
+        await fetchAssetData(assetId);
       }
       return result;
     } catch (error) {
       const message = await getErrorMessage(error);
       return { message: `Error: ${message}` };
+    }
+  }, [fetchAssetData]);
+
+  const getOverallAnalysis = useCallback(async (assetId: string) => {
+      try {
+          return await getOverallAnalysisAction(assetId);
+      } catch (error) {
+          console.error(error);
+          return null;
+      }
+  }, []);
+
+  const saveOverallAnalysis = useCallback(async (data: any) => {
+    try {
+      const result = await saveOverallAnalysisAction(data);
+      if (result && !result.errors) {
+        // No need to re-fetch all data, we can just be optimistic
+        // or the parent component can handle refetching if necessary.
+      }
+      return result;
+    } catch (error) {
+       const message = await getErrorMessage(error);
+       return { message: `Error: ${message}` };
     }
   }, []);
 
@@ -475,6 +473,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     unassignDatafile,
     deleteDatafile,
     saveAnalysis,
+    getOverallAnalysis,
+    saveOverallAnalysis,
     loading,
     stagedFiles,
     loadingStagedFiles,

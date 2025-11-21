@@ -11,6 +11,7 @@ import DeploymentList from "@/components/dashboard/deployment-list";
 import AnalysisResults from "@/components/dashboard/analysis-results";
 import SurveyPointManager from "@/components/dashboard/survey-point-manager";
 import TapeDownManager from "@/components/dashboard/tape-down-manager";
+import OverallAnalysis from "@/components/dashboard/overall-analysis";
 import {
   ChartablePoint,
   WeatherSummary,
@@ -176,6 +177,7 @@ export default function DashboardLayout() {
                 weatherSummary={weatherSummary} 
                 onSelectEvent={handleSelectEventTimeRange}
               />
+               <OverallAnalysis asset={selectedAsset} />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
               <TapeDownManager asset={selectedAsset} deployments={assetDeployments} dataVersion={dataVersion} />

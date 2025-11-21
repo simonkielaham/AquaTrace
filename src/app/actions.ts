@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog, DataFile, DataPoint, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 import { getWeatherData } from '@/../sourceexamples/weather-service';
 import { formatDistance } from 'date-fns';
@@ -19,6 +19,7 @@ const deploymentsFilePath = path.join(dataDir, 'deployments.json');
 const activityLogFilePath = path.join(dataDir, 'activity-log.json');
 const surveyPointsFilePath = path.join(dataDir, 'survey-points.json');
 const analysisResultsFilePath = path.join(dataDir, 'analysis-results.json');
+const overallAnalysisFilePath = path.join(dataDir, 'overall-analysis.json');
 const stagedDir = path.join(process.cwd(), 'staged');
 const processedDir = path.join(dataDir, 'processed');
 const sourcefileDir = path.join(dataDir, 'sourcefiles');
@@ -82,6 +83,16 @@ const saveAnalysisSchema = z.object({
   analystInitials: z.string().min(1, "Analyst initials are required."),
 });
 
+const saveOverallAnalysisSchema = z.object({
+    assetId: z.string(),
+    permanentPoolPerformance: z.enum(['sits_at_pool', 'sits_above_pool', 'sits_below_pool', 'fluctuates']).optional(),
+    estimatedControlElevation: z.coerce.number().optional(),
+    rainResponse: z.enum(['as_expected', 'slow_response', 'fast_response', 'no_response']).optional(),
+    furtherInvestigation: z.enum(['not_needed', 'recommended', 'required']).optional(),
+    summary: z.string().optional(),
+    analystInitials: z.string().min(1, "Analyst initials are required."),
+});
+
 // Zod schema definitions
 const baseDatafileSchema = z.object({
     dataType: z.enum(['water-level', 'precipitation', 'sensor-suite']),
@@ -115,7 +126,7 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
     return JSON.parse(fileContent);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      if (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json') || filePath.endsWith('results.json')) return (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json')) ? [] as T : {} as T;
+      if (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json') || filePath.endsWith('results.json') || filePath.endsWith('analysis.json')) return (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json')) ? [] as T : {} as T;
       return {} as T;
     }
     console.error(`Error reading ${filePath}:`, error);
@@ -1001,6 +1012,54 @@ export async function saveAnalysis(data: any) {
     return response;
   }
 }
+
+export async function getOverallAnalysis(assetId: string): Promise<OverallAnalysisData | null> {
+    try {
+        const allAnalysis = await readJsonFile<{[key: string]: OverallAnalysisData}>(overallAnalysisFilePath);
+        return allAnalysis[assetId] || null;
+    } catch (error) {
+        console.error(`Failed to get overall analysis for asset ${assetId}:`, error);
+        return null;
+    }
+}
+
+export async function saveOverallAnalysis(data: any) {
+    const logPayload = { data };
+    const validatedFields = saveOverallAnalysisSchema.safeParse(data);
+    if (!validatedFields.success) {
+        const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+        await writeLog({ action: 'saveOverallAnalysis', status: 'failure', payload: logPayload, response });
+        return response;
+    }
+    
+    const { assetId, ...analysisData } = validatedFields.data;
+
+    try {
+        const allAnalysis = await readJsonFile<{[key: string]: OverallAnalysisData}>(overallAnalysisFilePath);
+        
+        allAnalysis[assetId] = {
+            ...allAnalysis[assetId],
+            ...analysisData,
+            assetId: assetId,
+            lastUpdated: new Date().toISOString(),
+        };
+
+        await writeJsonFile(overallAnalysisFilePath, allAnalysis);
+        
+        revalidatePath('/');
+
+        const response = { message: 'Overall analysis saved successfully', savedData: allAnalysis[assetId] };
+        await writeLog({ action: 'saveOverallAnalysis', status: 'success', assetId, payload: logPayload, response });
+        return response;
+
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "An unknown error occurred.";
+        const response = { message: `Error: ${message}` };
+        await writeLog({ action: 'saveOverallAnalysis', status: 'failure', payload: logPayload, response });
+        return response;
+    }
+}
+
 
 export async function downloadLogs(assetId: string): Promise<{logs?: string, message?: string}> {
   try {

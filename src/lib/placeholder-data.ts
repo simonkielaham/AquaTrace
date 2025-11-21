@@ -81,6 +81,17 @@ export type SavedAnalysisData = {
     analystInitials?: string;
 }
 
+export type OverallAnalysisData = {
+    assetId: string;
+    permanentPoolPerformance?: 'sits_at_pool' | 'sits_above_pool' | 'sits_below_pool' | 'fluctuates';
+    estimatedControlElevation?: number;
+    rainResponse?: 'as_expected' | 'slow_response' | 'fast_response' | 'no_response';
+    furtherInvestigation?: 'not_needed' | 'recommended' | 'required';
+    summary?: string;
+    analystInitials?: string;
+    lastUpdated?: string;
+}
+
 export type AnalysisPeriod = {
     id: string;
     assetId: string;
