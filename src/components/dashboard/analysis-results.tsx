@@ -186,165 +186,165 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
 
   return (
     <Form {...form}>
-    <form onSubmit={form.handleSubmit(handleSave)}>
-    <div className="bg-muted/30 p-4 rounded-b-md">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                 <MetricCard 
-                    title="Baseline Elevation"
-                    value={event.analysis?.baselineElevation}
-                    unit="m"
-                    icon={ArrowRight}
-                    subValue="3 hours prior to event"
-                    marginOfError={event.analysis?.marginOfError}
-                 />
-                 <MetricCard 
-                    title="Peak Elevation"
-                    value={event.analysis?.peakElevation}
-                    unit="m"
-                    icon={TrendingUp}
-                    iconColor="text-destructive"
-                    subValue={peakDiff !== undefined ? `${peakDiff > 0 ? '+' : ''}${peakDiff.toFixed(2)}m from baseline` : "During event + 48hrs"}
-                    marginOfError={event.analysis?.marginOfError}
-                 />
-                 <MetricCard 
-                    title="Post-Event Elevation"
-                    value={event.analysis?.postEventElevation}
-                    unit="m"
-                    icon={TrendingDown}
-                    iconColor="text-green-500"
-                    subValue={postEventDiff !== undefined ? `${postEventDiff > 0 ? '+' : ''}${postEventDiff.toFixed(2)}m from baseline` : "48 hours after event"}
-                    marginOfError={event.analysis?.marginOfError}
-                 />
-                <div className="p-3 border rounded-lg col-span-full">
-                    <p className="text-sm font-semibold">Detailed Analysis</p>
-                    <div className="mt-2 text-sm text-muted-foreground space-y-1">
-                        <p><span className="font-medium">Time to Baseline:</span> {event.analysis?.timeToBaseline || "N/A"}</p>
-                        <p><span className="font-medium">Drawdown Analysis:</span> {event.analysis?.drawdownAnalysis || "N/A"}</p>
-                        <p><span className="font-medium">Estimated True Baseline:</span> {event.analysis?.estimatedTrueBaseline ? `${event.analysis.estimatedTrueBaseline.toFixed(3)}m` : "N/A"}</p>
+      <form onSubmit={form.handleSubmit(handleSave)}>
+        <div className="bg-muted/30 p-4 rounded-b-md">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <MetricCard 
+                        title="Baseline Elevation"
+                        value={event.analysis?.baselineElevation}
+                        unit="m"
+                        icon={ArrowRight}
+                        subValue="3 hours prior to event"
+                        marginOfError={event.analysis?.marginOfError}
+                    />
+                    <MetricCard 
+                        title="Peak Elevation"
+                        value={event.analysis?.peakElevation}
+                        unit="m"
+                        icon={TrendingUp}
+                        iconColor="text-destructive"
+                        subValue={peakDiff !== undefined ? `${peakDiff > 0 ? '+' : ''}${peakDiff.toFixed(2)}m from baseline` : "During event + 48hrs"}
+                        marginOfError={event.analysis?.marginOfError}
+                    />
+                    <MetricCard 
+                        title="Post-Event Elevation"
+                        value={event.analysis?.postEventElevation}
+                        unit="m"
+                        icon={TrendingDown}
+                        iconColor="text-green-500"
+                        subValue={postEventDiff !== undefined ? `${postEventDiff > 0 ? '+' : ''}${postEventDiff.toFixed(2)}m from baseline` : "48 hours after event"}
+                        marginOfError={event.analysis?.marginOfError}
+                    />
+                    <div className="p-3 border rounded-lg col-span-full">
+                        <p className="text-sm font-semibold">Detailed Analysis</p>
+                        <div className="mt-2 text-sm text-muted-foreground space-y-1">
+                            <p><span className="font-medium">Time to Baseline:</span> {event.analysis?.timeToBaseline || "N/A"}</p>
+                            <p><span className="font-medium">Drawdown Analysis:</span> {event.analysis?.drawdownAnalysis || "N/A"}</p>
+                            <p><span className="font-medium">Estimated True Baseline:</span> {event.analysis?.estimatedTrueBaseline ? `${event.analysis.estimatedTrueBaseline.toFixed(3)}m` : "N/A"}</p>
+                        </div>
+                    </div>
+
+                    <div className="p-4 border bg-background rounded-lg col-span-full">
+                    <FormField
+                        control={form.control}
+                        name="notes"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="font-medium text-sm mb-2">Analyst Notes</FormLabel>
+                            <FormControl>
+                                <Textarea 
+                                    placeholder="Add notes about this event..."
+                                    className="min-h-[80px]"
+                                    {...field}
+                                />
+                            </FormControl>
+                        </FormItem>
+                        )}
+                    />
                     </div>
                 </div>
 
-                <div className="p-4 border bg-background rounded-lg col-span-full">
-                  <FormField
-                    control={form.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="font-medium text-sm mb-2">Analyst Notes</FormLabel>
-                         <FormControl>
-                            <Textarea 
-                                placeholder="Add notes about this event..."
-                                className="min-h-[80px]"
-                                {...field}
-                            />
-                         </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-            </div>
-
-            <div className="space-y-4">
-                <div className="p-4 border bg-background rounded-lg">
-                    <p className="font-medium text-sm">Event ID</p>
-                    <p className="text-xs text-muted-foreground font-mono mt-1 break-all">{event.id}</p>
-                </div>
-                <div className="p-4 border bg-background rounded-lg">
-                    <p className="font-medium text-sm mb-2">Overall Assessment</p>
-                     <div className={cn("flex items-center gap-2 text-sm", overallAssessment.color)}>
-                        <overallAssessment.icon className="h-4 w-4 shrink-0" />
-                        <p>{overallAssessment.text}</p>
-                     </div>
-                </div>
-                 <div className="p-4 border bg-background rounded-lg">
-                    <FormField
-                      control={form.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem className="space-y-3">
-                          <FormLabel className="font-medium text-sm">Asset Status During Event</FormLabel>
-                          <FormControl>
-                            <RadioGroup
-                              onValueChange={field.onChange}
-                              defaultValue={field.value}
-                              className="space-y-2"
-                            >
-                              <FormItem className="flex items-center space-x-2">
-                                <FormControl><RadioGroupItem value="normal" id={`status-normal-${event.id}`} /></FormControl>
-                                <Label htmlFor={`status-normal-${event.id}`} className="font-normal">Operating Normally</Label>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-2">
-                                <FormControl><RadioGroupItem value="not_normal" id={`status-not-normal-${event.id}`} /></FormControl>
-                                <Label htmlFor={`status-not-normal-${event.id}`} className="font-normal">Not Operating Normally</Label>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-2">
-                                <FormControl><RadioGroupItem value="holding_water" id={`status-holding-${event.id}`} /></FormControl>
-                                <Label htmlFor={`status-holding-${event.id}`} className="font-normal">Holding Water</Label>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-2">
-                                <FormControl><RadioGroupItem value="leaking" id={`status-leaking-${event.id}`} /></FormControl>
-                                <Label htmlFor={`status-leaking-${event.id}`} className="font-normal">Potential Leak</Label>
-                              </FormItem>
-                            </RadioGroup>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                </div>
-                 <div className="p-4 border bg-background rounded-lg">
-                    <FormField
+                <div className="space-y-4">
+                    <div className="p-4 border bg-background rounded-lg">
+                        <p className="font-medium text-sm">Event ID</p>
+                        <p className="text-xs text-muted-foreground font-mono mt-1 break-all">{event.id}</p>
+                    </div>
+                    <div className="p-4 border bg-background rounded-lg">
+                        <p className="font-medium text-sm mb-2">Overall Assessment</p>
+                        <div className={cn("flex items-center gap-2 text-sm", overallAssessment.color)}>
+                            <overallAssessment.icon className="h-4 w-4 shrink-0" />
+                            <p>{overallAssessment.text}</p>
+                        </div>
+                    </div>
+                    <div className="p-4 border bg-background rounded-lg">
+                        <FormField
                         control={form.control}
-                        name="disregarded"
+                        name="status"
                         render={({ field }) => (
-                            <FormItem className="flex flex-row items-center justify-between">
-                            <div className="space-y-0.5">
-                                <FormLabel className="text-sm font-medium">Disregard Event</FormLabel>
-                                <p className="text-xs text-muted-foreground">Exclude this event from reports.</p>
-                            </div>
+                            <FormItem className="space-y-3">
+                            <FormLabel className="font-medium text-sm">Asset Status During Event</FormLabel>
                             <FormControl>
-                                <Switch
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                                />
+                                <RadioGroup
+                                onValueChange={field.onChange}
+                                defaultValue={field.value}
+                                className="space-y-2"
+                                >
+                                <FormItem className="flex items-center space-x-2">
+                                    <FormControl><RadioGroupItem value="normal" id={`status-normal-${event.id}`} /></FormControl>
+                                    <Label htmlFor={`status-normal-${event.id}`} className="font-normal">Operating Normally</Label>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                    <FormControl><RadioGroupItem value="not_normal" id={`status-not-normal-${event.id}`} /></FormControl>
+                                    <Label htmlFor={`status-not-normal-${event.id}`} className="font-normal">Not Operating Normally</Label>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                    <FormControl><RadioGroupItem value="holding_water" id={`status-holding-${event.id}`} /></FormControl>
+                                    <Label htmlFor={`status-holding-${event.id}`} className="font-normal">Holding Water</Label>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                    <FormControl><RadioGroupItem value="leaking" id={`status-leaking-${event.id}`} /></FormControl>
+                                    <Label htmlFor={`status-leaking-${event.id}`} className="font-normal">Potential Leak</Label>
+                                </FormItem>
+                                </RadioGroup>
                             </FormControl>
+                            <FormMessage />
                             </FormItem>
                         )}
-                    />
-                 </div>
-                <div className="p-4 border bg-background rounded-lg">
-                    <FormField
-                      control={form.control}
-                      name="analystInitials"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="font-medium text-sm">Analyst Sign-off</FormLabel>
-                          <div className="relative">
-                            <Edit className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                             <FormControl>
-                                <Input 
-                                    placeholder="Enter your initials..."
-                                    className="pl-10"
-                                    maxLength={5}
-                                    {...field}
-                                    onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                                />
-                             </FormControl>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                        />
+                    </div>
+                    <div className="p-4 border bg-background rounded-lg">
+                        <FormField
+                            control={form.control}
+                            name="disregarded"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <FormLabel className="text-sm font-medium">Disregard Event</FormLabel>
+                                    <p className="text-xs text-muted-foreground">Exclude this event from reports.</p>
+                                </div>
+                                <FormControl>
+                                    <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                    />
+                                </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    <div className="p-4 border bg-background rounded-lg">
+                        <FormField
+                        control={form.control}
+                        name="analystInitials"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel className="font-medium text-sm">Analyst Sign-off</FormLabel>
+                            <div className="relative">
+                                <Edit className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <FormControl>
+                                    <Input 
+                                        placeholder="Enter your initials..."
+                                        className="pl-10"
+                                        maxLength={5}
+                                        {...field}
+                                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                                    />
+                                </FormControl>
+                            </div>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isSaving || !form.formState.isValid}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save Analysis
+                    </Button>
                 </div>
-                <Button type="submit" className="w-full" disabled={isSaving || !form.formState.isValid}>
-                    {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    Save Analysis
-                </Button>
             </div>
         </div>
-    </div>
-    </form>
+      </form>
     </Form>
   )
 }
