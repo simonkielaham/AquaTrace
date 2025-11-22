@@ -58,10 +58,11 @@ type OverallAnalysisFormValues = z.infer<typeof overallAnalysisSchema>;
 
 export default function OverallAnalysis({ asset }: { asset: Asset }) {
   const { toast } = useToast();
-  const { getOverallAnalysis, saveOverallAnalysis, dataVersion } = useAssets();
+  const { getOverallAnalysis, saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [lastUpdated, setLastUpdated] = React.useState<string | null>(null);
+  const [dataVersion, setDataVersion] = React.useState(0);
 
   const form = useForm<OverallAnalysisFormValues>({
     resolver: zodResolver(overallAnalysisSchema),
@@ -111,9 +112,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-      if(result.savedData?.lastUpdated) {
-        setLastUpdated(format(new Date(result.savedData.lastUpdated), "PPp"));
-      }
+      setDataVersion(v => v + 1); // Trigger a re-fetch of just this component's data
     }
     setIsSubmitting(false);
   };
