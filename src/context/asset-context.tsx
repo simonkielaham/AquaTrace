@@ -137,15 +137,15 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   
   const fetchAssetData = useCallback(async (assetId: string) => {
     if (!assetId) return;
-    setAssetData(prev => ({ ...prev, [assetId]: { ...prev[assetId], data: [], weatherSummary: null, loading: true } }));
+    setAssetData(prev => ({ ...prev, [assetId]: { ...(prev[assetId] || { data: [], weatherSummary: null }), loading: true } }));
     try {
-        const result = await getProcessedData(assetId, dataVersion);
+        const result = await getProcessedData(assetId);
         setAssetData(prev => ({ ...prev, [assetId]: { data: result.data, weatherSummary: result.weatherSummary, loading: false } }));
     } catch (error) {
         console.error(`Failed to fetch data for asset ${assetId}:`, error);
         setAssetData(prev => ({ ...prev, [assetId]: { data: [], weatherSummary: null, loading: false } }));
     }
-  }, [dataVersion]);
+  }, []);
 
 
   useEffect(() => {
@@ -350,7 +350,6 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
       const result = await saveAnalysisAction(data);
       if (result && !result.errors) {
-        // Targeted state update instead of full refresh
         setAssetData(prev => {
             const currentAsset = prev[selectedAssetId];
             if (!currentAsset || !currentAsset.weatherSummary) return prev;
@@ -404,13 +403,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       const result = await saveOverallAnalysisAction(data);
       if (result && !result.errors && result.savedData) {
         setAssets(prev => prev.map(a => a.id === result.savedData.assetId ? { ...a, status: result.savedData.status } : a));
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, []);
+  }, [incrementDataVersion]);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {

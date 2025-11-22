@@ -58,7 +58,7 @@ type OverallAnalysisFormValues = z.infer<typeof overallAnalysisSchema>;
 
 export default function OverallAnalysis({ asset }: { asset: Asset }) {
   const { toast } = useToast();
-  const { getOverallAnalysis, saveOverallAnalysis } = useAssets();
+  const { getOverallAnalysis, saveOverallAnalysis, dataVersion } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [lastUpdated, setLastUpdated] = React.useState<string | null>(null);
@@ -101,7 +101,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
     }
     fetchAnalysis();
     return () => { isMounted = false };
-  }, [asset.id, asset.status, getOverallAnalysis, form]);
+  }, [asset.id, asset.status, getOverallAnalysis, form, dataVersion]);
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
     setIsSubmitting(true);
