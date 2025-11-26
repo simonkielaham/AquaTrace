@@ -179,7 +179,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
         setLastUpdated(null);
     }
     setIsLoading(false);
-  }, [asset.id, asset.status, getOverallAnalysis, form, statusMapToForm]);
+  }, [asset.id, asset.status, getOverallAnalysis, statusMapToForm]);
 
 
   React.useEffect(() => {
