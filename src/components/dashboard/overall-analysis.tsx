@@ -51,7 +51,7 @@ const overallAnalysisSchema = z.object({
   furtherInvestigation: z.enum(['not_needed', 'recommended', 'required']).optional(),
   summary: z.string().optional(),
   analystInitials: z.string().min(1, "Analyst initials are required."),
-  status: z.enum(["operating_as_expected", "minor_concerns", "critical_concerns", "unknown"]),
+  status: z.enum(["operating_as_expected", "minor_concerns", "critical_concerns"]),
 });
 
 type OverallAnalysisFormValues = z.infer<typeof overallAnalysisSchema>;
@@ -126,7 +126,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
         furtherInvestigation: undefined,
         summary: "",
         analystInitials: "",
-        status: asset.status || 'unknown',
+        status: "unknown",
     },
   });
 
@@ -177,17 +177,13 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
 
     if (result?.message && result.message.startsWith("Error:")) {
       toast({ variant: "destructive", title: "Error", description: result.message });
+      setIsSubmitting(false);
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-       if (result.savedData) {
-        setAnalysisData(result.savedData);
-        if (result.savedData.lastUpdated) {
-           setLastUpdated(format(new Date(result.savedData.lastUpdated), "PPp"));
-        }
-      }
+      await fetchAnalysis(); // Re-fetch the data to ensure UI is in sync
       setIsEditing(false);
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
   
   const handleCancel = () => {
@@ -333,7 +329,6 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
                                                 <SelectTrigger><SelectValue placeholder="Set asset status..." /></SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="unknown">Unknown</SelectItem>
                                                     <SelectItem value="operating_as_expected">Operating As Expected</SelectItem>
                                                     <SelectItem value="minor_concerns">Minor Concerns</SelectItem>
                                                     <SelectItem value="critical_concerns">Critical Concerns</SelectItem>
