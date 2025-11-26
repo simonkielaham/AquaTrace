@@ -10,7 +10,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { BarChart, AreaChart as AreaChartIcon, Save, TableIcon, TrendingDown, TrendingUp, LineChart, Thermometer, Wind, Gauge } from "lucide-react";
+import { BarChart, AreaChart as AreaChartIcon, RefreshCw, TableIcon, TrendingDown, TrendingUp, LineChart, Thermometer, Wind, Gauge } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -31,8 +31,6 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { ComposedChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter, Bar, Line } from "recharts";
@@ -280,6 +278,16 @@ export default function PerformanceChart({
     }
   }, [yAxisBounds, loading]);
   
+  // Reset Y-axis zoom when the asset changes. The asset is the source of truth.
+  React.useEffect(() => {
+    setYZoomRange(yAxisBounds as [number, number]);
+  }, [asset.id, yAxisBounds]);
+
+  const handleResetView = () => {
+    onBrushChange({});
+    setYZoomRange(yAxisBounds as [number, number]);
+  };
+  
   const legendPayload = React.useMemo(() => {
     let payload = [
       { value: 'Water Elevation', type: 'line', id: 'waterLevel', dataKey: 'waterLevel', color: chartConfig.waterLevel.color },
@@ -327,28 +335,6 @@ export default function PerformanceChart({
         </CardContent>
       </Card>
     )
-  }
-
-  if (chartData.length === 0) {
-    return (
-      <Card className="col-span-1 lg:col-span-4 shadow-sm">
-        <CardHeader>
-          <CardTitle className="font-headline">Performance Overview</CardTitle>
-          <CardDescription>
-            Water elevation and precipitation over time against design elevations.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[450px] flex items-center justify-center text-muted-foreground bg-muted/30 rounded-lg">
-              <div className="text-center">
-                  <BarChart className="mx-auto h-8 w-8 mb-2" />
-                  <p>No performance data available.</p>
-                  <p className="text-xs">Upload a datafile or add a survey point to see performance metrics.</p>
-              </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
   }
 
   return (
@@ -546,8 +532,18 @@ export default function PerformanceChart({
         </div>
         
         <div className="mt-8 flex items-center justify-end gap-2">
+             <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetView}
+                disabled={loading}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reset View
+              </Button>
              <Button 
                 variant="outline"
+                size="sm"
                 onClick={() => setIsDataTableOpen(true)}
              >
                 <TableIcon className="mr-2 h-4 w-4" />
@@ -560,31 +556,38 @@ export default function PerformanceChart({
                 <DialogHeader>
                     <DialogTitle>Chart Data for {asset.name}</DialogTitle>
                     <DialogDescription>
-                        Raw data points used to generate the performance chart.
+                        Raw data points being sent to the performance chart.
                     </DialogDescription>
                 </DialogHeader>
-                 <ScrollArea className="h-[60vh] border rounded-md">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Timestamp</TableHead>
-                                <TableHead>Water Elevation</TableHead>
-                                <TableHead>Precipitation</TableHead>
-                                <TableHead>Survey Elevation</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {chartData.map((d, i) => (
-                                <TableRow key={i}>
-                                    <TableCell>{new Date(d.timestamp).toLocaleString()}</TableCell>
-                                    <TableCell>{d.waterLevel !== undefined ? d.waterLevel.toFixed(4) : 'N/A'}</TableCell>
-                                    <TableCell>{d.precipitation !== undefined && d.precipitation > 0 ? d.precipitation.toFixed(2) : 'N/A'}</TableCell>
-                                    <TableCell>{d.elevation !== undefined ? d.elevation.toFixed(4) : 'N/A'}</TableCell>
+                {chartData.length > 0 ? (
+                    <ScrollArea className="h-[60vh] border rounded-md">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Timestamp</TableHead>
+                                    <TableHead>Water Elevation (m)</TableHead>
+                                    <TableHead>Precipitation (mm)</TableHead>
+                                    <TableHead>Survey Elevation (m)</TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </ScrollArea>
+                            </TableHeader>
+                            <TableBody>
+                                {chartData.map((d, i) => (
+                                    <TableRow key={i}>
+                                        <TableCell>{new Date(d.timestamp).toLocaleString()}</TableCell>
+                                        <TableCell>{d.waterLevel !== undefined ? d.waterLevel.toFixed(4) : 'N/A'}</TableCell>
+                                        <TableCell>{d.precipitation !== undefined && d.precipitation > 0 ? d.precipitation.toFixed(2) : 'N/A'}</TableCell>
+                                        <TableCell>{d.elevation !== undefined ? d.elevation.toFixed(4) : 'N/A'}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                ) : (
+                    <div className="text-center text-muted-foreground py-8">
+                       <BarChart className="mx-auto h-8 w-8 mb-2" />
+                       <p>No data was sent to the chart component.</p>
+                    </div>
+                )}
             </DialogContent>
         </Dialog>
 
@@ -592,5 +595,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    

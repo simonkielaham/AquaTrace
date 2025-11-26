@@ -78,6 +78,9 @@ export default function DashboardLayout() {
         sensorPressure: false,
         barometer: false,
       });
+
+      // Reset chart brush range when asset changes
+      setChartBrushRange({});
     }
   }, [selectedAsset]);
 
