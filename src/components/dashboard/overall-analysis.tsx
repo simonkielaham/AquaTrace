@@ -129,7 +129,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   const { toast } = useToast();
   const { saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isEditing, setIsEditing] = React.useState(true);
+  const [isEditing, setIsEditing] = React.useState(!analysisData);
   
   const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
@@ -139,7 +139,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   
   React.useEffect(() => {
     if (analysisData) {
-      const formStatus = statusMapToForm[analysisData.status as string] || statusMapToForm[asset.status as string] || "Operating As Expected";
+        const formStatus = statusMapToForm[analysisData.status as string] || statusMapToForm[asset.status as string] || "Operating As Expected";
         form.reset({
             permanentPoolPerformance: analysisData.permanentPoolPerformance,
             estimatedControlElevation: analysisData.estimatedControlElevation,
@@ -164,6 +164,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
 
   React.useEffect(() => {
     // This effect ensures the editing state is always in sync with the data.
+    // If data exists, we are not editing. If it doesn't, we are.
     setIsEditing(!analysisData);
   }, [analysisData]);
 
@@ -357,10 +358,13 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
         </CardContent>
       )
     }
-    if (analysisData) {
+    
+    if (!isEditing && analysisData) {
       return <ReadOnlyAnalysisView data={analysisData} onEdit={() => setIsEditing(true)} />;
     }
-    // This case should ideally not be hit if isEditing is managed correctly, but it's a fallback.
+    
+    // Fallback for when there's no data and we are not explicitly editing
+    // This happens on initial load before the useEffect sets isEditing to true
     return (
         <CardContent>
             <div className="text-center py-8 text-muted-foreground">
@@ -398,5 +402,3 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     </Card>
   );
 }
-
-    
