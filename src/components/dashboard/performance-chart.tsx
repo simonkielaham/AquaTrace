@@ -31,6 +31,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { ComposedChart, Area, CartesianGrid, XAxis, YAxis, ReferenceLine, Brush, Legend, Scatter, Bar, Line } from "recharts";
