@@ -181,7 +181,9 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
       toast({ title: "Success", description: "Overall analysis has been saved." });
        if (result.savedData) {
         setAnalysisData(result.savedData);
-        setLastUpdated(format(new Date(result.savedData.lastUpdated), "PPp"));
+        if (result.savedData.lastUpdated) {
+           setLastUpdated(format(new Date(result.savedData.lastUpdated), "PPp"));
+        }
       }
       setIsEditing(false);
     }
