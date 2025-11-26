@@ -45,6 +45,12 @@ import {
 import initialAssets from '@/../data/assets.json';
 import initialDeployments from '@/../data/deployments.json';
 
+interface AssetData {
+  data: ChartablePoint[];
+  weatherSummary: WeatherSummary | null;
+  overallAnalysis: OverallAnalysisData | null;
+  loading?: boolean;
+}
 interface AssetContextType {
   assets: Asset[];
   selectedAssetId: string;
@@ -77,7 +83,7 @@ interface AssetContextType {
   deleteOperationalAction: (actionId: string) => Promise<any>;
   getOperationalActions: (assetId: string) => Promise<OperationalAction[]>;
   dataVersion: number;
-  assetData: { [assetId: string]: { data: ChartablePoint[], weatherSummary: WeatherSummary | null, loading?: boolean } };
+  assetData: { [assetId: string]: AssetData };
   fetchAssetData: (assetId: string) => Promise<void>;
   incrementDataVersion: () => void;
 }
@@ -144,13 +150,21 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   
   const fetchAssetData = useCallback(async (assetId: string) => {
     if (!assetId) return;
-    setAssetData(prev => ({ ...prev, [assetId]: { ...(prev[assetId] || { data: [], weatherSummary: null }), loading: true } }));
+    setAssetData(prev => ({ ...prev, [assetId]: { ...(prev[assetId] || { data: [], weatherSummary: null, overallAnalysis: null }), loading: true } }));
     try {
-        const result = await getProcessedData(assetId);
-        setAssetData(prev => ({ ...prev, [assetId]: { data: result.data, weatherSummary: result.weatherSummary, loading: false } }));
+        const [processedDataResult, overallAnalysisResult] = await Promise.all([
+          getProcessedData(assetId),
+          getOverallAnalysisAction(assetId)
+        ]);
+        setAssetData(prev => ({ ...prev, [assetId]: { 
+            data: processedDataResult.data, 
+            weatherSummary: processedDataResult.weatherSummary, 
+            overallAnalysis: overallAnalysisResult,
+            loading: false 
+        } }));
     } catch (error) {
         console.error(`Failed to fetch data for asset ${assetId}:`, error);
-        setAssetData(prev => ({ ...prev, [assetId]: { data: [], weatherSummary: null, loading: false } }));
+        setAssetData(prev => ({ ...prev, [assetId]: { data: [], weatherSummary: null, overallAnalysis: null, loading: false } }));
     }
   }, []);
 
@@ -409,7 +423,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
       const result = await saveOverallAnalysisAction(data);
       if (result && !result.errors && result.savedData) {
-        setAssets(prev => prev.map(a => a.id === result.savedData.assetId ? { ...a, status: result.savedData.status } : a));
+        const newStatus = result.savedData.status;
+        const assetId = result.savedData.assetId;
+        
+        // Update master asset list status
+        const assets = await createAssetAction({}).then(() => initialAssets); // Refetch or use existing
+        const updatedAssets = assets.map(a => a.id === assetId ? { ...a, status: newStatus } : a);
+        setAssets(updatedAssets);
+
         incrementDataVersion();
       }
       return result;

@@ -39,6 +39,7 @@ export default function DashboardLayout() {
   const isChartLoading = !currentAssetData || (currentAssetData as any).loading;
   const chartData = currentAssetData?.data || [];
   const weatherSummary = currentAssetData?.weatherSummary || null;
+  const overallAnalysis = currentAssetData?.overallAnalysis || null;
 
   
   // Handle case where selected asset is not found or none is selected
@@ -203,7 +204,7 @@ export default function DashboardLayout() {
                 weatherSummary={weatherSummary} 
                 onSelectEvent={handleSelectEventTimeRange}
               />
-               <OverallAnalysis asset={selectedAsset} />
+               <OverallAnalysis asset={selectedAsset} analysisData={overallAnalysis} loading={isChartLoading} />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
               <TapeDownManager asset={selectedAsset} deployments={assetDeployments} dataVersion={dataVersion} />

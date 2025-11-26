@@ -63,6 +63,12 @@ const statusMapToForm: Record<string, OverallAnalysisFormValues['status']> = {
     "critical_concerns": "Critical Concerns",
 };
 
+const statusMapToServer: Record<OverallAnalysisFormValues['status'], Asset['status']> = {
+  "Operating As Expected": "operating_as_expected",
+  "Minor Concerns": "minor_concerns",
+  "Critical Concerns": "critical_concerns",
+}
+
 function ReadOnlyAnalysisView({ data, onEdit }: { data: OverallAnalysisData, onEdit: () => void }) {
     const formatValue = (value?: string | null) => {
         if (!value) return "N/A";
@@ -114,51 +120,38 @@ function ReadOnlyAnalysisView({ data, onEdit }: { data: OverallAnalysisData, onE
     )
 }
 
+interface OverallAnalysisProps {
+  asset: Asset;
+  analysisData: OverallAnalysisData | null;
+  loading: boolean;
+}
 
-export default function OverallAnalysis({ asset }: { asset: Asset }) {
+export default function OverallAnalysis({ asset, analysisData, loading }: OverallAnalysisProps) {
   const { toast } = useToast();
-  const { getOverallAnalysis, saveOverallAnalysis } = useAssets();
+  const { saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(true);
   const [isEditing, setIsEditing] = React.useState(false);
-  const [lastUpdated, setLastUpdated] = React.useState<string | null>(null);
-  const [analysisData, setAnalysisData] = React.useState<OverallAnalysisData | null>(null);
+  
+  const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
   const form = useForm<OverallAnalysisFormValues>({
     resolver: zodResolver(overallAnalysisSchema),
-    defaultValues: {
-        permanentPoolPerformance: undefined,
-        estimatedControlElevation: undefined,
-        rainResponse: undefined,
-        furtherInvestigation: undefined,
-        summary: "",
-        analystInitials: "",
-        status: "Operating As Expected",
-    },
   });
 
-  const fetchAnalysis = React.useCallback(async () => {
-    setIsLoading(true);
-    const data = await getOverallAnalysis(asset.id);
-    if (data) {
-        const formStatus = statusMapToForm[data.status as string] || "Operating As Expected";
+  React.useEffect(() => {
+    if (analysisData) {
+      const formStatus = statusMapToForm[analysisData.status as string] || "Operating As Expected";
         form.reset({
-            permanentPoolPerformance: data.permanentPoolPerformance,
-            estimatedControlElevation: data.estimatedControlElevation,
-            rainResponse: data.rainResponse,
-            furtherInvestigation: data.furtherInvestigation,
-            summary: data.summary || "",
-            analystInitials: data.analystInitials || "",
+            permanentPoolPerformance: analysisData.permanentPoolPerformance,
+            estimatedControlElevation: analysisData.estimatedControlElevation,
+            rainResponse: analysisData.rainResponse,
+            furtherInvestigation: analysisData.furtherInvestigation,
+            summary: analysisData.summary || "",
+            analystInitials: analysisData.analystInitials || "",
             status: formStatus,
         });
-        setAnalysisData(data);
-        if(data.lastUpdated) {
-            setLastUpdated(format(new Date(data.lastUpdated), "PPp"));
-        } else {
-            setLastUpdated(null);
-        }
     } else {
-        const formStatus = statusMapToForm[asset.status as string] || "Operating As Expected";
+       const formStatus = statusMapToForm[asset.status as string] || "Operating As Expected";
         form.reset({
             permanentPoolPerformance: undefined,
             estimatedControlElevation: undefined,
@@ -168,30 +161,27 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
             analystInitials: "",
             status: formStatus,
         });
-        setAnalysisData(null);
-        setLastUpdated(null);
     }
-    setIsLoading(false);
-  }, [asset.id, asset.status, getOverallAnalysis, form]);
+  }, [analysisData, asset.status, form]);
 
-
-  React.useEffect(() => {
-    fetchAnalysis();
-  }, [asset.id, fetchAnalysis]);
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
     setIsSubmitting(true);
-    const result = await saveOverallAnalysis({ assetId: asset.id, ...data });
+    const serverPayload = {
+      ...data,
+      assetId: asset.id,
+      status: statusMapToServer[data.status],
+    };
+    
+    const result = await saveOverallAnalysis(serverPayload);
 
     if (result?.message && result.message.startsWith("Error:")) {
       toast({ variant: "destructive", title: "Error", description: result.message });
-      setIsSubmitting(false);
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-      await fetchAnalysis();
       setIsEditing(false);
-      setIsSubmitting(false);
     }
+    setIsSubmitting(false);
   };
   
   const handleCancel = () => {
@@ -228,7 +218,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
             <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
           </AccordionTrigger>
           <AccordionContent>
-            {isLoading ? (
+            {loading ? (
                 <div className="text-center text-muted-foreground py-8">Loading analysis...</div>
             ) : isEditing ? (
                  <CardContent>

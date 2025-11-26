@@ -99,7 +99,7 @@ const saveOverallAnalysisSchema = z.object({
     furtherInvestigation: z.enum(['not_needed', 'recommended', 'required']).optional(),
     summary: z.string().optional(),
     analystInitials: z.string().min(1, "Analyst initials are required."),
-    status: z.enum(["Operating As Expected", "Minor Concerns", "Critical Concerns"]),
+    status: z.enum(["operating_as_expected", "minor_concerns", "critical_concerns"]),
 });
 
 // Zod schema definitions
@@ -1165,12 +1165,7 @@ export async function saveOverallAnalysis(data: any) {
         const assets = await readJsonFile<Asset[]>(assetsFilePath);
         const assetIndex = assets.findIndex(a => a.id === assetId);
         if (assetIndex !== -1) {
-            const statusMap = {
-                "Operating As Expected": "operating_as_expected",
-                "Minor Concerns": "minor_concerns",
-                "Critical Concerns": "critical_concerns",
-            };
-            assets[assetIndex].status = statusMap[analysisData.status as keyof typeof statusMap] || 'unknown';
+            assets[assetIndex].status = analysisData.status;
             await writeJsonFile(assetsFilePath, assets);
         }
         
