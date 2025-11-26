@@ -8,7 +8,6 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData, OperationalAction } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
-import { getWeatherData } from '@/../sourceexamples/weather-service';
 import { format, formatDistance } from 'date-fns';
 
 
@@ -869,42 +868,28 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
 
     // If we have data, fetch weather and process events
     if (sortedData.length > 0 && minDataDate && maxDataDate) {
-        const hasInternalPrecip = sortedData.some(d => d.precipitation !== undefined && d.precipitation > 0);
-        let weatherData: {date: string, precipitation: number}[] = [];
+        
+        let weatherData: {timestamp: number, precipitation: number}[] = sortedData
+            .filter(d => d.precipitation !== undefined)
+            .map(d => ({ timestamp: d.timestamp, precipitation: d.precipitation! }));
 
-        if (!hasInternalPrecip) {
-            try {
-                const weatherCsv = await getWeatherData({
-                    latitude: asset.latitude,
-                    longitude: asset.longitude,
-                    startDate: minDataDate.toISOString(),
-                    endDate: maxDataDate.toISOString(),
-                });
-                if (weatherCsv) weatherData = Papa.parse(weatherCsv, { header: true, dynamicTyping: true }).data as any;
-            } catch (error) { console.error("Failed to get or process weather data:", error); }
-        } else {
-            weatherData = sortedData.filter(d => d.precipitation !== undefined).map(d => ({ date: new Date(d.timestamp).toISOString(), precipitation: d.precipitation! }));
-        }
 
         if (weatherData.length > 0) {
           const dailyPrecipitationMap = new Map<string, number>();
           weatherData.forEach(p => {
-            if (p.date) {
-                const dateKey = new Date(p.date).toISOString().split('T')[0];
-                dailyPrecipitationMap.set(dateKey, (dailyPrecipitationMap.get(dateKey) || 0) + (p.precipitation || 0));
-            }
+            const dateKey = new Date(p.timestamp).toISOString().split('T')[0];
+            dailyPrecipitationMap.set(dateKey, (dailyPrecipitationMap.get(dateKey) || 0) + (p.precipitation || 0));
           });
 
           let sensorDataIndex = 0;
           weatherData.forEach(p => {
-              if (!p.date || sensorDataIndex >= sortedData.length) return;
-              const weatherTimestamp = new Date(p.date).getTime();
-              const dateKey = new Date(p.date).toISOString().split('T')[0];
+              if (sensorDataIndex >= sortedData.length) return;
+              const weatherTimestamp = p.timestamp;
+              const dateKey = new Date(p.timestamp).toISOString().split('T')[0];
               while (sensorDataIndex < sortedData.length - 1 && sortedData[sensorDataIndex + 1].timestamp <= weatherTimestamp) {
                   sensorDataIndex++;
               }
               if (sortedData[sensorDataIndex]) {
-                  if (!hasInternalPrecip) sortedData[sensorDataIndex].precipitation = (sortedData[sensorDataIndex].precipitation || 0) + (p.precipitation || 0);
                   sortedData[sensorDataIndex].dailyPrecipitation = dailyPrecipitationMap.get(dateKey);
               }
           });
@@ -919,7 +904,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
 
           const lastEventEndDate = allSavedEvents.length > 0 ? Math.max(...allSavedEvents.map(e => e.endDate)) : 0;
           
-          const newDataToScanForEvents = weatherData.filter(p => new Date(p.date).getTime() > lastEventEndDate);
+          const newDataToScanForEvents = weatherData.filter(p => p.timestamp > lastEventEndDate);
           
           let newEventsByDeployment: {[deploymentId: string]: AnalysisPeriod[]} = {};
 
@@ -930,8 +915,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
             let lastRainTimestamp: number | null = null;
             
             newDataToScanForEvents.forEach(p => {
-                if (!p.date) return;
-                const currentTimestamp = new Date(p.date).getTime();
+                const currentTimestamp = p.timestamp;
                 const precipitation = p.precipitation ?? 0;
                 
                 // Find which deployment this data point belongs to
@@ -1116,7 +1100,8 @@ export async function saveOverallAnalysis(data: any) {
         return response;
     }
     
-    const { assetId, status, ...analysisData } = validatedFields.data;
+    const { assetId, ...analysisData } = validatedFields.data;
+    const status = validatedFields.data.status;
 
     try {
         const allAnalysis = await readJsonFile<{[key: string]: OverallAnalysisData}>(overallAnalysisFilePath);
@@ -1124,7 +1109,7 @@ export async function saveOverallAnalysis(data: any) {
         allAnalysis[assetId] = {
             ...allAnalysis[assetId],
             ...analysisData,
-            status,
+            status: status,
             assetId: assetId,
             lastUpdated: new Date().toISOString(),
         };
