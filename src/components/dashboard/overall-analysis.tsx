@@ -129,8 +129,14 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   const { toast } = useToast();
   const { saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isEditing, setIsEditing] = React.useState(!analysisData);
   
+  // This state now only tracks if the USER has initiated an edit.
+  const [userToggledEdit, setUserToggledEdit] = React.useState(false);
+
+  // The single source of truth for the edit mode.
+  // It's true if there's no data OR if the user has clicked "Edit".
+  const isEditing = !analysisData || userToggledEdit;
+
   const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
   const form = useForm<OverallAnalysisFormValues>({
@@ -138,6 +144,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   });
   
   React.useEffect(() => {
+    // This effect now only syncs the form with the data, it doesn't control the editing state.
     if (analysisData) {
         const formStatus = statusMapToForm[analysisData.status as string] || statusMapToForm[asset.status as string] || "Operating As Expected";
         form.reset({
@@ -162,11 +169,10 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     }
   }, [analysisData, asset.status, form]);
 
+  // When the asset changes, if we were in edit mode, reset that state.
   React.useEffect(() => {
-    // This effect ensures the editing state is always in sync with the data.
-    // If data exists, we are not editing. If it doesn't, we are.
-    setIsEditing(!analysisData);
-  }, [analysisData]);
+      setUserToggledEdit(false);
+  }, [asset.id]);
 
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
@@ -183,14 +189,15 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-      setIsEditing(false);
+      setUserToggledEdit(false); // Exit edit mode on successful save
     }
     setIsSubmitting(false);
   };
   
   const handleCancel = () => {
+    // Only allow canceling if there is data to return to.
     if (analysisData) {
-      setIsEditing(false);
+      setUserToggledEdit(false);
     }
   }
   
@@ -198,6 +205,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     if (loading) {
       return <CardContent><div className="text-center text-muted-foreground py-8">Loading analysis...</div></CardContent>;
     }
+    
     if (isEditing) {
       return (
         <CardContent>
@@ -359,19 +367,16 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
       )
     }
     
-    if (!isEditing && analysisData) {
-      return <ReadOnlyAnalysisView data={analysisData} onEdit={() => setIsEditing(true)} />;
+    // This is now the default view when data exists and user hasn't clicked edit.
+    if (analysisData) {
+      return <ReadOnlyAnalysisView data={analysisData} onEdit={() => setUserToggledEdit(true)} />;
     }
     
-    // Fallback for when there's no data and we are not explicitly editing
-    // This happens on initial load before the useEffect sets isEditing to true
+    // This should not be reached if isEditing is derived correctly, but as a fallback.
     return (
         <CardContent>
             <div className="text-center py-8 text-muted-foreground">
-                <p>No overall analysis has been saved for this asset yet.</p>
-                <Button className="mt-4" onClick={() => setIsEditing(true)}>
-                    <Pencil className="mr-2 h-4 w-4" /> Start Analysis
-                </Button>
+                <p>An error occurred determining the view state.</p>
             </div>
         </CardContent>
     );
@@ -388,7 +393,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
                 <CardTitle className="font-headline text-2xl">Overall Asset Analysis</CardTitle>
                 <CardDescription className="mt-1">
                   Provide a high-level engineering assessment of the asset's performance.
-                  {lastUpdated && <span className="block text-xs mt-1">Last updated: {lastUpdated}</span>}
+                  {lastUpdated && !isEditing && <span className="block text-xs mt-1">Last updated: {lastUpdated}</span>}
                 </CardDescription>
               </div>
             </div>
@@ -402,3 +407,5 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     </Card>
   );
 }
+
+    
