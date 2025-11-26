@@ -42,14 +42,17 @@ const operationalActionSchema = z.object({
 
 type OperationalActionFormValues = z.infer<typeof operationalActionSchema>;
 
+interface OperationalActionManagerProps {
+    asset: Asset;
+    operationalActions: OperationalAction[];
+    loading: boolean;
+}
 
-export default function OperationalActionManager({ asset, dataVersion }: { asset: Asset; dataVersion: number }) {
+export default function OperationalActionManager({ asset, operationalActions, loading }: OperationalActionManagerProps) {
   const { toast } = useToast();
-  const { addOperationalAction, getOperationalActions, deleteOperationalAction } = useAssets();
+  const { addOperationalAction, deleteOperationalAction } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState('');
-  const [actions, setActions] = React.useState<OperationalAction[]>([]);
-  const [loadingActions, setLoadingActions] = React.useState(true);
 
   const form = useForm<OperationalActionFormValues>({
     resolver: zodResolver(operationalActionSchema),
@@ -57,27 +60,10 @@ export default function OperationalActionManager({ asset, dataVersion }: { asset
       time: "12:00",
     }
   });
-
-  React.useEffect(() => {
-    let isMounted = true;
-    const fetchActions = async () => {
-        setLoadingActions(true);
-        try {
-            const fetchedActions = await getOperationalActions(asset.id);
-            if (isMounted) {
-                setActions(fetchedActions.sort((a,b) => b.timestamp - a.timestamp));
-            }
-        } catch (error) {
-            console.error("Failed to fetch operational actions:", error);
-        } finally {
-             if (isMounted) setLoadingActions(false);
-        }
-    }
-
-    fetchActions();
-    
-    return () => { isMounted = false; };
-  }, [asset.id, dataVersion, getOperationalActions]);
+  
+  const sortedActions = React.useMemo(() => {
+    return [...operationalActions].sort((a,b) => b.timestamp - a.timestamp);
+  }, [operationalActions]);
 
 
   const handleSubmit = async (data: OperationalActionFormValues) => {
@@ -217,9 +203,9 @@ export default function OperationalActionManager({ asset, dataVersion }: { asset
               <div className="space-y-4">
                 <h4 className="font-medium">Logged Actions</h4>
                 <ScrollArea className="h-[250px] rounded-md border">
-                    {loadingActions ? (
+                    {loading ? (
                       <div className="p-4 text-center text-muted-foreground">Loading actions...</div>
-                    ) : actions.length === 0 ? (
+                    ) : sortedActions.length === 0 ? (
                       <p className="p-4 text-center text-sm text-muted-foreground">No operational actions logged yet.</p>
                     ) : (
                       <Table>
@@ -231,7 +217,7 @@ export default function OperationalActionManager({ asset, dataVersion }: { asset
                           </TableRow>
                           </TableHeader>
                           <TableBody>
-                          {actions.map((action) => (
+                          {sortedActions.map((action) => (
                               <TableRow key={action.id}>
                               <TableCell>{format(new Date(action.timestamp), "Pp")}</TableCell>
                               <TableCell>{action.action}</TableCell>
@@ -260,3 +246,5 @@ export default function OperationalActionManager({ asset, dataVersion }: { asset
     </Card>
   );
 }
+
+    

@@ -34,7 +34,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
 import { cn } from "@/lib/utils";
 import { CalendarIcon, PlusCircle, Trash2, Loader2, Clock, ChevronDown, MapPin } from "lucide-react";
-import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 
 const surveyPointSchema = z.object({
   date: z.date({ required_error: "A date is required." }),
@@ -50,14 +49,19 @@ export type EnrichedSurveyPoint = SurveyPoint & {
     difference?: number;
 }
 
-export default function SurveyPointManager({ asset, dataVersion }: { asset: Asset; dataVersion: number }) {
+interface SurveyPointManagerProps {
+    asset: Asset;
+    surveyPoints: SurveyPoint[];
+    data: ChartablePoint[];
+    loading: boolean;
+}
+
+export default function SurveyPointManager({ asset, surveyPoints, data, loading }: SurveyPointManagerProps) {
   const { toast } = useToast();
-  const { addSurveyPoint, getSurveyPoints, deleteSurveyPoint } = useAssets();
+  const { addSurveyPoint, deleteSurveyPoint } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState('');
-  const [surveyPoints, setSurveyPoints] = React.useState<EnrichedSurveyPoint[]>([]);
-  const [loadingPoints, setLoadingPoints] = React.useState(true);
-
+  
   const form = useForm<SurveyPointFormValues>({
     resolver: zodResolver(surveyPointSchema),
     defaultValues: {
@@ -65,79 +69,42 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
     }
   });
 
-  React.useEffect(() => {
-    let isMounted = true;
-    const fetchAndEnrichPoints = async () => {
-        setLoadingPoints(true);
-        try {
-            // Since getProcessedData now merges points, we can simplify this.
-            // But for showing the difference, we still need both raw survey points and processed sensor data.
-            const [points, processedDataResult] = await Promise.all([
-                getSurveyPoints(asset.id),
-                getProcessedDataAction(asset.id)
-            ]);
+  const manualPoints = React.useMemo(() => surveyPoints.filter(p => p.source === 'manual' || p.source === undefined), [surveyPoints]);
 
-            if (isMounted) {
-                 const processedData = processedDataResult.data;
-                 const manualPoints = points.filter(p => p.source === 'manual' || p.source === undefined);
-
-                 const enrichedPoints: EnrichedSurveyPoint[] = manualPoints.map(point => {
-                    if (processedData.length === 0) {
-                        return { ...point };
-                    }
-                    
-                    // Find the nearest processed data point that has a waterLevel
-                    const sensorPoints = processedData.filter(p => p.waterLevel !== undefined);
-                    if(sensorPoints.length === 0) return { ...point };
-
-                    const nearestPoint = sensorPoints.reduce((prev, curr) => {
-                       return (Math.abs(curr.timestamp - point.timestamp) < Math.abs(prev.timestamp - point.timestamp) ? curr : prev);
-                    });
-                    
-                    if (nearestPoint && nearestPoint.waterLevel !== undefined) {
-                        return {
-                            ...point,
-                            sensorTimestamp: nearestPoint.timestamp,
-                            sensorElevation: nearestPoint.waterLevel,
-                            difference: point.elevation - nearestPoint.waterLevel,
-                        };
-                    }
-
-                    return { ...point };
-                });
-                
-                setSurveyPoints(enrichedPoints.sort((a,b) => b.timestamp - a.timestamp));
-            }
-        } catch (error) {
-            console.error("Failed to fetch or enrich survey points:", error);
-            if (isMounted) {
-                // If it fails, at least try to show the raw points
-                getSurveyPoints(asset.id).then(points => {
-                    const manualPoints = points.filter(p => p.source === 'manual' || p.source === undefined);
-                    setSurveyPoints(manualPoints.sort((a,b) => b.timestamp - a.timestamp));
-                });
-            }
-        } finally {
-             if (isMounted) setLoadingPoints(false);
-        }
-    }
-
-    fetchAndEnrichPoints();
+  const enrichedPoints: EnrichedSurveyPoint[] = React.useMemo(() => {
+    if (data.length === 0) return manualPoints;
     
-    return () => { isMounted = false; };
-  }, [asset.id, dataVersion, getSurveyPoints]);
+    const sensorPoints = data.filter(p => p.waterLevel !== undefined);
+    if(sensorPoints.length === 0) return manualPoints;
+
+    return manualPoints.map(point => {
+        const nearestPoint = sensorPoints.reduce((prev, curr) => {
+            return (Math.abs(curr.timestamp - point.timestamp) < Math.abs(prev.timestamp - point.timestamp) ? curr : prev);
+        });
+        
+        if (nearestPoint && nearestPoint.waterLevel !== undefined) {
+            return {
+                ...point,
+                sensorTimestamp: nearestPoint.timestamp,
+                sensorElevation: nearestPoint.waterLevel,
+                difference: point.elevation - nearestPoint.waterLevel,
+            };
+        }
+        return { ...point };
+    }).sort((a,b) => b.timestamp - a.timestamp);
+  }, [manualPoints, data]);
 
 
-  const handleSubmit = async (data: SurveyPointFormValues) => {
+  const handleSubmit = async (formData: SurveyPointFormValues) => {
     setIsSubmitting(true);
 
-    const [hours, minutes] = data.time.split(':').map(Number);
-    const combinedDateTime = new Date(data.date);
+    const [hours, minutes] = formData.time.split(':').map(Number);
+    const combinedDateTime = new Date(formData.date);
     combinedDateTime.setHours(hours, minutes, 0, 0);
 
     const serverData = {
       timestamp: combinedDateTime.toISOString(),
-      elevation: data.elevation,
+      elevation: formData.elevation,
       source: 'manual',
     };
 
@@ -266,9 +233,9 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
               <div className="space-y-4">
                 <h4 className="font-medium">Existing Points</h4>
                 <ScrollArea className="h-[250px] rounded-md border">
-                    {loadingPoints ? (
+                    {loading ? (
                       <div className="p-4 text-center text-muted-foreground">Loading points...</div>
-                    ) : surveyPoints.length === 0 ? (
+                    ) : enrichedPoints.length === 0 ? (
                       <p className="p-4 text-center text-sm text-muted-foreground">No manual points added yet.</p>
                     ) : (
                       <Table>
@@ -283,7 +250,7 @@ export default function SurveyPointManager({ asset, dataVersion }: { asset: Asse
                           </TableRow>
                           </TableHeader>
                           <TableBody>
-                          {surveyPoints.map((point) => (
+                          {enrichedPoints.map((point) => (
                               <TableRow key={point.id}>
                               <TableCell>{format(new Date(point.timestamp), "Pp")}</TableCell>
                               <TableCell>{point.elevation.toFixed(2)}m</TableCell>

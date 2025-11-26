@@ -49,6 +49,8 @@ interface AssetData {
   data: ChartablePoint[];
   weatherSummary: WeatherSummary | null;
   overallAnalysis: OverallAnalysisData | null;
+  surveyPoints: SurveyPoint[];
+  operationalActions: OperationalAction[];
   loading?: boolean;
 }
 interface AssetContextType {
@@ -150,21 +152,32 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   
   const fetchAssetData = useCallback(async (assetId: string) => {
     if (!assetId) return;
-    setAssetData(prev => ({ ...prev, [assetId]: { ...(prev[assetId] || { data: [], weatherSummary: null, overallAnalysis: null }), loading: true } }));
+    const initialData = { data: [], weatherSummary: null, overallAnalysis: null, surveyPoints: [], operationalActions: [] };
+    setAssetData(prev => ({ ...prev, [assetId]: { ...(prev[assetId] || initialData), loading: true } }));
     try {
-        const [processedDataResult, overallAnalysisResult] = await Promise.all([
+        const [
+            processedDataResult, 
+            overallAnalysisResult,
+            surveyPointsResult,
+            operationalActionsResult
+        ] = await Promise.all([
           getProcessedData(assetId),
-          getOverallAnalysisAction(assetId)
+          getOverallAnalysisAction(assetId),
+          getSurveyPointsAction(assetId),
+          getOperationalActionsAction(assetId),
         ]);
+
         setAssetData(prev => ({ ...prev, [assetId]: { 
             data: processedDataResult.data, 
             weatherSummary: processedDataResult.weatherSummary, 
             overallAnalysis: overallAnalysisResult,
+            surveyPoints: surveyPointsResult,
+            operationalActions: operationalActionsResult,
             loading: false 
         } }));
     } catch (error) {
         console.error(`Failed to fetch data for asset ${assetId}:`, error);
-        setAssetData(prev => ({ ...prev, [assetId]: { data: [], weatherSummary: null, overallAnalysis: null, loading: false } }));
+        setAssetData(prev => ({ ...prev, [assetId]: { ...initialData, loading: false } }));
     }
   }, []);
 
@@ -427,13 +440,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
         const assetId = result.savedData.assetId;
         
         setAssets(prev => prev.map(a => a.id === assetId ? { ...a, status: newStatus } : a));
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, []);
+  }, [incrementDataVersion]);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
@@ -589,3 +603,5 @@ export const useAssets = (): AssetContextType => {
   }
   return context;
 };
+
+    

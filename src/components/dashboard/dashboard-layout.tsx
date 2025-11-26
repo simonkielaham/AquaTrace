@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -40,6 +39,8 @@ export default function DashboardLayout() {
   const chartData = currentAssetData?.data || [];
   const weatherSummary = currentAssetData?.weatherSummary || null;
   const overallAnalysis = currentAssetData?.overallAnalysis || null;
+  const surveyPoints = currentAssetData?.surveyPoints || [];
+  const operationalActions = currentAssetData?.operationalActions || [];
 
   
   // Handle case where selected asset is not found or none is selected
@@ -49,23 +50,23 @@ export default function DashboardLayout() {
     }
   }, [selectedAssetId, assets, setSelectedAssetId, loading]);
 
-  // This effect will re-fetch data for the current asset when dataVersion changes
+  // This effect will re-fetch data for the current asset when dataVersion or selectedAssetId changes
   React.useEffect(() => {
     if (selectedAssetId) {
       const { id: toastId } = toast({
         title: "Fetching Data...",
-        description: `Querying sensor and weather data.`,
+        description: `Querying sensor and weather data for ${selectedAsset?.name}.`,
       });
 
       fetchAssetData(selectedAssetId).then(() => {
           toast({
             id: toastId,
             title: "Data Loaded Successfully",
-            description: `Sensor data processed for the current asset.`,
+            description: `Sensor data processed for ${selectedAsset?.name}.`,
         });
       });
     }
-  }, [dataVersion, selectedAssetId, fetchAssetData, toast]);
+  }, [dataVersion, selectedAssetId, fetchAssetData, toast, selectedAsset?.name]);
 
   React.useEffect(() => {
     if (selectedAsset) {
@@ -206,9 +207,9 @@ export default function DashboardLayout() {
               />
                <OverallAnalysis asset={selectedAsset} analysisData={overallAnalysis} loading={isChartLoading} />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
-              <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
-              <TapeDownManager asset={selectedAsset} deployments={assetDeployments} dataVersion={dataVersion} />
-              <OperationalActionManager asset={selectedAsset} dataVersion={dataVersion} />
+              <SurveyPointManager asset={selectedAsset} data={chartData} surveyPoints={surveyPoints} loading={isChartLoading}/>
+              <TapeDownManager asset={selectedAsset} deployments={assetDeployments} data={chartData} surveyPoints={surveyPoints} loading={isChartLoading} />
+              <OperationalActionManager asset={selectedAsset} operationalActions={operationalActions} loading={isChartLoading} />
             </div>
           </main>
         </div>
@@ -233,3 +234,5 @@ export default function DashboardLayout() {
     </SidebarProvider>
   );
 }
+
+    

@@ -41,7 +41,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
 import { cn } from "@/lib/utils";
 import { CalendarIcon, PlusCircle, Ruler, ChevronDown, Clock, Trash2, Loader2 } from "lucide-react";
-import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 import { EnrichedSurveyPoint } from "@/components/dashboard/survey-point-manager";
 
 
@@ -55,60 +54,41 @@ const tapeDownSchema = z.object({
 type TapeDownFormValues = z.infer<typeof tapeDownSchema>;
 
 
-function ExistingPointsTable({ asset, deployments, dataVersion }: { asset: Asset, deployments: Deployment[], dataVersion: number }) {
-    const { getSurveyPoints, deleteSurveyPoint } = useAssets();
-    const [tapeDownPoints, setTapeDownPoints] = React.useState<EnrichedSurveyPoint[]>([]);
-    const [loadingPoints, setLoadingPoints] = React.useState(true);
+interface ExistingPointsTableProps {
+    surveyPoints: SurveyPoint[];
+    data: ChartablePoint[];
+    loading: boolean;
+}
+
+function ExistingPointsTable({ surveyPoints, data, loading }: ExistingPointsTableProps) {
+    const { deleteSurveyPoint } = useAssets();
     const [isDeleting, setIsDeleting] = React.useState('');
     const { toast } = useToast();
 
-    React.useEffect(() => {
-        let isMounted = true;
-        const fetchAndEnrichPoints = async () => {
-            setLoadingPoints(true);
-            try {
-                const [points, processedDataResult] = await Promise.all([
-                    getSurveyPoints(asset.id),
-                    getProcessedDataAction(asset.id)
-                ]);
+    const tapeDownPoints = React.useMemo(() => surveyPoints.filter(p => p.source === 'tape-down'), [surveyPoints]);
 
-                if (isMounted) {
-                    const processedData = processedDataResult.data;
-                    const tapeDowns = points.filter(p => p.source === 'tape-down');
-                    const enrichedPoints: EnrichedSurveyPoint[] = tapeDowns.map(point => {
-                        if (processedData.length === 0) return { ...point };
+    const enrichedPoints: EnrichedSurveyPoint[] = React.useMemo(() => {
+        if (data.length === 0) return tapeDownPoints;
 
-                        const nearestPoint = processedData.reduce((prev, curr) => {
-                            return (Math.abs(curr.timestamp - point.timestamp) < Math.abs(prev.timestamp - point.timestamp) ? curr : prev);
-                        }, processedData[0]);
+        const sensorPoints = data.filter(p => p.waterLevel !== undefined);
+        if (sensorPoints.length === 0) return tapeDownPoints;
 
-                        if (nearestPoint && nearestPoint.waterLevel !== undefined) {
-                            return {
-                                ...point,
-                                sensorTimestamp: nearestPoint.timestamp,
-                                sensorElevation: nearestPoint.waterLevel,
-                                difference: point.elevation - nearestPoint.waterLevel,
-                            };
-                        }
-                        return { ...point };
-                    });
-                    setTapeDownPoints(enrichedPoints);
-                }
-            } catch (error) {
-                console.error("Failed to fetch or enrich tape down points:", error);
-                 if (isMounted) {
-                    getSurveyPoints(asset.id).then(points => {
-                        const tapeDowns = points.filter(p => p.source === 'tape-down');
-                        setTapeDownPoints(tapeDowns);
-                    });
-                }
-            } finally {
-                if (isMounted) setLoadingPoints(false);
+        return tapeDownPoints.map(point => {
+            const nearestPoint = sensorPoints.reduce((prev, curr) => {
+                return (Math.abs(curr.timestamp - point.timestamp) < Math.abs(prev.timestamp - point.timestamp) ? curr : prev);
+            });
+
+            if (nearestPoint && nearestPoint.waterLevel !== undefined) {
+                return {
+                    ...point,
+                    sensorTimestamp: nearestPoint.timestamp,
+                    sensorElevation: nearestPoint.waterLevel,
+                    difference: point.elevation - nearestPoint.waterLevel,
+                };
             }
-        }
-        fetchAndEnrichPoints();
-        return () => { isMounted = false; };
-    }, [asset.id, dataVersion, getSurveyPoints]);
+            return { ...point };
+        });
+    }, [tapeDownPoints, data]);
     
     const handleDelete = async (pointId: string) => {
         setIsDeleting(pointId);
@@ -121,7 +101,7 @@ function ExistingPointsTable({ asset, deployments, dataVersion }: { asset: Asset
         setIsDeleting('');
     }
 
-     if (loadingPoints) {
+     if (loading) {
         return <div className="p-4 text-center text-muted-foreground">Loading tape-down measurements...</div>;
     }
     if (tapeDownPoints.length === 0) {
@@ -141,7 +121,7 @@ function ExistingPointsTable({ asset, deployments, dataVersion }: { asset: Asset
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {tapeDownPoints.map((point) => (
+                {enrichedPoints.map((point) => (
                     <TableRow key={point.id}>
                         <TableCell>{format(new Date(point.timestamp), "Pp")}</TableCell>
                         <TableCell>{point.stillwellTopElevation?.toFixed(2)}m</TableCell>
@@ -179,9 +159,15 @@ function ExistingPointsTable({ asset, deployments, dataVersion }: { asset: Asset
     );
 }
 
+interface TapeDownManagerProps {
+    asset: Asset;
+    deployments: Deployment[];
+    surveyPoints: SurveyPoint[];
+    data: ChartablePoint[];
+    loading: boolean;
+}
 
-
-export default function TapeDownManager({ asset, deployments, dataVersion }: { asset: Asset; deployments: Deployment[], dataVersion: number }) {
+export default function TapeDownManager({ asset, deployments, surveyPoints, data, loading }: TapeDownManagerProps) {
   const { toast } = useToast();
   const { addSurveyPoint } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -199,7 +185,7 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
   const selectedDeployment = deployments.find(d => d.id === selectedDeploymentId);
   const isSelectedDeploymentEligible = selectedDeployment && typeof selectedDeployment.stillwellTop === 'number';
 
-  const handleSubmit = async (data: TapeDownFormValues) => {
+  const handleSubmit = async (formData: TapeDownFormValues) => {
     if (!selectedDeployment || typeof selectedDeployment.stillwellTop !== 'number') {
         toast({ variant: "destructive", title: "Error", description: "Selected deployment does not have a valid stillwell top elevation." });
         return;
@@ -207,17 +193,17 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
     
     setIsSubmitting(true);
 
-    const [hours, minutes] = data.time.split(':').map(Number);
-    const combinedDateTime = new Date(data.date);
+    const [hours, minutes] = formData.time.split(':').map(Number);
+    const combinedDateTime = new Date(formData.date);
     combinedDateTime.setHours(hours, minutes, 0, 0);
     
-    const calculatedElevation = selectedDeployment.stillwellTop - data.measurement;
+    const calculatedElevation = selectedDeployment.stillwellTop - formData.measurement;
 
     const serverData = {
       timestamp: combinedDateTime.toISOString(),
       elevation: calculatedElevation,
       source: 'tape-down',
-      tapeDownMeasurement: data.measurement,
+      tapeDownMeasurement: formData.measurement,
       stillwellTopElevation: selectedDeployment.stillwellTop,
       deploymentId: selectedDeployment.id,
     };
@@ -231,7 +217,7 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
         title: "Success", 
         description: `Tape-down recorded as survey point with elevation ${calculatedElevation.toFixed(2)}m.` 
       });
-      form.reset({ deploymentId: data.deploymentId, time: "12:00", measurement: 0 });
+      form.reset({ deploymentId: formData.deploymentId, time: "12:00", measurement: 0 });
     }
     
     setIsSubmitting(false);
@@ -379,7 +365,7 @@ export default function TapeDownManager({ asset, deployments, dataVersion }: { a
                 <div className="space-y-4">
                   <h4 className="font-medium">Existing Tape-Down Measurements</h4>
                   <ScrollArea className="h-[250px] rounded-md border">
-                    <ExistingPointsTable asset={asset} deployments={deployments} dataVersion={dataVersion} />
+                    <ExistingPointsTable surveyPoints={surveyPoints} data={data} loading={loading} />
                   </ScrollArea>
                 </div>
             </CardContent>
