@@ -133,19 +133,34 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
   const fetchAnalysis = React.useCallback(async () => {
     setIsLoading(true);
     const data = await getOverallAnalysis(asset.id);
-    form.reset({
-        permanentPoolPerformance: data?.permanentPoolPerformance,
-        estimatedControlElevation: data?.estimatedControlElevation,
-        rainResponse: data?.rainResponse,
-        furtherInvestigation: data?.furtherInvestigation,
-        summary: data?.summary || "",
-        analystInitials: data?.analystInitials || "",
-        status: data?.status || asset.status || 'unknown',
-    });
-    setAnalysisData(data);
-    if(data?.lastUpdated) {
-        setLastUpdated(format(new Date(data.lastUpdated), "PPp"));
+    if (data) {
+        form.reset({
+            permanentPoolPerformance: data.permanentPoolPerformance,
+            estimatedControlElevation: data.estimatedControlElevation,
+            rainResponse: data.rainResponse,
+            furtherInvestigation: data.furtherInvestigation,
+            summary: data.summary || "",
+            analystInitials: data.analystInitials || "",
+            status: data.status || asset.status || 'unknown',
+        });
+        setAnalysisData(data);
+        if(data.lastUpdated) {
+            setLastUpdated(format(new Date(data.lastUpdated), "PPp"));
+        } else {
+            setLastUpdated(null);
+        }
     } else {
+        // If no data, reset to default and don't enter edit mode unless intended
+        form.reset({
+            permanentPoolPerformance: undefined,
+            estimatedControlElevation: undefined,
+            rainResponse: undefined,
+            furtherInvestigation: undefined,
+            summary: "",
+            analystInitials: "",
+            status: asset.status || 'unknown',
+        });
+        setAnalysisData(null);
         setLastUpdated(null);
     }
     setIsLoading(false);
@@ -164,14 +179,28 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-      await fetchAnalysis(); // Re-fetch the data to show the read-only view
+       if (result.savedData) {
+        setAnalysisData(result.savedData);
+        setLastUpdated(format(new Date(result.savedData.lastUpdated), "PPp"));
+      }
       setIsEditing(false);
     }
     setIsSubmitting(false);
   };
   
   const handleCancel = () => {
-    fetchAnalysis(); // Reset form to last saved state
+    // Reset form to the last known saved state
+    if (analysisData) {
+        form.reset({
+            permanentPoolPerformance: analysisData.permanentPoolPerformance,
+            estimatedControlElevation: analysisData.estimatedControlElevation,
+            rainResponse: analysisData.rainResponse,
+            furtherInvestigation: analysisData.furtherInvestigation,
+            summary: analysisData.summary || "",
+            analystInitials: analysisData.analystInitials || "",
+            status: analysisData.status || asset.status || 'unknown',
+        });
+    }
     setIsEditing(false);
   }
 
