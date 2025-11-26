@@ -655,12 +655,6 @@ export async function deleteDatafile(deploymentId: string, fileId: string) {
 
 
 export async function getProcessedData(assetId: string): Promise<{ data: ChartablePoint[], weatherSummary: WeatherSummary }> {
-  await fs.mkdir(cacheDir, { recursive: true });
-  const cacheFilePath = path.join(cacheDir, `asset-${assetId}.json`);
-  
-  // Note: Skipping cache check for now to ensure data is always fresh after fixes.
-  // This can be re-enabled later for performance.
-
   try {
     const assets = await readJsonFile<Asset[]>(assetsFilePath);
     const asset = assets.find(a => a.id === assetId);
@@ -677,6 +671,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
     const assetDeployments = deployments.filter(d => d.assetId === assetId);
 
     const dataMap = new Map<number, ChartablePoint>();
+    let allRawData: {timestamp: number, data: ChartablePoint, deployment: Deployment}[] = [];
     let minDataDate: Date | null = null;
     let maxDataDate: Date | null = null;
 
@@ -686,7 +681,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
         for (const file of deployment.files) {
           const filePath = path.join(processedDir, `${file.id}.json`);
           try {
-            const fileData = await readJsonFile<any[]>(filePath);
+            const fileData: ChartablePoint[] = await readJsonFile<any[]>(filePath);
             
             fileData.forEach(d => {
                 const timestamp = new Date(d.timestamp).getTime();
@@ -695,23 +690,8 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                 if (!minDataDate || timestamp < minDataDate.getTime()) minDataDate = new Date(timestamp);
                 if (!maxDataDate || timestamp > maxDataDate.getTime()) maxDataDate = new Date(timestamp);
 
-                if (!dataMap.has(timestamp)) {
-                    dataMap.set(timestamp, { timestamp });
-                }
-                const point = dataMap.get(timestamp)!;
-                
-                if (d.waterLevel !== undefined) {
-                    const waterLevel = parseFloat(d.waterLevel.toString()) + parseFloat(deployment.sensorElevation.toString());
-                    const rawWaterLevel = parseFloat(d.waterLevel.toString());
-                    if(!isNaN(waterLevel)) point.waterLevel = waterLevel;
-                    if(!isNaN(rawWaterLevel)) point.rawWaterLevel = rawWaterLevel;
-                }
-                if (d.sensorPressure !== undefined && !isNaN(parseFloat(d.sensorPressure))) point.sensorPressure = d.sensorPressure;
-                if (d.temperature !== undefined && !isNaN(parseFloat(d.temperature))) point.temperature = d.temperature;
-                if (d.barometer !== undefined && !isNaN(parseFloat(d.barometer))) point.barometer = d.barometer;
-                if (d.precipitation !== undefined && !isNaN(parseFloat(d.precipitation))) point.precipitation = d.precipitation;
+                allRawData.push({timestamp, data: d, deployment});
             });
-
           } catch (e) {
              if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
                 console.error(`Could not read processed file ${file.id}.json:`, e);
@@ -720,25 +700,44 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
         }
       }
     }
-    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+    
+    // Create a master map of all timestamps from all sources
+    allRawData.forEach(item => {
+        if (!dataMap.has(item.timestamp)) dataMap.set(item.timestamp, { timestamp: item.timestamp });
+    });
+    surveyPoints.forEach(sp => {
+        if (!dataMap.has(sp.timestamp)) dataMap.set(sp.timestamp, { timestamp: sp.timestamp });
+    });
 
-    // Second pass: merge survey points
+    // Second pass: Populate the map with data
+    allRawData.forEach(({timestamp, data, deployment}) => {
+        const point = dataMap.get(timestamp)!;
+        if (data.waterLevel !== undefined) {
+            const waterLevel = parseFloat(data.waterLevel.toString()) + parseFloat(deployment.sensorElevation.toString());
+            const rawWaterLevel = parseFloat(data.waterLevel.toString());
+            if(!isNaN(waterLevel)) point.waterLevel = waterLevel;
+            if(!isNaN(rawWaterLevel)) point.rawWaterLevel = rawWaterLevel;
+        }
+        if (data.sensorPressure !== undefined && !isNaN(parseFloat(data.sensorPressure.toString()))) point.sensorPressure = data.sensorPressure;
+        if (data.temperature !== undefined && !isNaN(parseFloat(data.temperature.toString()))) point.temperature = data.temperature;
+        if (data.barometer !== undefined && !isNaN(parseFloat(data.barometer.toString()))) point.barometer = data.barometer;
+        if (data.precipitation !== undefined && !isNaN(parseFloat(data.precipitation.toString()))) point.precipitation = data.precipitation;
+    });
+
+    // Third pass: merge survey points, aligning to the NEAREST timestamp in the map
     surveyPoints.forEach(sp => {
         let nearestTimestamp = sp.timestamp;
-        if (sortedData.length > 0) {
-            const nearestSensorPoint = sortedData.reduce((prev, curr) => {
-               return (Math.abs(curr.timestamp - sp.timestamp) < Math.abs(prev.timestamp - sp.timestamp) ? curr : prev);
+        const mapTimestamps = Array.from(dataMap.keys());
+        if (mapTimestamps.length > 0) {
+            nearestTimestamp = mapTimestamps.reduce((prev, curr) => {
+               return (Math.abs(curr - sp.timestamp) < Math.abs(prev - sp.timestamp) ? curr : prev);
             });
-            nearestTimestamp = nearestSensorPoint.timestamp;
-        }
-
-        if (!dataMap.has(nearestTimestamp)) {
-           dataMap.set(nearestTimestamp, { timestamp: nearestTimestamp });
         }
         const point = dataMap.get(nearestTimestamp)!;
         point.elevation = sp.elevation;
-      });
+    });
 
+    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
     
     let processedEvents: AnalysisPeriod[] = [];
     const weatherSummary: WeatherSummary = { totalPrecipitation: 0, events: [] };
@@ -904,8 +903,6 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
     }
     
     const result = { data: sortedData, weatherSummary };
-    // Not caching for now to ensure freshness during development
-    // await writeJsonFile(cacheFilePath, { ...result, version: dataVersion });
     return result;
 
   } catch (error) {
@@ -1299,3 +1296,5 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
+
+    
