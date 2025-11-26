@@ -141,7 +141,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
             furtherInvestigation: data.furtherInvestigation,
             summary: data.summary || "",
             analystInitials: data.analystInitials || "",
-            status: data.status || asset.status || 'unknown',
+            status: data.status || 'unknown',
         });
         setAnalysisData(data);
         if(data.lastUpdated) {
@@ -200,7 +200,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
             furtherInvestigation: analysisData.furtherInvestigation,
             summary: analysisData.summary || "",
             analystInitials: analysisData.analystInitials || "",
-            status: analysisData.status || asset.status || 'unknown',
+            status: analysisData.status || 'unknown',
         });
     }
     setIsEditing(false);
