@@ -124,13 +124,6 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
       "critical_concerns": "Critical Concerns",
   };
   
-  const statusMapFromForm: Record<OverallAnalysisFormValues['status'], string> = {
-      "Operating As Expected": "operating_as_expected",
-      "Minor Concerns": "minor_concerns",
-      "Critical Concerns": "critical_concerns",
-  };
-
-
   const form = useForm<OverallAnalysisFormValues>({
     resolver: zodResolver(overallAnalysisSchema),
     defaultValues: {
@@ -179,12 +172,12 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
         setLastUpdated(null);
     }
     setIsLoading(false);
-  }, [asset.id, asset.status, getOverallAnalysis, statusMapToForm]);
+  }, [asset.id, asset.status, getOverallAnalysis, form, statusMapToForm]);
 
 
   React.useEffect(() => {
     fetchAnalysis();
-  }, [fetchAnalysis]);
+  }, [asset.id, fetchAnalysis]);
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
     setIsSubmitting(true);
@@ -195,14 +188,13 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
       setIsSubmitting(false);
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-      await fetchAnalysis(); // Re-fetch the data to ensure UI is in sync
+      await fetchAnalysis();
       setIsEditing(false);
       setIsSubmitting(false);
     }
   };
   
   const handleCancel = () => {
-    // Reset form to the last known saved state
     if (analysisData) {
         const formStatus = statusMapToForm[analysisData.status as string] || "Operating As Expected";
         form.reset({
@@ -411,3 +403,4 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
     </Card>
   );
 }
+
