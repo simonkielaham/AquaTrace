@@ -410,14 +410,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       const result = await saveOverallAnalysisAction(data);
       if (result && !result.errors && result.savedData) {
         setAssets(prev => prev.map(a => a.id === result.savedData.assetId ? { ...a, status: result.savedData.status } : a));
-        // No full data version increment to prevent chart refresh
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, []);
+  }, [incrementDataVersion]);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
