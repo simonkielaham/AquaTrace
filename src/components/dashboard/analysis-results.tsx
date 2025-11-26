@@ -33,7 +33,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
-import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit, EyeOff } from "lucide-react";
+import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit, EyeOff, Pencil, X } from "lucide-react";
 import { format, formatDistance } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAssets } from "@/context/asset-context";
@@ -85,6 +85,7 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
   const { saveAnalysis } = useAssets();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(false);
   
   const form = useForm<AnalysisFormValues>({
       resolver: zodResolver(analysisFormSchema),
@@ -137,9 +138,15 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
         title: "Analysis Saved",
         description: `Your analysis for this event have been saved.`
       });
+      setIsEditing(false);
     }
 
     setIsSaving(false);
+  }
+
+  const handleCancel = () => {
+    form.reset();
+    setIsEditing(false);
   }
 
   const peakDiff = React.useMemo(() => {
@@ -183,6 +190,82 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
 
   }, [event.analysis]);
   
+
+  if (!isEditing) {
+    return (
+        <div className="bg-muted/30 p-4 rounded-b-md space-y-4">
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                     <MetricCard 
+                        title="Baseline Elevation"
+                        value={event.analysis?.baselineElevation}
+                        unit="m"
+                        icon={ArrowRight}
+                        subValue="3 hours prior to event"
+                        marginOfError={event.analysis?.marginOfError}
+                    />
+                    <MetricCard 
+                        title="Peak Elevation"
+                        value={event.analysis?.peakElevation}
+                        unit="m"
+                        icon={TrendingUp}
+                        iconColor="text-destructive"
+                        subValue={peakDiff !== undefined ? `${peakDiff > 0 ? '+' : ''}${peakDiff.toFixed(2)}m from baseline` : "During event + 48hrs"}
+                        marginOfError={event.analysis?.marginOfError}
+                    />
+                    <MetricCard 
+                        title="Post-Event Elevation"
+                        value={event.analysis?.postEventElevation}
+                        unit="m"
+                        icon={TrendingDown}
+                        iconColor="text-green-500"
+                        subValue={postEventDiff !== undefined ? `${postEventDiff > 0 ? '+' : ''}${postEventDiff.toFixed(2)}m from baseline` : "48 hours after event"}
+                        marginOfError={event.analysis?.marginOfError}
+                    />
+                    <div className="p-3 border rounded-lg col-span-full bg-background">
+                        <p className="text-sm font-semibold">Detailed Analysis</p>
+                        <div className="mt-2 text-sm text-muted-foreground space-y-1">
+                            <p><span className="font-medium text-foreground">Time to Baseline:</span> {event.analysis?.timeToBaseline || "N/A"}</p>
+                            <p><span className="font-medium text-foreground">Drawdown Analysis:</span> {event.analysis?.drawdownAnalysis || "N/A"}</p>
+                            <p><span className="font-medium text-foreground">Estimated True Baseline:</span> {event.analysis?.estimatedTrueBaseline ? `${event.analysis.estimatedTrueBaseline.toFixed(3)}m` : "N/A"}</p>
+                        </div>
+                    </div>
+
+                    <div className="p-4 border bg-background rounded-lg col-span-full">
+                        <Label className="font-medium text-sm mb-2">Analyst Notes</Label>
+                        <p className="text-sm text-muted-foreground min-h-[40px] whitespace-pre-wrap">{event.analysis?.notes || "No notes provided."}</p>
+                    </div>
+                </div>
+                 <div className="space-y-4">
+                    <div className="p-3 border bg-background rounded-lg">
+                        <p className="font-medium text-sm">Overall Assessment</p>
+                        <div className={cn("flex items-center gap-2 text-sm mt-1", overallAssessment.color)}>
+                            <overallAssessment.icon className="h-4 w-4 shrink-0" />
+                            <p>{overallAssessment.text}</p>
+                        </div>
+                    </div>
+                     <div className="p-3 border bg-background rounded-lg">
+                        <p className="font-medium text-sm">Asset Status During Event</p>
+                        <p className="text-sm capitalize text-muted-foreground mt-1">{(event.analysis?.status || 'normal').replace('_', ' ')}</p>
+                    </div>
+                     <div className="p-3 border bg-background rounded-lg">
+                        <div className="flex justify-between items-center">
+                            <p className="font-medium text-sm">Disregarded</p>
+                            <span className={cn("text-sm font-semibold", event.analysis?.disregarded ? "text-destructive" : "text-muted-foreground")}>{event.analysis?.disregarded ? 'Yes' : 'No'}</span>
+                        </div>
+                    </div>
+                     <div className="p-3 border bg-background rounded-lg">
+                        <p className="font-medium text-sm">Analyst Sign-off</p>
+                        <p className="text-sm font-semibold text-muted-foreground mt-1">{event.analysis?.analystInitials || 'Not reviewed'}</p>
+                    </div>
+                    <Button className="w-full" onClick={() => setIsEditing(true)}>
+                        <Pencil className="mr-2 h-4 w-4" /> Edit Analysis
+                    </Button>
+                </div>
+            </div>
+        </div>
+    )
+  }
 
   return (
     <Form {...form}>
@@ -337,10 +420,15 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                         )}
                         />
                     </div>
-                    <Button type="submit" className="w-full" disabled={isSaving || !form.formState.isValid}>
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                        Save Analysis
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button type="button" variant="secondary" className="w-full" onClick={handleCancel}>
+                            <X className="mr-2 h-4 w-4" /> Cancel
+                        </Button>
+                        <Button type="submit" className="w-full" disabled={isSaving || !form.formState.isValid}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            Save Analysis
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>

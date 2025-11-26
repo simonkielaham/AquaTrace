@@ -42,7 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAssets } from "@/context/asset-context";
-import { Save, Loader2, Edit, ChevronDown, DraftingCompass } from "lucide-react";
+import { Save, Loader2, Edit, ChevronDown, DraftingCompass, Pencil, X } from "lucide-react";
 
 const overallAnalysisSchema = z.object({
   permanentPoolPerformance: z.enum(['sits_at_pool', 'sits_above_pool', 'sits_below_pool', 'fluctuates']).optional(),
@@ -56,13 +56,66 @@ const overallAnalysisSchema = z.object({
 
 type OverallAnalysisFormValues = z.infer<typeof overallAnalysisSchema>;
 
+function ReadOnlyAnalysisView({ data, onEdit }: { data: OverallAnalysisData, onEdit: () => void }) {
+    const formatValue = (value?: string | null) => {
+        if (!value) return "N/A";
+        return value.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+
+    return (
+        <CardContent>
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div>
+                        <h4 className="font-medium text-sm text-muted-foreground">Permanent Pool Performance</h4>
+                        <p className="text-base mt-1">{formatValue(data.permanentPoolPerformance)}</p>
+                    </div>
+                    <div>
+                        <h4 className="font-medium text-sm text-muted-foreground">Estimated Control Elevation</h4>
+                        <p className="text-base mt-1">{data.estimatedControlElevation?.toFixed(2) ?? 'N/A'} m</p>
+                    </div>
+                     <div>
+                        <h4 className="font-medium text-sm text-muted-foreground">Response to Rain Events</h4>
+                        <p className="text-base mt-1">{formatValue(data.rainResponse)}</p>
+                    </div>
+                    <div>
+                        <h4 className="font-medium text-sm text-muted-foreground">Further Investigation</h4>
+                        <p className="text-base mt-1">{formatValue(data.furtherInvestigation)}</p>
+                    </div>
+                </div>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                     <div className="md:col-span-2">
+                        <h4 className="font-medium text-sm text-muted-foreground">Analysis Summary</h4>
+                        <p className="text-base mt-1 whitespace-pre-wrap">{data.summary || "No summary provided."}</p>
+                    </div>
+                    <div className="space-y-4">
+                        <div>
+                            <h4 className="font-medium text-sm text-muted-foreground">Asset Status</h4>
+                            <p className="text-base mt-1 capitalize">{data.status || 'unknown'}</p>
+                        </div>
+                        <div>
+                            <h4 className="font-medium text-sm text-muted-foreground">Analyst Sign-off</h4>
+                            <p className="text-base mt-1">{data.analystInitials || "N/A"}</p>
+                        </div>
+                        <Button className="w-full" onClick={onEdit}>
+                            <Pencil className="mr-2 h-4 w-4" /> Edit Overall Analysis
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </CardContent>
+    )
+}
+
+
 export default function OverallAnalysis({ asset }: { asset: Asset }) {
   const { toast } = useToast();
   const { getOverallAnalysis, saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isEditing, setIsEditing] = React.useState(false);
   const [lastUpdated, setLastUpdated] = React.useState<string | null>(null);
-  const [dataVersion, setDataVersion] = React.useState(0);
+  const [analysisData, setAnalysisData] = React.useState<OverallAnalysisData | null>(null);
 
   const form = useForm<OverallAnalysisFormValues>({
     resolver: zodResolver(overallAnalysisSchema),
@@ -77,32 +130,31 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
     },
   });
 
-  React.useEffect(() => {
-    let isMounted = true;
-    const fetchAnalysis = async () => {
-        setIsLoading(true);
-        const data = await getOverallAnalysis(asset.id);
-        if (isMounted) {
-            form.reset({
-                permanentPoolPerformance: data?.permanentPoolPerformance,
-                estimatedControlElevation: data?.estimatedControlElevation,
-                rainResponse: data?.rainResponse,
-                furtherInvestigation: data?.furtherInvestigation,
-                summary: data?.summary || "",
-                analystInitials: data?.analystInitials || "",
-                status: data?.status || asset.status || 'unknown',
-            });
-            if(data?.lastUpdated) {
-                setLastUpdated(format(new Date(data.lastUpdated), "PPp"));
-            } else {
-                setLastUpdated(null);
-            }
-        }
-        setIsLoading(false);
+  const fetchAnalysis = React.useCallback(async () => {
+    setIsLoading(true);
+    const data = await getOverallAnalysis(asset.id);
+    form.reset({
+        permanentPoolPerformance: data?.permanentPoolPerformance,
+        estimatedControlElevation: data?.estimatedControlElevation,
+        rainResponse: data?.rainResponse,
+        furtherInvestigation: data?.furtherInvestigation,
+        summary: data?.summary || "",
+        analystInitials: data?.analystInitials || "",
+        status: data?.status || asset.status || 'unknown',
+    });
+    setAnalysisData(data);
+    if(data?.lastUpdated) {
+        setLastUpdated(format(new Date(data.lastUpdated), "PPp"));
+    } else {
+        setLastUpdated(null);
     }
+    setIsLoading(false);
+  }, [asset.id, asset.status, getOverallAnalysis, form]);
+
+
+  React.useEffect(() => {
     fetchAnalysis();
-    return () => { isMounted = false };
-  }, [asset.id, asset.status, getOverallAnalysis, form, dataVersion]);
+  }, [fetchAnalysis]);
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
     setIsSubmitting(true);
@@ -112,10 +164,16 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-      setDataVersion(v => v + 1); // Trigger a re-fetch of just this component's data
+      await fetchAnalysis(); // Re-fetch the data to show the read-only view
+      setIsEditing(false);
     }
     setIsSubmitting(false);
   };
+  
+  const handleCancel = () => {
+    fetchAnalysis(); // Reset form to last saved state
+    setIsEditing(false);
+  }
 
   return (
     <Card className="col-span-1 lg:col-span-4 shadow-sm">
@@ -135,10 +193,10 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
             <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
           </AccordionTrigger>
           <AccordionContent>
-            <CardContent>
-                {isLoading ? (
-                    <div className="text-center text-muted-foreground py-8">Loading analysis...</div>
-                ) : (
+            {isLoading ? (
+                <div className="text-center text-muted-foreground py-8">Loading analysis...</div>
+            ) : isEditing ? (
+                 <CardContent>
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -279,16 +337,32 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
                                             </FormItem>
                                         )}
                                     />
-                                    <Button type="submit" className="w-full" disabled={isSubmitting || !form.formState.isValid}>
-                                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                        Save Overall Analysis
-                                    </Button>
+                                    <div className="flex gap-2">
+                                        <Button type="button" variant="secondary" className="w-full" onClick={handleCancel}>
+                                            <X className="mr-2 h-4 w-4" /> Cancel
+                                        </Button>
+                                        <Button type="submit" className="w-full" disabled={isSubmitting || !form.formState.isValid}>
+                                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                            Save Analysis
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </form>
                     </Form>
-                )}
-            </CardContent>
+                 </CardContent>
+            ) : analysisData ? (
+                 <ReadOnlyAnalysisView data={analysisData} onEdit={() => setIsEditing(true)} />
+            ) : (
+                <CardContent>
+                     <div className="text-center py-8 text-muted-foreground">
+                        <p>No overall analysis has been saved for this asset yet.</p>
+                        <Button className="mt-4" onClick={() => setIsEditing(true)}>
+                            <Pencil className="mr-2 h-4 w-4" /> Start Analysis
+                        </Button>
+                    </div>
+                </CardContent>
+            )}
           </AccordionContent>
         </AccordionItem>
       </Accordion>
