@@ -1,6 +1,6 @@
 
 
-import type { Asset } from "@/lib/placeholder-data";
+import type { Asset, AssetStatus } from "@/lib/placeholder-data";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,11 +21,12 @@ type AssetOverviewProps = {
   onSensorDataVisibilityChange: (name: string, visible: boolean) => void;
 };
 
-const statusVariantMap = {
-  ok: "default",
-  warning: "secondary",
-  error: "destructive",
-} as const;
+const statusVariantMap: Record<AssetStatus, { variant: "default" | "secondary" | "destructive" | "outline", text: string }> = {
+  operating_as_expected: { variant: "default", text: "Operating As Expected" },
+  minor_concerns: { variant: "secondary", text: "Minor Concerns" },
+  critical_concerns: { variant: "destructive", text: "Critical Concerns" },
+  unknown: { variant: "outline", text: "Unknown" },
+};
 
 export default function AssetOverview({ asset, visibleElevations, onElevationVisibilityChange, visibleSensorData, onSensorDataVisibilityChange }: AssetOverviewProps) {
   const router = useRouter();
@@ -44,6 +45,8 @@ export default function AssetOverview({ asset, visibleElevations, onElevationVis
       { key: 'barometer', label: 'Barometer', icon: Wind },
   ];
 
+  const statusInfo = statusVariantMap[asset.status] || statusVariantMap.unknown;
+
   return (
     <Card className="col-span-1 lg:col-span-2 shadow-sm">
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
@@ -51,8 +54,8 @@ export default function AssetOverview({ asset, visibleElevations, onElevationVis
           <CardTitle className="font-headline">{asset.name}</CardTitle>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={statusVariantMap[asset.status]} className="capitalize">
-            {asset.status}
+          <Badge variant={statusInfo.variant}>
+            {statusInfo.text}
           </Badge>
           <EditAssetDialog asset={asset}>
              <Button variant="ghost" size="icon" title="Edit Asset">

@@ -51,7 +51,7 @@ const overallAnalysisSchema = z.object({
   furtherInvestigation: z.enum(['not_needed', 'recommended', 'required']).optional(),
   summary: z.string().optional(),
   analystInitials: z.string().min(1, "Analyst initials are required."),
-  status: z.enum(["ok", "warning", "error", "unknown"]),
+  status: z.enum(["operating_as_expected", "minor_concerns", "critical_concerns", "unknown"]),
 });
 
 type OverallAnalysisFormValues = z.infer<typeof overallAnalysisSchema>;
@@ -91,7 +91,7 @@ function ReadOnlyAnalysisView({ data, onEdit }: { data: OverallAnalysisData, onE
                     <div className="space-y-4">
                         <div>
                             <h4 className="font-medium text-sm text-muted-foreground">Asset Status</h4>
-                            <p className="text-base mt-1 capitalize">{data.status || 'unknown'}</p>
+                            <p className="text-base mt-1 capitalize">{formatValue(data.status)}</p>
                         </div>
                         <div>
                             <h4 className="font-medium text-sm text-muted-foreground">Analyst Sign-off</h4>
@@ -334,9 +334,9 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
                                                 </FormControl>
                                                 <SelectContent>
                                                     <SelectItem value="unknown">Unknown</SelectItem>
-                                                    <SelectItem value="ok">OK</SelectItem>
-                                                    <SelectItem value="warning">Warning</SelectItem>
-                                                    <SelectItem value="error">Error</SelectItem>
+                                                    <SelectItem value="operating_as_expected">Operating As Expected</SelectItem>
+                                                    <SelectItem value="minor_concerns">Minor Concerns</SelectItem>
+                                                    <SelectItem value="critical_concerns">Critical Concerns</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                             <FormDescription>This will update the asset's overall status badge.</FormDescription>

@@ -18,7 +18,7 @@ import {
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import Logo from "@/components/icons/logo";
-import type { Asset } from "@/lib/placeholder-data";
+import type { Asset, AssetStatus } from "@/lib/placeholder-data";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
@@ -28,10 +28,10 @@ type SidebarNavProps = {
   onSelectAsset: (id: string) => void;
 };
 
-const statusColorMap: Record<Asset['status'], string> = {
-  ok: "bg-green-500",
-  warning: "bg-yellow-500",
-  error: "bg-red-500",
+const statusColorMap: Record<AssetStatus, string> = {
+  operating_as_expected: "bg-green-500",
+  minor_concerns: "bg-yellow-500",
+  critical_concerns: "bg-red-500",
   unknown: "bg-gray-400",
 };
 
@@ -90,7 +90,7 @@ export default function SidebarNav({
                   className={`ml-auto h-2 w-2 p-0 ${
                     statusColorMap[asset.status] || statusColorMap['unknown']
                   }`}
-                  title={`Status: ${asset.status}`}
+                  title={`Status: ${asset.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`}
                 />
               </SidebarMenuButton>
             </SidebarMenuItem>

@@ -1,4 +1,5 @@
 
+export type AssetStatus = "operating_as_expected" | "minor_concerns" | "critical_concerns" | "unknown";
 
 export type Asset = {
   id: string;
@@ -8,7 +9,7 @@ export type Asset = {
   longitude: number;
   permanentPoolElevation: number; // in meters
   designElevations: { name: string; elevation: number }[];
-  status: "ok" | "warning" | "error" | "unknown";
+  status: AssetStatus;
   imageId: string;
 };
 
@@ -91,7 +92,7 @@ export type OverallAnalysisData = {
     summary?: string;
     analystInitials?: string;
     lastUpdated?: string;
-    status?: "ok" | "warning" | "error" | "unknown";
+    status?: AssetStatus;
 }
 
 export type AnalysisPeriod = {

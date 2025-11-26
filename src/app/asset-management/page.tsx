@@ -67,8 +67,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Asset } from "@/lib/placeholder-data";
+import { Asset, AssetStatus } from "@/lib/placeholder-data";
 import { DialogClose, DialogFooter } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 
 const designElevationSchema = z.object({
@@ -96,11 +97,13 @@ type AssetPayload = Omit<AssetFormValues, 'designElevations'> & {
 };
 
 
-const statusVariantMap = {
-  ok: "default",
-  warning: "secondary",
-  error: "destructive",
-} as const;
+const statusVariantMap: Record<AssetStatus, { variant: "default" | "secondary" | "destructive" | "outline", text: string }> = {
+  operating_as_expected: { variant: "default", text: "Operating As Expected" },
+  minor_concerns: { variant: "secondary", text: "Minor Concerns" },
+  critical_concerns: { variant: "destructive", text: "Critical Concerns" },
+  unknown: { variant: "outline", text: "Unknown" },
+};
+
 
 const elevationOptions = [
     "2 year",
@@ -562,35 +565,38 @@ function AssetListTable() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {assets.map((asset) => (
-              <TableRow key={asset.id}>
-                <TableCell className="font-medium">{asset.name}</TableCell>
-                <TableCell>{asset.location}</TableCell>
-                <TableCell>
-                   <Badge variant={statusVariantMap[asset.status]} className="capitalize">
-                    {asset.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <EditAssetDialog asset={asset}>
-                    <Button variant="ghost" size="icon" title="Edit Asset">
-                      <FilePenLine className="h-4 w-4" />
-                      <span className="sr-only">Edit</span>
-                    </Button>
-                  </EditAssetDialog>
-                  <DeleteAssetDialog asset={asset} onDeleted={() => {
-                     startTransition(() => {
-                        router.refresh(); 
-                     })
-                  }}>
-                    <Button variant="ghost" size="icon" title="Delete Asset">
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                      <span className="sr-only">Delete</span>
-                    </Button>
-                  </DeleteAssetDialog>
-                </TableCell>
-              </TableRow>
-            ))}
+            {assets.map((asset) => {
+              const statusInfo = statusVariantMap[asset.status] || statusVariantMap.unknown;
+              return (
+                <TableRow key={asset.id}>
+                  <TableCell className="font-medium">{asset.name}</TableCell>
+                  <TableCell>{asset.location}</TableCell>
+                  <TableCell>
+                    <Badge variant={statusInfo.variant}>
+                      {statusInfo.text}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <EditAssetDialog asset={asset}>
+                      <Button variant="ghost" size="icon" title="Edit Asset">
+                        <FilePenLine className="h-4 w-4" />
+                        <span className="sr-only">Edit</span>
+                      </Button>
+                    </EditAssetDialog>
+                    <DeleteAssetDialog asset={asset} onDeleted={() => {
+                      startTransition(() => {
+                          router.refresh(); 
+                      })
+                    }}>
+                      <Button variant="ghost" size="icon" title="Delete Asset">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <span className="sr-only">Delete</span>
+                      </Button>
+                    </DeleteAssetDialog>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </CardContent>

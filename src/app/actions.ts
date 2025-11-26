@@ -93,7 +93,7 @@ const saveOverallAnalysisSchema = z.object({
     furtherInvestigation: z.enum(['not_needed', 'recommended', 'required']).optional(),
     summary: z.string().optional(),
     analystInitials: z.string().min(1, "Analyst initials are required."),
-    status: z.enum(["ok", "warning", "error", "unknown"]),
+    status: z.enum(["operating_as_expected", "minor_concerns", "critical_concerns", "unknown"]),
 });
 
 // Zod schema definitions
