@@ -671,26 +671,24 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
     const assetDeployments = deployments.filter(d => d.assetId === assetId);
 
     const dataMap = new Map<number, ChartablePoint>();
-    let allRawData: {timestamp: number, data: ChartablePoint, deployment: Deployment}[] = [];
+    let allRawDataSources: any[] = [];
     let minDataDate: Date | null = null;
     let maxDataDate: Date | null = null;
 
-    // First pass: Collect all data and determine the date range
+    // First pass: Collect all data sources and determine the date range
     for (const deployment of assetDeployments) {
       if (deployment.files) {
         for (const file of deployment.files) {
           const filePath = path.join(processedDir, `${file.id}.json`);
           try {
-            const fileData: ChartablePoint[] = await readJsonFile<any[]>(filePath);
-            
+            const fileData = await readJsonFile<any[]>(filePath);
+            allRawDataSources.push({ type: 'file', data: fileData, deployment });
+
             fileData.forEach(d => {
                 const timestamp = new Date(d.timestamp).getTime();
                 if (isNaN(timestamp)) return;
-
                 if (!minDataDate || timestamp < minDataDate.getTime()) minDataDate = new Date(timestamp);
                 if (!maxDataDate || timestamp > maxDataDate.getTime()) maxDataDate = new Date(timestamp);
-
-                allRawData.push({timestamp, data: d, deployment});
             });
           } catch (e) {
              if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
@@ -700,43 +698,48 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
         }
       }
     }
+    allRawDataSources.push({ type: 'surveys', data: surveyPoints });
+    surveyPoints.forEach(sp => {
+        if (!minDataDate || sp.timestamp < minDataDate.getTime()) minDataDate = new Date(sp.timestamp);
+        if (!maxDataDate || sp.timestamp > maxDataDate.getTime()) maxDataDate = new Date(sp.timestamp);
+    });
+
+    // Create a master map of all unique timestamps from all sources
+    allRawDataSources.forEach(source => {
+        source.data.forEach((item: any) => {
+            const timestamp = new Date(item.timestamp).getTime();
+            if(!isNaN(timestamp) && !dataMap.has(timestamp)) {
+                dataMap.set(timestamp, { timestamp });
+            }
+        });
+    });
+
+    // Second pass: Populate the map with data from all sources
+    allRawDataSources.forEach(source => {
+        source.data.forEach((item: any) => {
+            const timestamp = new Date(item.timestamp).getTime();
+            if (isNaN(timestamp) || !dataMap.has(timestamp)) return;
+            
+            const point = dataMap.get(timestamp)!;
+
+            if (source.type === 'file' && source.deployment) {
+                const deployment = source.deployment;
+                if (item.waterLevel !== undefined) {
+                    const waterLevel = parseFloat(item.waterLevel.toString()) + parseFloat(deployment.sensorElevation.toString());
+                    const rawWaterLevel = parseFloat(item.waterLevel.toString());
+                    if(!isNaN(waterLevel)) point.waterLevel = waterLevel;
+                    if(!isNaN(rawWaterLevel)) point.rawWaterLevel = rawWaterLevel;
+                }
+                if (item.sensorPressure !== undefined && !isNaN(parseFloat(item.sensorPressure.toString()))) point.sensorPressure = item.sensorPressure;
+                if (item.temperature !== undefined && !isNaN(parseFloat(item.temperature.toString()))) point.temperature = item.temperature;
+                if (item.barometer !== undefined && !isNaN(parseFloat(item.barometer.toString()))) point.barometer = item.barometer;
+                if (item.precipitation !== undefined && !isNaN(parseFloat(item.precipitation.toString()))) point.precipitation = item.precipitation;
+            } else if (source.type === 'surveys') {
+                point.elevation = item.elevation;
+            }
+        });
+    });
     
-    // Create a master map of all timestamps from all sources
-    allRawData.forEach(item => {
-        if (!dataMap.has(item.timestamp)) dataMap.set(item.timestamp, { timestamp: item.timestamp });
-    });
-    surveyPoints.forEach(sp => {
-        if (!dataMap.has(sp.timestamp)) dataMap.set(sp.timestamp, { timestamp: sp.timestamp });
-    });
-
-    // Second pass: Populate the map with data
-    allRawData.forEach(({timestamp, data, deployment}) => {
-        const point = dataMap.get(timestamp)!;
-        if (data.waterLevel !== undefined) {
-            const waterLevel = parseFloat(data.waterLevel.toString()) + parseFloat(deployment.sensorElevation.toString());
-            const rawWaterLevel = parseFloat(data.waterLevel.toString());
-            if(!isNaN(waterLevel)) point.waterLevel = waterLevel;
-            if(!isNaN(rawWaterLevel)) point.rawWaterLevel = rawWaterLevel;
-        }
-        if (data.sensorPressure !== undefined && !isNaN(parseFloat(data.sensorPressure.toString()))) point.sensorPressure = data.sensorPressure;
-        if (data.temperature !== undefined && !isNaN(parseFloat(data.temperature.toString()))) point.temperature = data.temperature;
-        if (data.barometer !== undefined && !isNaN(parseFloat(data.barometer.toString()))) point.barometer = data.barometer;
-        if (data.precipitation !== undefined && !isNaN(parseFloat(data.precipitation.toString()))) point.precipitation = data.precipitation;
-    });
-
-    // Third pass: merge survey points, aligning to the NEAREST timestamp in the map
-    surveyPoints.forEach(sp => {
-        let nearestTimestamp = sp.timestamp;
-        const mapTimestamps = Array.from(dataMap.keys());
-        if (mapTimestamps.length > 0) {
-            nearestTimestamp = mapTimestamps.reduce((prev, curr) => {
-               return (Math.abs(curr - sp.timestamp) < Math.abs(prev - sp.timestamp) ? curr : prev);
-            });
-        }
-        const point = dataMap.get(nearestTimestamp)!;
-        point.elevation = sp.elevation;
-    });
-
     const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
     
     let processedEvents: AnalysisPeriod[] = [];
