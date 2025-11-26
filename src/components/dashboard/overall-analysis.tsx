@@ -57,6 +57,12 @@ const overallAnalysisSchema = z.object({
 
 type OverallAnalysisFormValues = z.infer<typeof overallAnalysisSchema>;
 
+const statusMapToForm: Record<string, OverallAnalysisFormValues['status']> = {
+    "operating_as_expected": "Operating As Expected",
+    "minor_concerns": "Minor Concerns",
+    "critical_concerns": "Critical Concerns",
+};
+
 function ReadOnlyAnalysisView({ data, onEdit }: { data: OverallAnalysisData, onEdit: () => void }) {
     const formatValue = (value?: string | null) => {
         if (!value) return "N/A";
@@ -118,12 +124,6 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
   const [lastUpdated, setLastUpdated] = React.useState<string | null>(null);
   const [analysisData, setAnalysisData] = React.useState<OverallAnalysisData | null>(null);
   
-  const statusMapToForm: Record<string, OverallAnalysisFormValues['status']> = {
-      "operating_as_expected": "Operating As Expected",
-      "minor_concerns": "Minor Concerns",
-      "critical_concerns": "Critical Concerns",
-  };
-  
   const form = useForm<OverallAnalysisFormValues>({
     resolver: zodResolver(overallAnalysisSchema),
     defaultValues: {
@@ -172,7 +172,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
         setLastUpdated(null);
     }
     setIsLoading(false);
-  }, [asset.id, asset.status, getOverallAnalysis, form, statusMapToForm]);
+  }, [asset.id, asset.status, getOverallAnalysis, form]);
 
 
   React.useEffect(() => {
@@ -403,4 +403,3 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
     </Card>
   );
 }
-
