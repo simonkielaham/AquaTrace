@@ -1,4 +1,5 @@
 
+
 export type AssetStatus = "operating_as_expected" | "minor_concerns" | "critical_concerns" | "unknown";
 
 export type Asset = {
@@ -55,6 +56,13 @@ export type SurveyPoint = {
   tapeDownMeasurement?: number;
   stillwellTopElevation?: number;
   deploymentId?: string;
+};
+
+export type OperationalAction = {
+  id: string;
+  assetId: string;
+  timestamp: number;
+  action: string;
 };
 
 export type Deployment = {
@@ -123,6 +131,7 @@ export type ChartablePoint = {
     waterLevel?: number;
     rawWaterLevel?: number;
     elevation?: number;
+    operationalAction?: string;
     precipitation?: number;
     dailyPrecipitation?: number;
     sensorPressure?: number;

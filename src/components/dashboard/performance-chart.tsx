@@ -10,7 +10,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { BarChart, AreaChart as AreaChartIcon, RefreshCw, TableIcon, TrendingDown, TrendingUp, LineChart, Thermometer, Wind, Gauge } from "lucide-react";
+import { BarChart, AreaChart as AreaChartIcon, RefreshCw, TableIcon, TrendingDown, TrendingUp, LineChart, Thermometer, Wind, Gauge, Settings } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -52,7 +52,7 @@ type PerformanceChartProps = {
 const CustomLegend = ({ payload, chartConfig }: { payload?: any[], chartConfig: any }) => {
   if (!payload) return null;
 
-  const mainPayload = payload.filter(p => ["Water Elevation", "Precipitation", "Survey Points", "Daily Precipitation"].includes(p.value));
+  const mainPayload = payload.filter(p => ["Water Elevation", "Precipitation", "Survey Points", "Daily Precipitation", "Operational Action"].includes(p.value));
   const sensorPayload = payload.filter(p => ["Temperature", "Sensor Pressure", "Barometer"].includes(p.value));
   const designPayload = payload.filter(p => !mainPayload.map(i=>i.value).includes(p.value) && !sensorPayload.map(i=>i.value).includes(p.value) );
   
@@ -96,6 +96,7 @@ const CustomTooltipContent = ({ active, payload, label, asset, config }: any) =>
       { key: "rawWaterLevel", label: "Raw Water Level", value: data.rawWaterLevel, unit: "m" },
       { key: "precipitation", label: "Precipitation", value: data.precipitation, unit: "mm" },
       { key: "elevation", label: "Survey Elevation", value: data.elevation, unit: "m" },
+      { key: "operationalAction", label: "Action", value: data.operationalAction, unit: "" },
       { key: "temperature", label: "Temperature", value: data.temperature, unit: "°C" },
       { key: "sensorPressure", label: "Sensor Pressure", value: data.sensorPressure, unit: "kPa" },
       { key: "barometer", label: "Barometer", value: data.barometer, unit: "kPa" },
@@ -117,8 +118,8 @@ const CustomTooltipContent = ({ active, payload, label, asset, config }: any) =>
                     <span className="text-muted-foreground">{item.label}</span>
                   </div>
                   <span className="font-mono font-medium tabular-nums text-foreground">
-                    {item.showSign && item.value > 0 ? '+' : ''}
-                    {item.value.toFixed(2)}{item.unit}
+                    {item.showSign && typeof item.value === 'number' && item.value > 0 ? '+' : ''}
+                    {typeof item.value === 'number' ? item.value.toFixed(2) : item.value}{item.unit}
                   </span>
                 </div>
               );
@@ -168,6 +169,11 @@ export default function PerformanceChart({
       elevation: {
         label: "Survey Elevation",
         color: "hsl(var(--accent))",
+      },
+       operationalAction: {
+        label: "Operational Action",
+        color: "hsl(var(--chart-5))",
+        icon: Settings,
       },
        "Permanent Pool": {
         label: "Permanent Pool",
@@ -295,6 +301,7 @@ export default function PerformanceChart({
       { value: 'Precipitation', type: 'rect', id: 'precipitation', dataKey: 'precipitation', color: chartConfig.precipitation.color },
       { value: 'Daily Precipitation', type: 'line', id: 'dailyPrecipitation', dataKey: 'dailyPrecipitation', color: chartConfig.dailyPrecipitation.color },
       { value: 'Survey Points', type: 'scatter', id: 'elevation', dataKey: 'elevation', color: chartConfig.elevation.color },
+      { value: 'Operational Action', type: 'scatter', id: 'operationalAction', dataKey: 'operationalAction', color: chartConfig.operationalAction.color },
     ];
   
     if (visibleSensorData.temperature) payload.push({ value: 'Temperature', type: 'line', id: 'temperature', dataKey: 'temperature', color: chartConfig.temperature.color });
@@ -467,6 +474,14 @@ export default function PerformanceChart({
               fill="var(--color-elevation)" 
               name="Survey Points"
               isAnimationActive={false}
+            />
+            <Scatter 
+              yAxisId="left"
+              dataKey="operationalAction" 
+              fill="var(--color-operationalAction)" 
+              name="Operational Action"
+              isAnimationActive={false}
+              shape="star"
             />
 
             {/* Sensor Data Lines */}

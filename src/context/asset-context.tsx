@@ -8,6 +8,7 @@ import {
   DataPoint,
   StagedFile,
   SurveyPoint,
+  OperationalAction,
   SavedAnalysisData,
   OverallAnalysisData,
   WeatherSummary,
@@ -30,6 +31,9 @@ import {
   addSurveyPoint as addSurveyPointAction,
   deleteSurveyPoint as deleteSurveyPointAction,
   getSurveyPoints as getSurveyPointsAction,
+  addOperationalAction as addOperationalActionAction,
+  deleteOperationalAction as deleteOperationalActionAction,
+  getOperationalActions as getOperationalActionsAction,
   unassignDatafile as unassignDatafileAction,
   deleteDatafile as deleteDatafileAction,
   saveAnalysis as saveAnalysisAction,
@@ -69,6 +73,9 @@ interface AssetContextType {
   addSurveyPoint: (assetId: string, data: any) => Promise<any>;
   deleteSurveyPoint: (pointId: string) => Promise<any>;
   getSurveyPoints: (assetId: string) => Promise<SurveyPoint[]>;
+  addOperationalAction: (assetId: string, data: any) => Promise<any>;
+  deleteOperationalAction: (actionId: string) => Promise<any>;
+  getOperationalActions: (assetId: string) => Promise<OperationalAction[]>;
   dataVersion: number;
   assetData: { [assetId: string]: { data: ChartablePoint[], weatherSummary: WeatherSummary | null, loading?: boolean } };
   fetchAssetData: (assetId: string) => Promise<void>;
@@ -487,6 +494,37 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const getSurveyPoints = useCallback(async (assetId: string) => {
     return await getSurveyPointsAction(assetId);
   }, []);
+  
+  const addOperationalAction = useCallback(async (assetId: string, data: any) => {
+    try {
+      const result = await addOperationalActionAction(assetId, data);
+      if (result && !result.errors) {
+        incrementDataVersion();
+      }
+      return result;
+    } catch(error) {
+        const message = await getErrorMessage(error);
+        return { message: `Error: ${message}` };
+    }
+  }, [incrementDataVersion]);
+
+  const deleteOperationalAction = useCallback(async (actionId: string) => {
+     try {
+      const result = await deleteOperationalActionAction(actionId);
+      if (result && !result.message.startsWith('Error:')) {
+        incrementDataVersion();
+      }
+      return result;
+    } catch(error) {
+        const message = await getErrorMessage(error);
+        return { message: `Error: ${message}` };
+    }
+  }, [incrementDataVersion]);
+
+  const getOperationalActions = useCallback(async (assetId: string) => {
+    return await getOperationalActionsAction(assetId);
+  }, []);
+
 
   const value = {
     assets,
@@ -516,6 +554,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     addSurveyPoint,
     deleteSurveyPoint,
     getSurveyPoints,
+    addOperationalAction,
+    deleteOperationalAction,
+    getOperationalActions,
     dataVersion,
     assetData,
     fetchAssetData,

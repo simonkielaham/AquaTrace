@@ -1,11 +1,12 @@
 
+
 'use server';
 
 import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData, OperationalAction } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 import { getWeatherData } from '@/../sourceexamples/weather-service';
 import { format, formatDistance } from 'date-fns';
@@ -18,6 +19,7 @@ const assetsFilePath = path.join(dataDir, 'assets.json');
 const deploymentsFilePath = path.join(dataDir, 'deployments.json');
 const activityLogFilePath = path.join(dataDir, 'activity-log.json');
 const surveyPointsFilePath = path.join(dataDir, 'survey-points.json');
+const operationalActionsFilePath = path.join(dataDir, 'operational-actions.json');
 const analysisResultsFilePath = path.join(dataDir, 'analysis-results.json');
 const overallAnalysisFilePath = path.join(dataDir, 'overall-analysis.json');
 const eventsFilePath = path.join(dataDir, 'events.json');
@@ -77,6 +79,11 @@ const surveyPointSchema = z.object({
   deploymentId: z.string().optional(),
 });
 
+const operationalActionSchema = z.object({
+    timestamp: z.string().datetime(),
+    action: z.string().min(3, "Action description is required."),
+});
+
 const saveAnalysisSchema = z.object({
   eventId: z.string(),
   notes: z.string().optional(),
@@ -129,7 +136,7 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
     return JSON.parse(fileContent);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      if (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json') || filePath.endsWith('results.json') || filePath.endsWith('analysis.json')) return (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json')) ? [] as T : {} as T;
+      if (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json') || filePath.endsWith('results.json') || filePath.endsWith('analysis.json') || filePath.endsWith('actions.json')) return (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json') || filePath.endsWith('actions.json')) ? [] as T : {} as T;
       return {} as T;
     }
     console.error(`Error reading ${filePath}:`, error);
@@ -247,6 +254,87 @@ export async function deleteSurveyPoint(pointId: string) {
         const message = error instanceof Error ? error.message : "An unknown error occurred.";
         const response = { message: `Error: ${message}` };
         await writeLog({ action: 'deleteSurveyPoint', status: 'failure', payload: logPayload, response });
+        return response;
+    }
+}
+
+
+// == Operational Action Actions ==
+
+export async function addOperationalAction(assetId: string, data: any) {
+  const logPayload = { assetId, data };
+  const validatedFields = operationalActionSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+    await writeLog({ action: 'addOperationalAction', status: 'failure', assetId, payload: logPayload, response });
+    return response;
+  }
+  const { timestamp, action } = validatedFields.data;
+
+  try {
+    const actions = await readJsonFile<OperationalAction[]>(operationalActionsFilePath);
+    
+    const finalTimestamp = new Date(timestamp).getTime();
+    
+    const newAction: OperationalAction = {
+      id: `op-${Date.now()}`,
+      assetId,
+      timestamp: finalTimestamp,
+      action
+    };
+    
+    actions.push(newAction);
+    await writeJsonFile(operationalActionsFilePath, actions);
+
+    revalidatePath('/');
+    
+    const response = { message: 'Operational action logged successfully', newAction };
+    await writeLog({ action: 'addOperationalAction', status: 'success', assetId, payload: logPayload, response });
+    return response;
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'addOperationalAction', status: 'failure', assetId, payload: logPayload, response });
+    return response;
+  }
+}
+
+export async function getOperationalActions(assetId: string): Promise<OperationalAction[]> {
+  try {
+    const allActions = await readJsonFile<OperationalAction[]>(operationalActionsFilePath);
+    return allActions.filter(p => p.assetId === assetId).sort((a,b) => a.timestamp - b.timestamp);
+  } catch (error) {
+    console.error(`Failed to get operational actions for asset ${assetId}:`, error);
+    return [];
+  }
+}
+
+export async function deleteOperationalAction(actionId: string) {
+    const logPayload = { actionId };
+    try {
+        let actions = await readJsonFile<OperationalAction[]>(operationalActionsFilePath);
+        const actionToDelete = actions.find(a => a.id === actionId);
+        
+        if (!actionToDelete) {
+             const response = { message: `Error: Action with ID ${actionId} not found.` };
+             await writeLog({ action: 'deleteOperationalAction', status: 'failure', payload: logPayload, response });
+             return response;
+        }
+
+        const updatedActions = actions.filter(p => p.id !== actionId);
+        await writeJsonFile(operationalActionsFilePath, updatedActions);
+
+        revalidatePath('/');
+
+        const response = { message: 'Operational action deleted successfully.' };
+        await writeLog({ action: 'deleteOperationalAction', status: 'success', assetId: actionToDelete.assetId, payload: logPayload, response });
+        return response;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "An unknown error occurred.";
+        const response = { message: `Error: ${message}` };
+        await writeLog({ action: 'deleteOperationalAction', status: 'failure', payload: logPayload, response });
         return response;
     }
 }
@@ -665,6 +753,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
 
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
     const surveyPoints = await getSurveyPoints(assetId);
+    const operationalActions = await getOperationalActions(assetId);
     const savedAnalysis = await readJsonFile<{[key: string]: SavedAnalysisData}>(analysisResultsFilePath);
     const allSavedEvents = await readJsonFile<AnalysisPeriod[]>(eventsFilePath);
 
@@ -703,6 +792,13 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
         if (!minDataDate || sp.timestamp < minDataDate.getTime()) minDataDate = new Date(sp.timestamp);
         if (!maxDataDate || sp.timestamp > maxDataDate.getTime()) maxDataDate = new Date(sp.timestamp);
     });
+    
+    allRawDataSources.push({ type: 'actions', data: operationalActions });
+    operationalActions.forEach(oa => {
+        if (!minDataDate || oa.timestamp < minDataDate.getTime()) minDataDate = new Date(oa.timestamp);
+        if (!maxDataDate || oa.timestamp > maxDataDate.getTime()) maxDataDate = new Date(oa.timestamp);
+    });
+
 
     // Create a master map of all unique timestamps from all sources
     allRawDataSources.forEach(source => {
@@ -736,6 +832,16 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                 if (item.precipitation !== undefined && !isNaN(parseFloat(item.precipitation.toString()))) point.precipitation = item.precipitation;
             } else if (source.type === 'surveys') {
                 point.elevation = item.elevation;
+            } else if (source.type === 'actions') {
+                point.operationalAction = item.action;
+                 if (point.waterLevel === undefined) {
+                    // Try to find a nearby water level to plot against
+                    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+                    const nearestSensorPoint = sortedData.filter(p => p.waterLevel !== undefined).reduce((prev, curr) => {
+                       return (Math.abs(curr.timestamp - timestamp) < Math.abs(prev.timestamp - timestamp) ? curr : prev);
+                    }, sortedData[0]);
+                    point.waterLevel = nearestSensorPoint?.waterLevel;
+                }
             }
         });
     });
@@ -1307,5 +1413,3 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-
-    

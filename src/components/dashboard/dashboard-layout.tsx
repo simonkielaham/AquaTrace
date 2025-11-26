@@ -12,6 +12,7 @@ import AnalysisResults from "@/components/dashboard/analysis-results";
 import SurveyPointManager from "@/components/dashboard/survey-point-manager";
 import TapeDownManager from "@/components/dashboard/tape-down-manager";
 import OverallAnalysis from "@/components/dashboard/overall-analysis";
+import OperationalActionManager from "@/components/dashboard/operational-action-manager";
 import {
   ChartablePoint,
   WeatherSummary,
@@ -206,6 +207,7 @@ export default function DashboardLayout() {
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <SurveyPointManager asset={selectedAsset} dataVersion={dataVersion} />
               <TapeDownManager asset={selectedAsset} deployments={assetDeployments} dataVersion={dataVersion} />
+              <OperationalActionManager asset={selectedAsset} dataVersion={dataVersion} />
             </div>
           </main>
         </div>
