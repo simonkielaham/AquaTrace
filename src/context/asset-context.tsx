@@ -418,7 +418,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
           return null;
       }
   }, []);
-
+  
   const saveOverallAnalysis = useCallback(async (data: any) => {
     try {
       const result = await saveOverallAnalysisAction(data);
@@ -426,19 +426,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
         const newStatus = result.savedData.status;
         const assetId = result.savedData.assetId;
         
-        // Update master asset list status
-        const assets = await createAssetAction({}).then(() => initialAssets); // Refetch or use existing
-        const updatedAssets = assets.map(a => a.id === assetId ? { ...a, status: newStatus } : a);
-        setAssets(updatedAssets);
-
-        incrementDataVersion();
+        setAssets(prev => prev.map(a => a.id === assetId ? { ...a, status: newStatus } : a));
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, [incrementDataVersion]);
+  }, []);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {

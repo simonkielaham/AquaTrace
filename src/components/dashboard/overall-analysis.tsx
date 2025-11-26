@@ -128,7 +128,7 @@ interface OverallAnalysisProps {
 
 export default function OverallAnalysis({ asset, analysisData, loading }: OverallAnalysisProps) {
   const { toast } = useToast();
-  const { saveOverallAnalysis } = useAssets();
+  const { saveOverallAnalysis, incrementDataVersion } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   
@@ -139,15 +139,18 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   });
 
   React.useEffect(() => {
-    if (analysisData) {
-      const formStatus = statusMapToForm[analysisData.status as string] || "Operating As Expected";
+    // This effect ensures the form is populated with the correct data
+    // when `analysisData` changes or when editing starts.
+    const data = analysisData;
+    if (data) {
+      const formStatus = statusMapToForm[data.status as string] || "Operating As Expected";
         form.reset({
-            permanentPoolPerformance: analysisData.permanentPoolPerformance,
-            estimatedControlElevation: analysisData.estimatedControlElevation,
-            rainResponse: analysisData.rainResponse,
-            furtherInvestigation: analysisData.furtherInvestigation,
-            summary: analysisData.summary || "",
-            analystInitials: analysisData.analystInitials || "",
+            permanentPoolPerformance: data.permanentPoolPerformance,
+            estimatedControlElevation: data.estimatedControlElevation,
+            rainResponse: data.rainResponse,
+            furtherInvestigation: data.furtherInvestigation,
+            summary: data.summary || "",
+            analystInitials: data.analystInitials || "",
             status: formStatus,
         });
     } else {
@@ -162,7 +165,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
             status: formStatus,
         });
     }
-  }, [analysisData, asset.status, form]);
+  }, [analysisData, asset.status, form, isEditing]);
 
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
@@ -179,25 +182,191 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
+      incrementDataVersion(); // This triggers a re-fetch in the context
       setIsEditing(false);
     }
     setIsSubmitting(false);
   };
   
   const handleCancel = () => {
-    if (analysisData) {
-        const formStatus = statusMapToForm[analysisData.status as string] || "Operating As Expected";
-        form.reset({
-            permanentPoolPerformance: analysisData.permanentPoolPerformance,
-            estimatedControlElevation: analysisData.estimatedControlElevation,
-            rainResponse: analysisData.rainResponse,
-            furtherInvestigation: analysisData.furtherInvestigation,
-            summary: analysisData.summary || "",
-            analystInitials: analysisData.analystInitials || "",
-            status: formStatus,
-        });
-    }
     setIsEditing(false);
+  }
+  
+  const renderContent = () => {
+    if (loading) {
+      return <CardContent><div className="text-center text-muted-foreground py-8">Loading analysis...</div></CardContent>;
+    }
+    if (isEditing) {
+      return (
+        <CardContent>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <FormField
+                            control={form.control}
+                            name="permanentPoolPerformance"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Permanent Pool Performance</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select assessment..." /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="sits_at_pool">Sits at Permanent Pool</SelectItem>
+                                        <SelectItem value="sits_above_pool">Sits Above Permanent Pool</SelectItem>
+                                        <SelectItem value="sits_below_pool">Sits Below Permanent Pool</SelectItem>
+                                        <SelectItem value="fluctuates">Fluctuates Around Pool Level</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="estimatedControlElevation"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Estimated Control Elevation (m)</FormLabel>
+                                <FormControl><Input type="number" step="0.01" placeholder="e.g., 125.42" {...field} value={field.value ?? ''} /></FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="rainResponse"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Response to Rain Events</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select response..." /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="as_expected">As Expected</SelectItem>
+                                        <SelectItem value="slow_response">Slower Than Expected</SelectItem>
+                                        <SelectItem value="fast_response">Faster Than Expected</SelectItem>
+                                        <SelectItem value="no_response">No Noticeable Response</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="furtherInvestigation"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Further Investigation</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select recommendation..." /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="not_needed">Not Needed</SelectItem>
+                                        <SelectItem value="recommended">Recommended</SelectItem>
+                                        <SelectItem value="required">Required</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="md:col-span-2">
+                              <FormField
+                                control={form.control}
+                                name="summary"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Analysis Summary</FormLabel>
+                                    <FormControl>
+                                        <Textarea placeholder="Provide a summary of the asset's overall performance, observations, and recommendations..." className="min-h-[120px]" {...field} value={field.value ?? ''} />
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+                        <div className="space-y-6">
+                            <FormField
+                                control={form.control}
+                                name="status"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Asset Status</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <FormControl>
+                                        <SelectTrigger><SelectValue placeholder="Set asset status..." /></SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="Operating As Expected">Operating As Expected</SelectItem>
+                                            <SelectItem value="Minor Concerns">Minor Concerns</SelectItem>
+                                            <SelectItem value="Critical Concerns">Critical Concerns</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormDescription>This will update the asset's overall status badge.</FormDescription>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="analystInitials"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Analyst Sign-off</FormLabel>
+                                    <div className="relative">
+                                        <Edit className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <FormControl>
+                                            <Input
+                                                placeholder="Enter your initials..."
+                                                className="pl-10"
+                                                maxLength={5}
+                                                {...field}
+                                                value={field.value ?? ''}
+                                                onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                                            />
+                                        </FormControl>
+                                    </div>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <div className="flex gap-2">
+                                <Button type="button" variant="secondary" className="w-full" onClick={handleCancel}>
+                                    <X className="mr-2 h-4 w-4" /> Cancel
+                                </Button>
+                                <Button type="submit" className="w-full" disabled={isSubmitting || !form.formState.isValid}>
+                                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Save Analysis
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </Form>
+        </CardContent>
+      )
+    }
+    if (analysisData) {
+      return <ReadOnlyAnalysisView data={analysisData} onEdit={() => setIsEditing(true)} />;
+    }
+    return (
+        <CardContent>
+            <div className="text-center py-8 text-muted-foreground">
+                <p>No overall analysis has been saved for this asset yet.</p>
+                <Button className="mt-4" onClick={() => setIsEditing(true)}>
+                    <Pencil className="mr-2 h-4 w-4" /> Start Analysis
+                </Button>
+            </div>
+        </CardContent>
+    );
   }
 
   return (
@@ -218,175 +387,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
             <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
           </AccordionTrigger>
           <AccordionContent>
-            {loading ? (
-                <div className="text-center text-muted-foreground py-8">Loading analysis...</div>
-            ) : isEditing ? (
-                 <CardContent>
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <FormField
-                                    control={form.control}
-                                    name="permanentPoolPerformance"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>Permanent Pool Performance</FormLabel>
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <FormControl>
-                                            <SelectTrigger><SelectValue placeholder="Select assessment..." /></SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="sits_at_pool">Sits at Permanent Pool</SelectItem>
-                                                <SelectItem value="sits_above_pool">Sits Above Permanent Pool</SelectItem>
-                                                <SelectItem value="sits_below_pool">Sits Below Permanent Pool</SelectItem>
-                                                <SelectItem value="fluctuates">Fluctuates Around Pool Level</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="estimatedControlElevation"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>Estimated Control Elevation (m)</FormLabel>
-                                        <FormControl><Input type="number" step="0.01" placeholder="e.g., 125.42" {...field} value={field.value ?? ''} /></FormControl>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="rainResponse"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>Response to Rain Events</FormLabel>
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <FormControl>
-                                            <SelectTrigger><SelectValue placeholder="Select response..." /></SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="as_expected">As Expected</SelectItem>
-                                                <SelectItem value="slow_response">Slower Than Expected</SelectItem>
-                                                <SelectItem value="fast_response">Faster Than Expected</SelectItem>
-                                                <SelectItem value="no_response">No Noticeable Response</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="furtherInvestigation"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>Further Investigation</FormLabel>
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <FormControl>
-                                            <SelectTrigger><SelectValue placeholder="Select recommendation..." /></SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="not_needed">Not Needed</SelectItem>
-                                                <SelectItem value="recommended">Recommended</SelectItem>
-                                                <SelectItem value="required">Required</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="md:col-span-2">
-                                     <FormField
-                                        control={form.control}
-                                        name="summary"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                            <FormLabel>Analysis Summary</FormLabel>
-                                            <FormControl>
-                                                <Textarea placeholder="Provide a summary of the asset's overall performance, observations, and recommendations..." className="min-h-[120px]" {...field} value={field.value ?? ''} />
-                                            </FormControl>
-                                            <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-                                <div className="space-y-6">
-                                    <FormField
-                                        control={form.control}
-                                        name="status"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                            <FormLabel>Asset Status</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                <FormControl>
-                                                <SelectTrigger><SelectValue placeholder="Set asset status..." /></SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="Operating As Expected">Operating As Expected</SelectItem>
-                                                    <SelectItem value="Minor Concerns">Minor Concerns</SelectItem>
-                                                    <SelectItem value="Critical Concerns">Critical Concerns</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormDescription>This will update the asset's overall status badge.</FormDescription>
-                                            <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="analystInitials"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                            <FormLabel>Analyst Sign-off</FormLabel>
-                                            <div className="relative">
-                                                <Edit className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                                <FormControl>
-                                                    <Input
-                                                        placeholder="Enter your initials..."
-                                                        className="pl-10"
-                                                        maxLength={5}
-                                                        {...field}
-                                                        value={field.value ?? ''}
-                                                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                                                    />
-                                                </FormControl>
-                                            </div>
-                                            <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <div className="flex gap-2">
-                                        <Button type="button" variant="secondary" className="w-full" onClick={handleCancel}>
-                                            <X className="mr-2 h-4 w-4" /> Cancel
-                                        </Button>
-                                        <Button type="submit" className="w-full" disabled={isSubmitting || !form.formState.isValid}>
-                                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                            Save Analysis
-                                        </Button>
-                                    </div>
-                                </div>
-                            </div>
-                        </form>
-                    </Form>
-                 </CardContent>
-            ) : analysisData ? (
-                 <ReadOnlyAnalysisView data={analysisData} onEdit={() => setIsEditing(true)} />
-            ) : (
-                <CardContent>
-                     <div className="text-center py-8 text-muted-foreground">
-                        <p>No overall analysis has been saved for this asset yet.</p>
-                        <Button className="mt-4" onClick={() => setIsEditing(true)}>
-                            <Pencil className="mr-2 h-4 w-4" /> Start Analysis
-                        </Button>
-                    </div>
-                </CardContent>
-            )}
+            {renderContent()}
           </AccordionContent>
         </AccordionItem>
       </Accordion>
