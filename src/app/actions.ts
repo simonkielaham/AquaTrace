@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData, OperationalAction } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 import { format, formatDistance } from 'date-fns';
+import { getWeatherData } from '../../sourceexamples/weather-service';
 
 
 // Define paths to data files
@@ -98,7 +99,7 @@ const saveOverallAnalysisSchema = z.object({
     furtherInvestigation: z.enum(['not_needed', 'recommended', 'required']).optional(),
     summary: z.string().optional(),
     analystInitials: z.string().min(1, "Analyst initials are required."),
-    status: z.enum(["operating_as_expected", "minor_concerns", "critical_concerns", "unknown"]),
+    status: z.enum(["Operating As Expected", "Minor Concerns", "Critical Concerns"]),
 });
 
 // Zod schema definitions
@@ -778,6 +779,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
     let allRawDataSources: any[] = [];
     let minDataDate: Date | null = null;
     let maxDataDate: Date | null = null;
+    let hasPrecipitationInData = false;
 
     // First pass: Collect all data sources and determine the date range
     for (const deployment of assetDeployments) {
@@ -787,6 +789,10 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
         try {
             const deploymentData = await readJsonFile<{[key: string]: any[]}>(dataFilePath);
             const fileData = Object.values(deploymentData).flat();
+            
+            if (fileData.some(d => d.precipitation !== undefined)) {
+                hasPrecipitationInData = true;
+            }
 
             allRawDataSources.push({ type: 'file', data: fileData, deployment });
 
@@ -861,7 +867,7 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
         });
     });
     
-    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+    let sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
     
     let processedEvents: AnalysisPeriod[] = [];
     const weatherSummary: WeatherSummary = { totalPrecipitation: 0, events: [] };
@@ -869,9 +875,50 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
     // If we have data, fetch weather and process events
     if (sortedData.length > 0 && minDataDate && maxDataDate) {
         
-        let weatherData: {timestamp: number, precipitation: number}[] = sortedData
-            .filter(d => d.precipitation !== undefined)
-            .map(d => ({ timestamp: d.timestamp, precipitation: d.precipitation! }));
+        let weatherData: {timestamp: number, precipitation: number}[] = [];
+        if (hasPrecipitationInData) {
+            weatherData = sortedData
+                .filter(d => d.precipitation !== undefined)
+                .map(d => ({ timestamp: d.timestamp, precipitation: d.precipitation! }));
+        } else {
+             try {
+                console.log(`Fetching weather data for ${asset.name} from ${minDataDate.toISOString()} to ${maxDataDate.toISOString()}`);
+                const weatherCsv = await getWeatherData({
+                    latitude: asset.latitude,
+                    longitude: asset.longitude,
+                    startDate: minDataDate.toISOString(),
+                    endDate: maxDataDate.toISOString(),
+                });
+
+                if (weatherCsv) {
+                     const parsedWeather = Papa.parse<{date: string, precipitation: string}>(weatherCsv, { header: true, skipEmptyLines: true });
+                     weatherData = parsedWeather.data.map(row => ({
+                         timestamp: new Date(row.date).getTime(),
+                         precipitation: parseFloat(row.precipitation) || 0
+                     })).filter(d => !isNaN(d.timestamp));
+                    
+                     // Merge weather data into main data points
+                    weatherData.forEach(p => {
+                        const existingPoint = sortedData.find(d => d.timestamp === p.timestamp);
+                        if (existingPoint) {
+                            existingPoint.precipitation = p.precipitation;
+                        } else {
+                            // Find the correct spot to insert the new point to maintain order
+                            const index = sortedData.findIndex(d => d.timestamp > p.timestamp);
+                            const newPoint: ChartablePoint = { timestamp: p.timestamp, precipitation: p.precipitation };
+                            if (index === -1) {
+                                sortedData.push(newPoint);
+                            } else {
+                                sortedData.splice(index, 0, newPoint);
+                            }
+                        }
+                    });
+                }
+
+             } catch (error) {
+                 console.error("Failed to fetch or process external weather data:", error);
+             }
+        }
 
 
         if (weatherData.length > 0) {
@@ -1429,5 +1476,3 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
-
-    
