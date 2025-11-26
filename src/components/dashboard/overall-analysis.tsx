@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { Asset, OverallAnalysisData } from "@/lib/placeholder-data";
@@ -128,33 +127,30 @@ interface OverallAnalysisProps {
 
 export default function OverallAnalysis({ asset, analysisData, loading }: OverallAnalysisProps) {
   const { toast } = useToast();
-  const { saveOverallAnalysis, incrementDataVersion } = useAssets();
+  const { saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isEditing, setIsEditing] = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(!analysisData);
   
   const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
   const form = useForm<OverallAnalysisFormValues>({
     resolver: zodResolver(overallAnalysisSchema),
   });
-
+  
   React.useEffect(() => {
-    // This effect ensures the form is populated with the correct data
-    // when `analysisData` changes or when editing starts.
-    const data = analysisData;
-    if (data) {
-      const formStatus = statusMapToForm[data.status as string] || "Operating As Expected";
+    setIsEditing(!analysisData);
+    if (analysisData) {
+      const formStatus = statusMapToForm[analysisData.status as string] || "Operating As Expected";
         form.reset({
-            permanentPoolPerformance: data.permanentPoolPerformance,
-            estimatedControlElevation: data.estimatedControlElevation,
-            rainResponse: data.rainResponse,
-            furtherInvestigation: data.furtherInvestigation,
-            summary: data.summary || "",
-            analystInitials: data.analystInitials || "",
+            permanentPoolPerformance: analysisData.permanentPoolPerformance,
+            estimatedControlElevation: analysisData.estimatedControlElevation,
+            rainResponse: analysisData.rainResponse,
+            furtherInvestigation: analysisData.furtherInvestigation,
+            summary: analysisData.summary || "",
+            analystInitials: analysisData.analystInitials || "",
             status: formStatus,
         });
     } else {
-       const formStatus = statusMapToForm[asset.status as string] || "Operating As Expected";
         form.reset({
             permanentPoolPerformance: undefined,
             estimatedControlElevation: undefined,
@@ -162,10 +158,10 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
             furtherInvestigation: undefined,
             summary: "",
             analystInitials: "",
-            status: formStatus,
+            status: statusMapToForm[asset.status as string] || "Operating As Expected",
         });
     }
-  }, [analysisData, asset.status, form, isEditing]);
+  }, [analysisData, asset.status, form]);
 
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
@@ -182,7 +178,6 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-      incrementDataVersion(); // This triggers a re-fetch in the context
       setIsEditing(false);
     }
     setIsSubmitting(false);
