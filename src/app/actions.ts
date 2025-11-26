@@ -1148,15 +1148,13 @@ export async function saveOverallAnalysis(data: any) {
     }
     
     const { assetId, ...analysisData } = validatedFields.data;
-    const status = validatedFields.data.status;
-
+    
     try {
         const allAnalysis = await readJsonFile<{[key: string]: OverallAnalysisData}>(overallAnalysisFilePath);
         
         allAnalysis[assetId] = {
             ...allAnalysis[assetId],
             ...analysisData,
-            status: status,
             assetId: assetId,
             lastUpdated: new Date().toISOString(),
         };
@@ -1167,7 +1165,12 @@ export async function saveOverallAnalysis(data: any) {
         const assets = await readJsonFile<Asset[]>(assetsFilePath);
         const assetIndex = assets.findIndex(a => a.id === assetId);
         if (assetIndex !== -1) {
-            assets[assetIndex].status = status;
+            const statusMap = {
+                "Operating As Expected": "operating_as_expected",
+                "Minor Concerns": "minor_concerns",
+                "Critical Concerns": "critical_concerns",
+            };
+            assets[assetIndex].status = statusMap[analysisData.status as keyof typeof statusMap] || 'unknown';
             await writeJsonFile(assetsFilePath, assets);
         }
         

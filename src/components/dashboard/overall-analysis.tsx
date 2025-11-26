@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { Asset, OverallAnalysisData } from "@/lib/placeholder-data";
@@ -51,7 +52,7 @@ const overallAnalysisSchema = z.object({
   furtherInvestigation: z.enum(['not_needed', 'recommended', 'required']).optional(),
   summary: z.string().optional(),
   analystInitials: z.string().min(1, "Analyst initials are required."),
-  status: z.enum(["operating_as_expected", "minor_concerns", "critical_concerns"]),
+  status: z.enum(["Operating As Expected", "Minor Concerns", "Critical Concerns"]),
 });
 
 type OverallAnalysisFormValues = z.infer<typeof overallAnalysisSchema>;
@@ -116,6 +117,19 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [lastUpdated, setLastUpdated] = React.useState<string | null>(null);
   const [analysisData, setAnalysisData] = React.useState<OverallAnalysisData | null>(null);
+  
+  const statusMapToForm: Record<string, OverallAnalysisFormValues['status']> = {
+      "operating_as_expected": "Operating As Expected",
+      "minor_concerns": "Minor Concerns",
+      "critical_concerns": "Critical Concerns",
+  };
+  
+  const statusMapFromForm: Record<OverallAnalysisFormValues['status'], string> = {
+      "Operating As Expected": "operating_as_expected",
+      "Minor Concerns": "minor_concerns",
+      "Critical Concerns": "critical_concerns",
+  };
+
 
   const form = useForm<OverallAnalysisFormValues>({
     resolver: zodResolver(overallAnalysisSchema),
@@ -126,7 +140,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
         furtherInvestigation: undefined,
         summary: "",
         analystInitials: "",
-        status: "unknown",
+        status: "Operating As Expected",
     },
   });
 
@@ -134,6 +148,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
     setIsLoading(true);
     const data = await getOverallAnalysis(asset.id);
     if (data) {
+        const formStatus = statusMapToForm[data.status as string] || "Operating As Expected";
         form.reset({
             permanentPoolPerformance: data.permanentPoolPerformance,
             estimatedControlElevation: data.estimatedControlElevation,
@@ -141,7 +156,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
             furtherInvestigation: data.furtherInvestigation,
             summary: data.summary || "",
             analystInitials: data.analystInitials || "",
-            status: data.status || 'unknown',
+            status: formStatus,
         });
         setAnalysisData(data);
         if(data.lastUpdated) {
@@ -150,7 +165,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
             setLastUpdated(null);
         }
     } else {
-        // If no data, reset to default and don't enter edit mode unless intended
+        const formStatus = statusMapToForm[asset.status as string] || "Operating As Expected";
         form.reset({
             permanentPoolPerformance: undefined,
             estimatedControlElevation: undefined,
@@ -158,13 +173,13 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
             furtherInvestigation: undefined,
             summary: "",
             analystInitials: "",
-            status: asset.status || 'unknown',
+            status: formStatus,
         });
         setAnalysisData(null);
         setLastUpdated(null);
     }
     setIsLoading(false);
-  }, [asset.id, asset.status, getOverallAnalysis, form]);
+  }, [asset.id, asset.status, getOverallAnalysis, form, statusMapToForm]);
 
 
   React.useEffect(() => {
@@ -189,6 +204,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
   const handleCancel = () => {
     // Reset form to the last known saved state
     if (analysisData) {
+        const formStatus = statusMapToForm[analysisData.status as string] || "Operating As Expected";
         form.reset({
             permanentPoolPerformance: analysisData.permanentPoolPerformance,
             estimatedControlElevation: analysisData.estimatedControlElevation,
@@ -196,7 +212,7 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
             furtherInvestigation: analysisData.furtherInvestigation,
             summary: analysisData.summary || "",
             analystInitials: analysisData.analystInitials || "",
-            status: analysisData.status || 'unknown',
+            status: formStatus,
         });
     }
     setIsEditing(false);
@@ -329,9 +345,9 @@ export default function OverallAnalysis({ asset }: { asset: Asset }) {
                                                 <SelectTrigger><SelectValue placeholder="Set asset status..." /></SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="operating_as_expected">Operating As Expected</SelectItem>
-                                                    <SelectItem value="minor_concerns">Minor Concerns</SelectItem>
-                                                    <SelectItem value="critical_concerns">Critical Concerns</SelectItem>
+                                                    <SelectItem value="Operating As Expected">Operating As Expected</SelectItem>
+                                                    <SelectItem value="Minor Concerns">Minor Concerns</SelectItem>
+                                                    <SelectItem value="Critical Concerns">Critical Concerns</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                             <FormDescription>This will update the asset's overall status badge.</FormDescription>
