@@ -8,7 +8,7 @@ import { revalidatePath } from 'next/cache';
 import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 import { getWeatherData } from '@/../sourceexamples/weather-service';
-import { formatDistance } from 'date-fns';
+import { format, formatDistance } from 'date-fns';
 
 
 // Define paths to data files
@@ -825,7 +825,15 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
             newEvents = newEvents.filter(event => {
               const durationSeconds = (event.endDate - event.startDate) / 1000;
               return durationSeconds > 5 || event.totalPrecipitation >= 1;
-            }).map(event => ({ ...event, id: `${event.assetId}-${event.startDate}` }));
+            }).map(event => {
+                const assetName = asset.name.replace(/\s+/g, '');
+                const dateString = format(new Date(event.startDate), "yyyyMMddHHmm");
+                const precipString = Math.round(event.totalPrecipitation * 10) / 10;
+                return {
+                    ...event,
+                    id: `${assetName}-event${dateString}-${precipString}mm`,
+                }
+            });
 
             if (newEvents.length > 0) {
               const updatedAllEvents = [...allSavedEvents, ...newEvents.map(({ dataPoints, analysis, ...rest}) => rest)];
