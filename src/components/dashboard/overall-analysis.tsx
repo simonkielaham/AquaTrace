@@ -129,7 +129,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   const { toast } = useToast();
   const { saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isEditing, setIsEditing] = React.useState(!analysisData);
+  const [isEditing, setIsEditing] = React.useState(true);
   
   const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
@@ -138,9 +138,8 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   });
   
   React.useEffect(() => {
-    setIsEditing(!analysisData);
     if (analysisData) {
-      const formStatus = statusMapToForm[analysisData.status as string] || "Operating As Expected";
+      const formStatus = statusMapToForm[analysisData.status as string] || statusMapToForm[asset.status as string] || "Operating As Expected";
         form.reset({
             permanentPoolPerformance: analysisData.permanentPoolPerformance,
             estimatedControlElevation: analysisData.estimatedControlElevation,
@@ -163,6 +162,11 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     }
   }, [analysisData, asset.status, form]);
 
+  React.useEffect(() => {
+    // This effect ensures the editing state is always in sync with the data.
+    setIsEditing(!analysisData);
+  }, [analysisData]);
+
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
     setIsSubmitting(true);
@@ -184,7 +188,9 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   };
   
   const handleCancel = () => {
-    setIsEditing(false);
+    if (analysisData) {
+      setIsEditing(false);
+    }
   }
   
   const renderContent = () => {
@@ -334,9 +340,11 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
                                 )}
                             />
                             <div className="flex gap-2">
-                                <Button type="button" variant="secondary" className="w-full" onClick={handleCancel}>
+                               {analysisData && (
+                                 <Button type="button" variant="secondary" className="w-full" onClick={handleCancel}>
                                     <X className="mr-2 h-4 w-4" /> Cancel
                                 </Button>
+                               )}
                                 <Button type="submit" className="w-full" disabled={isSubmitting || !form.formState.isValid}>
                                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                     Save Analysis
@@ -352,6 +360,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     if (analysisData) {
       return <ReadOnlyAnalysisView data={analysisData} onEdit={() => setIsEditing(true)} />;
     }
+    // This case should ideally not be hit if isEditing is managed correctly, but it's a fallback.
     return (
         <CardContent>
             <div className="text-center py-8 text-muted-foreground">
@@ -389,3 +398,5 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     </Card>
   );
 }
+
+    
