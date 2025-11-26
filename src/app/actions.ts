@@ -22,7 +22,6 @@ const surveyPointsFilePath = path.join(dataDir, 'survey-points.json');
 const operationalActionsFilePath = path.join(dataDir, 'operational-actions.json');
 const analysisResultsFilePath = path.join(dataDir, 'analysis-results.json');
 const overallAnalysisFilePath = path.join(dataDir, 'overall-analysis.json');
-const eventsFilePath = path.join(dataDir, 'events.json');
 const stagedDir = path.join(process.cwd(), 'staged');
 const processedDir = path.join(dataDir, 'processed');
 const sourcefileDir = path.join(dataDir, 'sourcefiles');
@@ -136,13 +135,17 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
     return JSON.parse(fileContent);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      if (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json') || filePath.endsWith('results.json') || filePath.endsWith('analysis.json') || filePath.endsWith('actions.json')) return (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json') || filePath.endsWith('actions.json')) ? [] as T : {} as T;
-      return {} as T;
+      // For files that are expected to be arrays or objects, return an empty version instead of erroring
+      if (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json') || filePath.endsWith('actions.json') || path.basename(filePath) === 'events.json' || path.basename(filePath) === 'diagnostics.json') return [] as T;
+      if (filePath.endsWith('results.json') || filePath.endsWith('analysis.json') || path.basename(filePath) === 'data.json') return {} as T;
+
+      return {} as T; // Default empty object for other missing files
     }
     console.error(`Error reading ${filePath}:`, error);
     throw new Error(`Could not read data file: ${path.basename(filePath)}`);
   }
 }
+
 
 // Helper function to write to a JSON file
 async function writeJsonFile<T>(filePath: string, data: T): Promise<void> {
@@ -526,6 +529,8 @@ export async function assignDatafileToDeployment(formData: FormData) {
   
   const { filename, deploymentId, ...columnMapping } = validatedFields.data;
   const stagedFilePath = path.join(stagedDir, filename);
+  const deploymentDir = path.join(processedDir, deploymentId);
+
 
   try {
     const fileContent = await fs.readFile(stagedFilePath, 'utf-8');
@@ -547,12 +552,16 @@ export async function assignDatafileToDeployment(formData: FormData) {
     };
     
     // Save processed data and archive source file
-    await fs.mkdir(processedDir, { recursive: true });
+    await fs.mkdir(deploymentDir, { recursive: true });
     await fs.mkdir(sourcefileDir, { recursive: true });
-    const processedFilePath = path.join(processedDir, `${newDataFile.id}.json`);
-    const sourceFilePath = path.join(sourcefileDir, `${newDataFile.id}.csv`);
 
-    await writeJsonFile(processedFilePath, processedData);
+    // New: Save processed data to deployment-specific folder
+    const dataFilePath = path.join(deploymentDir, 'data.json');
+    const existingData = await readJsonFile<{[key: string]: any}>(dataFilePath);
+    existingData[newDataFile.id] = processedData;
+    await writeJsonFile(dataFilePath, existingData);
+
+    const sourceFilePath = path.join(sourcefileDir, `${newDataFile.id}.csv`);
     await fs.rename(stagedFilePath, sourceFilePath); // Move and rename with ID
 
     // Update deployments metadata
@@ -601,6 +610,8 @@ export async function reassignDatafile(formData: FormData) {
   
   const { fileId, deploymentId, filename, ...columnMapping } = validatedFields.data;
   const sourceFilePath = path.join(sourcefileDir, `${fileId}.csv`);
+  const deploymentDir = path.join(processedDir, deploymentId);
+
 
   try {
     const fileContent = await fs.readFile(sourceFilePath, 'utf-8');
@@ -610,9 +621,11 @@ export async function reassignDatafile(formData: FormData) {
     const minDate = new Date(Math.min(...timestamps));
     const maxDate = new Date(Math.max(...timestamps));
 
-    // Overwrite existing processed file
-    const processedFilePath = path.join(processedDir, `${fileId}.json`);
-    await writeJsonFile(processedFilePath, processedData);
+    // Overwrite existing processed file data in the deployment's data.json
+    const dataFilePath = path.join(deploymentDir, 'data.json');
+    const existingData = await readJsonFile<{[key: string]: any}>(dataFilePath);
+    existingData[fileId] = processedData;
+    await writeJsonFile(dataFilePath, existingData);
 
     // Update the datafile metadata within the deployment
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
@@ -672,13 +685,15 @@ export async function unassignDatafile(deploymentId: string, fileId: string) {
             }
         }
 
-        // Delete processed file
-        const processedFilePath = path.join(processedDir, `${fileId}.json`);
+        // Delete processed data from the deployment's data.json
+        const dataFilePath = path.join(processedDir, deploymentId, 'data.json');
         try {
-            await fs.unlink(processedFilePath);
+            const existingData = await readJsonFile<{[key: string]: any}>(dataFilePath);
+            delete existingData[fileId];
+            await writeJsonFile(dataFilePath, existingData);
         } catch (e) {
             if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
-                console.error(`Could not delete processed file ${processedFilePath}:`, e);
+                console.error(`Could not update processed data file ${dataFilePath}:`, e);
             }
         }
 
@@ -713,12 +728,14 @@ export async function deleteDatafile(deploymentId: string, fileId: string) {
         deployments[deploymentIndex].files = deployment.files?.filter(f => f.id !== fileId);
         await writeJsonFile(deploymentsFilePath, deployments);
 
-        // Delete processed file
-        const processedFilePath = path.join(processedDir, `${fileId}.json`);
+        // Delete processed data from the deployment's data.json
+        const dataFilePath = path.join(processedDir, deploymentId, 'data.json');
         try {
-            await fs.unlink(processedFilePath);
+            const existingData = await readJsonFile<{[key: string]: any}>(dataFilePath);
+            delete existingData[fileId];
+            await writeJsonFile(dataFilePath, existingData);
         } catch (e) {
-             if ((e as NodeJS.ErrnoException).code !== 'ENOENT') console.error(`Could not delete processed file ${processedFilePath}:`, e);
+             if ((e as NodeJS.ErrnoException).code !== 'ENOENT') console.error(`Could not update processed data file ${dataFilePath}:`, e);
         }
         
         // Delete source file
@@ -755,7 +772,6 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
     const surveyPoints = await getSurveyPoints(assetId);
     const operationalActions = await getOperationalActions(assetId);
     const savedAnalysis = await readJsonFile<{[key: string]: SavedAnalysisData}>(analysisResultsFilePath);
-    const allSavedEvents = await readJsonFile<AnalysisPeriod[]>(eventsFilePath);
 
     const assetDeployments = deployments.filter(d => d.assetId === assetId);
 
@@ -766,11 +782,13 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
 
     // First pass: Collect all data sources and determine the date range
     for (const deployment of assetDeployments) {
-      if (deployment.files) {
-        for (const file of deployment.files) {
-          const filePath = path.join(processedDir, `${file.id}.json`);
-          try {
-            const fileData = await readJsonFile<any[]>(filePath);
+        const deploymentDir = path.join(processedDir, deployment.id);
+        const dataFilePath = path.join(deploymentDir, 'data.json');
+
+        try {
+            const deploymentData = await readJsonFile<{[key: string]: any[]}>(dataFilePath);
+            const fileData = Object.values(deploymentData).flat();
+
             allRawDataSources.push({ type: 'file', data: fileData, deployment });
 
             fileData.forEach(d => {
@@ -779,13 +797,11 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                 if (!minDataDate || timestamp < minDataDate.getTime()) minDataDate = new Date(timestamp);
                 if (!maxDataDate || timestamp > maxDataDate.getTime()) maxDataDate = new Date(timestamp);
             });
-          } catch (e) {
-             if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
-                console.error(`Could not read processed file ${file.id}.json:`, e);
-             }
-          }
+        } catch (e) {
+            if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+                console.error(`Could not read processed file ${dataFilePath}:`, e);
+            }
         }
-      }
     }
     allRawDataSources.push({ type: 'surveys', data: surveyPoints });
     surveyPoints.forEach(sp => {
@@ -836,10 +852,10 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                 point.operationalAction = item.action;
                  if (point.waterLevel === undefined) {
                     // Try to find a nearby water level to plot against
-                    const sortedData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
-                    const nearestSensorPoint = sortedData.filter(p => p.waterLevel !== undefined).reduce((prev, curr) => {
+                    const sortedDataForAction = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+                    const nearestSensorPoint = sortedDataForAction.filter(p => p.waterLevel !== undefined).reduce((prev, curr) => {
                        return (Math.abs(curr.timestamp - timestamp) < Math.abs(prev.timestamp - timestamp) ? curr : prev);
-                    }, sortedData[0]);
+                    }, sortedDataForAction.find(p => p.waterLevel !== undefined) || sortedDataForAction[0]);
                     point.waterLevel = nearestSensorPoint?.waterLevel;
                 }
             }
@@ -894,12 +910,19 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
           });
 
           // == Event Detection Logic ==
-          const assetSavedEvents = allSavedEvents.filter(e => e.assetId === assetId);
-          const lastEventEndDate = assetSavedEvents.length > 0 ? Math.max(...assetSavedEvents.map(e => e.endDate)) : 0;
+          let allSavedEvents: AnalysisPeriod[] = [];
+          for (const deployment of assetDeployments) {
+            const eventsFilePath = path.join(processedDir, deployment.id, 'events.json');
+            const deploymentEvents = await readJsonFile<AnalysisPeriod[]>(eventsFilePath);
+            allSavedEvents.push(...deploymentEvents);
+          }
+
+          const lastEventEndDate = allSavedEvents.length > 0 ? Math.max(...allSavedEvents.map(e => e.endDate)) : 0;
           
           const newDataToScanForEvents = weatherData.filter(p => new Date(p.date).getTime() > lastEventEndDate);
           
-          let newEvents: AnalysisPeriod[] = [];
+          let newEventsByDeployment: {[deploymentId: string]: AnalysisPeriod[]} = {};
+
           if(newDataToScanForEvents.length > 0) {
             const MEASURABLE_RAIN_THRESHOLD = 0.2; // mm
             const DRY_PERIOD_HOURS = 6;
@@ -911,10 +934,18 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                 const currentTimestamp = new Date(p.date).getTime();
                 const precipitation = p.precipitation ?? 0;
                 
-                if (precipitation >= MEASURABLE_RAIN_THRESHOLD) {
+                // Find which deployment this data point belongs to
+                const relevantDeployment = assetDeployments.find(dep => 
+                    dep.files?.some(f => new Date(f.startDate).getTime() <= currentTimestamp && new Date(f.endDate).getTime() >= currentTimestamp)
+                );
+
+                if (precipitation >= MEASURABLE_RAIN_THRESHOLD && relevantDeployment) {
                     if (currentEvent === null) {
-                        currentEvent = { id: "", assetId: asset.id, startDate: currentTimestamp, endDate: currentTimestamp, totalPrecipitation: 0, dataPoints: [] };
-                        newEvents.push(currentEvent);
+                        currentEvent = { id: "", assetId: asset.id, deploymentId: relevantDeployment.id, startDate: currentTimestamp, endDate: currentTimestamp, totalPrecipitation: 0, dataPoints: [] };
+                        if (!newEventsByDeployment[relevantDeployment.id]) {
+                            newEventsByDeployment[relevantDeployment.id] = [];
+                        }
+                        newEventsByDeployment[relevantDeployment.id].push(currentEvent);
                     }
                     currentEvent.endDate = currentTimestamp;
                     currentEvent.totalPrecipitation += precipitation;
@@ -927,27 +958,28 @@ export async function getProcessedData(assetId: string): Promise<{ data: Chartab
                 }
             });
 
-            // Filter insignificant new events and assign stable IDs
-            newEvents = newEvents.filter(event => {
-              const durationSeconds = (event.endDate - event.startDate) / 1000;
-              return durationSeconds > 5 || event.totalPrecipitation >= 1;
-            }).map(event => {
-                const assetName = asset.name.replace(/\s+/g, '');
-                const dateString = format(new Date(event.startDate), "yyyyMMddHHmm");
-                const precipString = Math.round(event.totalPrecipitation * 10) / 10;
-                return {
-                    ...event,
-                    id: `${assetName}-event${dateString}-${precipString}mm`,
+            for (const [deploymentId, events] of Object.entries(newEventsByDeployment)) {
+                const filteredEvents = events.filter(event => {
+                    const durationSeconds = (event.endDate - event.startDate) / 1000;
+                    return durationSeconds > 5 || event.totalPrecipitation >= 1;
+                }).map(event => {
+                    const assetName = asset.name.replace(/\s+/g, '');
+                    const dateString = format(new Date(event.startDate), "yyyyMMddHHmm");
+                    const precipString = Math.round(event.totalPrecipitation * 10) / 10;
+                    return { ...event, id: `${assetName}-event${dateString}-${precipString}mm` };
+                });
+                
+                if (filteredEvents.length > 0) {
+                    const eventsFilePath = path.join(processedDir, deploymentId, 'events.json');
+                    const existingEvents = await readJsonFile<AnalysisPeriod[]>(eventsFilePath);
+                    const updatedEvents = [...existingEvents, ...filteredEvents.map(({ dataPoints, analysis, ...rest}) => rest)];
+                    await writeJsonFile(eventsFilePath, updatedEvents);
+                    allSavedEvents.push(...filteredEvents);
                 }
-            });
-
-            if (newEvents.length > 0) {
-              const updatedAllEvents = [...allSavedEvents, ...newEvents.map(({ dataPoints, analysis, ...rest}) => rest)];
-              await writeJsonFile(eventsFilePath, updatedAllEvents);
             }
           }
           
-          processedEvents = [...assetSavedEvents, ...newEvents];
+          processedEvents = allSavedEvents;
 
           // == Analysis Logic for all events ==
           processedEvents.forEach(event => {
@@ -1159,9 +1191,10 @@ export async function createDeployment(assetId: string, data: any) {
 
   try {
     let deployments: Deployment[] = await readJsonFile(deploymentsFilePath);
+    const newDeploymentId = `dep-${Date.now()}`;
 
     const newDeployment: Deployment = {
-      id: `dep-${Date.now()}`,
+      id: newDeploymentId,
       assetId: assetId,
       sensorId: validatedData.sensorId,
       sensorElevation: parseFloat(validatedData.sensorElevation.toString()),
@@ -1171,9 +1204,11 @@ export async function createDeployment(assetId: string, data: any) {
     };
 
     deployments.push(newDeployment);
-
     await writeJsonFile(deploymentsFilePath, deployments);
     
+    // Create the directory for the new deployment
+    await fs.mkdir(path.join(processedDir, newDeploymentId), { recursive: true });
+
     revalidatePath('/');
     
     const response = {
@@ -1374,19 +1409,15 @@ export async function deleteAsset(assetId: string) {
     // Find deployments associated with the asset
     const deploymentsToDelete = deployments.filter(d => d.assetId === assetId);
 
-    // Delete associated processed data files
+    // Delete associated processed data directories for each deployment
     for (const deployment of deploymentsToDelete) {
-      if (deployment.files) {
-        for (const file of deployment.files) {
-          const filePath = path.join(processedDir, `${file.id}.json`);
-          try {
-            await fs.unlink(filePath);
-          } catch (error) {
-             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-                console.error(`Failed to delete processed file ${filePath}:`, error);
-             }
-          }
-        }
+      const deploymentDir = path.join(processedDir, deployment.id);
+      try {
+        await fs.rm(deploymentDir, { recursive: true, force: true });
+      } catch (error) {
+         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            console.error(`Failed to delete processed directory ${deploymentDir}:`, error);
+         }
       }
     }
     
@@ -1413,3 +1444,5 @@ export async function deleteAsset(assetId: string) {
     return response;
   }
 }
+
+    

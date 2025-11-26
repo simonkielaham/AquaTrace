@@ -106,6 +106,7 @@ export type OverallAnalysisData = {
 export type AnalysisPeriod = {
     id: string;
     assetId: string;
+    deploymentId: string;
     startDate: number;
     endDate: number;
     totalPrecipitation: number;
@@ -148,3 +149,5 @@ export type WeatherSummary = {
 // This file now only contains type definitions.
 // The actual data is loaded and managed in AssetProvider.
 export const analysisResults: AnalysisResult[] = [];
+
+    
