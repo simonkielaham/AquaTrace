@@ -63,11 +63,6 @@ const statusMapToForm: Record<string, OverallAnalysisFormValues['status']> = {
     "critical_concerns": "critical_concerns",
 };
 
-const statusMapToServer: Record<OverallAnalysisFormValues['status'], Asset['status']> = {
-  "operating_as_expected": "operating_as_expected",
-  "minor_concerns": "minor_concerns",
-  "critical_concerns": "critical_concerns",
-}
 
 function ReadOnlyAnalysisView({ data, onEdit }: { data: OverallAnalysisData, onEdit: () => void }) {
     const formatValue = (value?: string | null) => {
@@ -124,13 +119,14 @@ interface OverallAnalysisProps {
   asset: Asset;
   analysisData: OverallAnalysisData | null;
   loading: boolean;
+  isEditing: boolean;
+  onEditChange: (isEditing: boolean) => void;
 }
 
-export default function OverallAnalysis({ asset, analysisData, loading }: OverallAnalysisProps) {
+export default function OverallAnalysis({ asset, analysisData, loading, isEditing, onEditChange }: OverallAnalysisProps) {
   const { toast } = useToast();
   const { saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isEditing, setIsEditing] = React.useState(!analysisData);
   const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
   const form = useForm<OverallAnalysisFormValues>({
@@ -138,8 +134,6 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   });
   
   React.useEffect(() => {
-    // This effect is now the single source of truth for synchronizing the form
-    // with the incoming `analysisData` prop.
     if (analysisData) {
         const formStatus = statusMapToForm[analysisData.status as string] || statusMapToForm[asset.status as string] || "operating_as_expected";
         form.reset({
@@ -151,9 +145,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
             analystInitials: analysisData.analystInitials || "",
             status: formStatus,
         });
-        setIsEditing(false); // If data exists, default to view mode.
     } else {
-        // If no data, reset to a blank state and enter edit mode.
         form.reset({
             permanentPoolPerformance: undefined,
             estimatedControlElevation: undefined,
@@ -163,7 +155,6 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
             analystInitials: "",
             status: statusMapToForm[asset.status as string] || "operating_as_expected",
         });
-        setIsEditing(true);
     }
   }, [analysisData, asset.status, form]);
 
@@ -172,7 +163,6 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     const serverPayload = {
       ...data,
       assetId: asset.id,
-      status: statusMapToServer[data.status],
     };
     
     const result = await saveOverallAnalysis(serverPayload);
@@ -181,16 +171,15 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-      setIsEditing(false); // Exit edit mode on successful save
+      onEditChange(false);
     }
     setIsSubmitting(false);
   };
   
   const handleCancel = () => {
-    // This will trigger the useEffect above to reset the form with original data
     if (analysisData) {
-      setIsEditing(false);
-      form.reset(); // Re-syncs the form with the latest props via useEffect
+      onEditChange(false);
+      form.reset(); 
     }
   }
   
@@ -363,7 +352,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     }
     
     if (analysisData) {
-      return <ReadOnlyAnalysisView data={analysisData} onEdit={() => setIsEditing(true)} />;
+      return <ReadOnlyAnalysisView data={analysisData} onEdit={() => onEditChange(true)} />;
     }
     
     // This case should not be hit if effectiveIsEditing is true, but it's a safe fallback.
@@ -401,5 +390,3 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     </Card>
   );
 }
-
-    
