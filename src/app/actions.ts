@@ -137,6 +137,7 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       // For files that are expected to be arrays or objects, return an empty version instead of erroring
       if (filePath.endsWith('s.json') || filePath.endsWith('log.json') || filePath.endsWith('points.json') || filePath.endsWith('actions.json') || path.basename(filePath) === 'events.json' || path.basename(filePath) === 'diagnostics.json') return [] as T;
+      // CRITICAL FIX: Ensure overall-analysis.json and other object-based files default to {}
       if (filePath.endsWith('results.json') || filePath.endsWith('analysis.json') || path.basename(filePath) === 'data.json') return {} as T;
 
       return {} as T; // Default empty object for other missing files

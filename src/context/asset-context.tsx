@@ -450,25 +450,26 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       if (result && !result.errors && result.savedData) {
         const assetId = result.savedData.assetId;
         
-        // Immediately update the client-side state for an instant UI response
-        setAssetData(prev => ({
+        // This is the optimistic update. It makes the UI show the data instantly.
+        setAssetData(prev => {
+          const currentAsset = prev[assetId] || { data: [], weatherSummary: null, surveyPoints: [], operationalActions: [] };
+          return {
             ...prev,
             [assetId]: {
-                ...prev[assetId],
-                overallAnalysis: result.savedData,
-            }
-        }));
+              ...currentAsset,
+              overallAnalysis: result.savedData,
+            },
+          };
+        });
         
         setAssets(prev => prev.map(a => a.id === assetId ? { ...a, status: result.savedData.status } : a));
-        
-        incrementDataVersion();
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, [incrementDataVersion]);
+  }, []);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
