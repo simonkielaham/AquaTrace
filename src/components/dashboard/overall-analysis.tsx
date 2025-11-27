@@ -119,14 +119,13 @@ interface OverallAnalysisProps {
   asset: Asset;
   analysisData: OverallAnalysisData | null;
   loading: boolean;
-  isEditing: boolean;
-  onEditChange: (isEditing: boolean) => void;
 }
 
-export default function OverallAnalysis({ asset, analysisData, loading, isEditing, onEditChange }: OverallAnalysisProps) {
+export default function OverallAnalysis({ asset, analysisData, loading }: OverallAnalysisProps) {
   const { toast } = useToast();
   const { saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(false);
   const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
   const form = useForm<OverallAnalysisFormValues>({
@@ -134,29 +133,18 @@ export default function OverallAnalysis({ asset, analysisData, loading, isEditin
   });
   
   React.useEffect(() => {
-    if (analysisData) {
-        const formStatus = statusMapToForm[analysisData.status as string] || statusMapToForm[asset.status as string] || "operating_as_expected";
-        form.reset({
-            permanentPoolPerformance: analysisData.permanentPoolPerformance,
-            estimatedControlElevation: analysisData.estimatedControlElevation,
-            rainResponse: analysisData.rainResponse,
-            furtherInvestigation: analysisData.furtherInvestigation,
-            summary: analysisData.summary || "",
-            analystInitials: analysisData.analystInitials || "",
-            status: formStatus,
-        });
-    } else {
-        form.reset({
-            permanentPoolPerformance: undefined,
-            estimatedControlElevation: undefined,
-            rainResponse: undefined,
-            furtherInvestigation: undefined,
-            summary: "",
-            analystInitials: "",
-            status: statusMapToForm[asset.status as string] || "operating_as_expected",
-        });
-    }
-  }, [analysisData, asset.status, form]);
+    const defaultValues = {
+        permanentPoolPerformance: analysisData?.permanentPoolPerformance,
+        estimatedControlElevation: analysisData?.estimatedControlElevation,
+        rainResponse: analysisData?.rainResponse,
+        furtherInvestigation: analysisData?.furtherInvestigation,
+        summary: analysisData?.summary || "",
+        analystInitials: analysisData?.analystInitials || "",
+        status: statusMapToForm[analysisData?.status as string] || statusMapToForm[asset.status as string] || "operating_as_expected",
+    };
+    form.reset(defaultValues);
+    setIsEditing(!analysisData);
+  }, [analysisData, asset.id, form]);
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
     setIsSubmitting(true);
@@ -171,26 +159,24 @@ export default function OverallAnalysis({ asset, analysisData, loading, isEditin
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-      onEditChange(false);
+      setIsEditing(false);
     }
     setIsSubmitting(false);
   };
   
   const handleCancel = () => {
     if (analysisData) {
-      onEditChange(false);
       form.reset(); 
+      setIsEditing(false);
     }
   }
   
-  const effectiveIsEditing = isEditing || !analysisData;
-
   const renderContent = () => {
     if (loading) {
       return <CardContent><div className="text-center text-muted-foreground py-8">Loading analysis...</div></CardContent>;
     }
     
-    if (effectiveIsEditing) {
+    if (isEditing) {
       return (
         <CardContent>
             <Form {...form}>
@@ -352,7 +338,7 @@ export default function OverallAnalysis({ asset, analysisData, loading, isEditin
     }
     
     if (analysisData) {
-      return <ReadOnlyAnalysisView data={analysisData} onEdit={() => onEditChange(true)} />;
+      return <ReadOnlyAnalysisView data={analysisData} onEdit={() => setIsEditing(true)} />;
     }
     
     // This case should not be hit if effectiveIsEditing is true, but it's a safe fallback.
@@ -376,7 +362,7 @@ export default function OverallAnalysis({ asset, analysisData, loading, isEditin
                 <CardTitle className="font-headline text-2xl">Overall Asset Analysis</CardTitle>
                 <CardDescription className="mt-1">
                   Provide a high-level engineering assessment of the asset's performance.
-                  {lastUpdated && !effectiveIsEditing && <span className="block text-xs mt-1">Last updated: {lastUpdated}</span>}
+                  {lastUpdated && !isEditing && <span className="block text-xs mt-1">Last updated: {lastUpdated}</span>}
                 </CardDescription>
               </div>
             </div>

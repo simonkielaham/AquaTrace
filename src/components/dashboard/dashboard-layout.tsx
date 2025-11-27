@@ -29,7 +29,6 @@ export default function DashboardLayout() {
   const [chartBrushRange, setChartBrushRange] = React.useState<{startIndex?: number, endIndex?: number}>({});
   const [visibleElevations, setVisibleElevations] = React.useState<Record<string, boolean>>({});
   const [visibleSensorData, setVisibleSensorData] = React.useState<Record<string, boolean>>({});
-  const [isOverallAnalysisEditing, setIsOverallAnalysisEditing] = React.useState(false);
 
   // State for the offscreen chart used for report generation
   const [reportChartRange, setReportChartRange] = React.useState<{startDate: number, endDate: number} | null>(null);
@@ -84,7 +83,6 @@ export default function DashboardLayout() {
 
       // Reset chart brush range and analysis editing state when asset changes
       setChartBrushRange({});
-      setIsOverallAnalysisEditing(false);
     }
   }, [selectedAssetId, selectedAsset]);
 
@@ -210,8 +208,6 @@ export default function DashboardLayout() {
                   asset={selectedAsset} 
                   analysisData={overallAnalysis} 
                   loading={isChartLoading} 
-                  isEditing={isOverallAnalysisEditing}
-                  onEditChange={setIsOverallAnalysisEditing}
                 />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <SurveyPointManager asset={selectedAsset} data={chartData} surveyPoints={surveyPoints} loading={isChartLoading}/>
