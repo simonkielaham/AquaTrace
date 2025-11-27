@@ -438,13 +438,20 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       if (result && !result.errors && result.savedData) {
         const assetId = result.savedData.assetId;
         
-        // This is the key fix: by incrementing dataVersion, we are telling the
-        // system that this asset's data is stale and must be completely refetched
-        // from the server, guaranteeing that the fresh analysis is loaded.
-        incrementDataVersion();
+        // Immediately update the client-side state for an instant UI response
+        setAssetData(prev => ({
+            ...prev,
+            [assetId]: {
+                ...prev[assetId],
+                overallAnalysis: result.savedData,
+            }
+        }));
         
-        // Also update the asset status in the main list for immediate feedback in the sidebar.
+        // Also update the asset status in the main list
         setAssets(prev => prev.map(a => a.id === assetId ? { ...a, status: result.savedData.status } : a));
+        
+        // Trigger a background refetch to ensure long-term consistency
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
@@ -608,4 +615,5 @@ export const useAssets = (): AssetContextType => {
   return context;
 };
 
+    
     
