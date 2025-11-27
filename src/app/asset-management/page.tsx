@@ -384,26 +384,10 @@ export function EditAssetDialog({ asset, children }: { asset: Asset, children: R
 
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetFormSchema),
-    defaultValues: {
-      name: asset.name,
-      location: asset.location,
-      latitude: asset.latitude,
-      longitude: asset.longitude,
-      permanentPoolElevation: asset.permanentPoolElevation,
-      designElevations: asset.designElevations.map(de => {
-        const isStandard = elevationOptions.includes(de.name);
-        return {
-          name: isStandard ? de.name : "Custom",
-          customName: isStandard ? "" : de.name,
-          elevation: de.elevation
-        }
-      }),
-      imageId: asset.imageId,
-    },
   });
 
   React.useEffect(() => {
-    if (asset) {
+    if (isOpen && asset) {
       form.reset({
         name: asset.name,
         location: asset.location,
@@ -421,7 +405,7 @@ export function EditAssetDialog({ asset, children }: { asset: Asset, children: R
         imageId: asset.imageId,
       });
     }
-  }, [asset, form]);
+  }, [isOpen, asset, form]);
 
   const handleEditSubmit = async (data: AssetFormValues) => {
     setIsSubmitting(true);
@@ -718,5 +702,3 @@ export default function AssetManagementPage() {
     </SidebarProvider>
   );
 }
-
-    

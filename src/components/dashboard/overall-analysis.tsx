@@ -131,6 +131,11 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [userToggledEdit, setUserToggledEdit] = React.useState(false);
 
+  // When the asset changes, reset the edit toggle.
+  React.useEffect(() => {
+    setUserToggledEdit(false);
+  }, [asset.id]);
+
   const isEditing = !analysisData || userToggledEdit;
   const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
@@ -162,11 +167,6 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
         });
     }
   }, [analysisData, asset.status, form]);
-
-  // When the asset changes, if we were in edit mode, reset that state.
-  React.useEffect(() => {
-      setUserToggledEdit(false);
-  }, [asset.id]);
 
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
@@ -361,12 +361,10 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
       )
     }
     
-    // This is now the default view when data exists and user hasn't clicked edit.
     if (analysisData) {
       return <ReadOnlyAnalysisView data={analysisData} onEdit={() => setUserToggledEdit(true)} />;
     }
     
-    // This should not be reached if isEditing is derived correctly, but as a fallback.
     return (
         <CardContent>
             <div className="text-center py-8 text-muted-foreground">
