@@ -129,14 +129,9 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   const { toast } = useToast();
   const { saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  
-  // This state now only tracks if the USER has initiated an edit.
   const [userToggledEdit, setUserToggledEdit] = React.useState(false);
 
-  // The single source of truth for the edit mode.
-  // It's true if there's no data OR if the user has clicked "Edit".
   const isEditing = !analysisData || userToggledEdit;
-
   const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
   const form = useForm<OverallAnalysisFormValues>({
@@ -144,7 +139,6 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   });
   
   React.useEffect(() => {
-    // This effect now only syncs the form with the data, it doesn't control the editing state.
     if (analysisData) {
         const formStatus = statusMapToForm[analysisData.status as string] || statusMapToForm[asset.status as string] || "Operating As Expected";
         form.reset({
@@ -407,5 +401,3 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     </Card>
   );
 }
-
-    
