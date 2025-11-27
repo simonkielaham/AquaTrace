@@ -439,24 +439,18 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
         const newStatus = result.savedData.status;
         const assetId = result.savedData.assetId;
         
-        // Update the asset status locally
-        setAssets(prev => prev.map(a => a.id === assetId ? { ...a, status: newStatus } : a));
+        // This is the key: force a full data refresh for the asset
+        incrementDataVersion();
         
-        // Update the analysis data in the context locally
-        setAssetData(prev => ({
-          ...prev,
-          [assetId]: {
-            ...prev[assetId],
-            overallAnalysis: result.savedData,
-          }
-        }))
+        // Also update the asset status in the main list for immediate feedback
+        setAssets(prev => prev.map(a => a.id === assetId ? { ...a, status: newStatus } : a));
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, []);
+  }, [incrementDataVersion]);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
@@ -612,5 +606,3 @@ export const useAssets = (): AssetContextType => {
   }
   return context;
 };
-
-    
