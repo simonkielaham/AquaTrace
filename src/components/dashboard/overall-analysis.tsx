@@ -119,13 +119,14 @@ interface OverallAnalysisProps {
   asset: Asset;
   analysisData: OverallAnalysisData | null;
   loading: boolean;
+  isEditing: boolean;
+  onEditChange: (isEditing: boolean) => void;
 }
 
-export default function OverallAnalysis({ asset, analysisData, loading }: OverallAnalysisProps) {
+export default function OverallAnalysis({ asset, analysisData, loading, isEditing, onEditChange }: OverallAnalysisProps) {
   const { toast } = useToast();
   const { saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isEditing, setIsEditing] = React.useState(false);
   const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
   const form = useForm<OverallAnalysisFormValues>({
@@ -143,7 +144,6 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
         status: statusMapToForm[analysisData?.status as string] || statusMapToForm[asset.status as string] || "operating_as_expected",
     };
     form.reset(defaultValues);
-    setIsEditing(!analysisData);
   }, [analysisData, asset.id, form]);
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
@@ -159,7 +159,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-      setIsEditing(false);
+      onEditChange(false);
     }
     setIsSubmitting(false);
   };
@@ -167,16 +167,18 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   const handleCancel = () => {
     if (analysisData) {
       form.reset(); 
-      setIsEditing(false);
+      onEditChange(false);
     }
   }
   
+  const effectiveIsEditing = isEditing || !analysisData;
+
   const renderContent = () => {
     if (loading) {
       return <CardContent><div className="text-center text-muted-foreground py-8">Loading analysis...</div></CardContent>;
     }
     
-    if (isEditing) {
+    if (effectiveIsEditing) {
       return (
         <CardContent>
             <Form {...form}>
@@ -338,7 +340,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     }
     
     if (analysisData) {
-      return <ReadOnlyAnalysisView data={analysisData} onEdit={() => setIsEditing(true)} />;
+      return <ReadOnlyAnalysisView data={analysisData} onEdit={() => onEditChange(true)} />;
     }
     
     // This case should not be hit if effectiveIsEditing is true, but it's a safe fallback.
@@ -362,7 +364,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
                 <CardTitle className="font-headline text-2xl">Overall Asset Analysis</CardTitle>
                 <CardDescription className="mt-1">
                   Provide a high-level engineering assessment of the asset's performance.
-                  {lastUpdated && !isEditing && <span className="block text-xs mt-1">Last updated: {lastUpdated}</span>}
+                  {lastUpdated && !effectiveIsEditing && <span className="block text-xs mt-1">Last updated: {lastUpdated}</span>}
                 </CardDescription>
               </div>
             </div>

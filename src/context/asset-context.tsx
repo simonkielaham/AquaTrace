@@ -447,10 +447,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
             }
         }));
         
-        // Also update the asset status in the main list
         setAssets(prev => prev.map(a => a.id === assetId ? { ...a, status: result.savedData.status } : a));
         
-        // Trigger a background refetch to ensure long-term consistency
         incrementDataVersion();
       }
       return result;
@@ -614,6 +612,3 @@ export const useAssets = (): AssetContextType => {
   }
   return context;
 };
-
-    
-    
