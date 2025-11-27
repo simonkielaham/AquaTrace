@@ -29,6 +29,7 @@ export default function DashboardLayout() {
   const [chartBrushRange, setChartBrushRange] = React.useState<{startIndex?: number, endIndex?: number}>({});
   const [visibleElevations, setVisibleElevations] = React.useState<Record<string, boolean>>({});
   const [visibleSensorData, setVisibleSensorData] = React.useState<Record<string, boolean>>({});
+  const [isOverallAnalysisEditing, setIsOverallAnalysisEditing] = React.useState(false);
 
   // State for the offscreen chart used for report generation
   const [reportChartRange, setReportChartRange] = React.useState<{startDate: number, endDate: number} | null>(null);
@@ -57,6 +58,8 @@ export default function DashboardLayout() {
         title: "Fetching Data...",
         description: `Querying sensor and weather data for ${selectedAsset?.name}.`,
       });
+      // When asset changes, reset the editing state for overall analysis
+      setIsOverallAnalysisEditing(false);
 
       fetchAssetData(selectedAssetId).then(() => {
           toast({
@@ -205,7 +208,13 @@ export default function DashboardLayout() {
                 weatherSummary={weatherSummary} 
                 onSelectEvent={handleSelectEventTimeRange}
               />
-               <OverallAnalysis asset={selectedAsset} analysisData={overallAnalysis} loading={isChartLoading} />
+               <OverallAnalysis 
+                  asset={selectedAsset} 
+                  analysisData={overallAnalysis} 
+                  loading={isChartLoading} 
+                  isEditing={isOverallAnalysisEditing}
+                  onEditChange={setIsOverallAnalysisEditing}
+                />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <SurveyPointManager asset={selectedAsset} data={chartData} surveyPoints={surveyPoints} loading={isChartLoading}/>
               <TapeDownManager asset={selectedAsset} deployments={assetDeployments} data={chartData} surveyPoints={surveyPoints} loading={isChartLoading} />

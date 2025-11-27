@@ -123,13 +123,14 @@ interface OverallAnalysisProps {
   asset: Asset;
   analysisData: OverallAnalysisData | null;
   loading: boolean;
+  isEditing: boolean;
+  onEditChange: (isEditing: boolean) => void;
 }
 
-export default function OverallAnalysis({ asset, analysisData, loading }: OverallAnalysisProps) {
+export default function OverallAnalysis({ asset, analysisData, loading, isEditing, onEditChange }: OverallAnalysisProps) {
   const { toast } = useToast();
   const { saveOverallAnalysis } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [isEditing, setIsEditing] = React.useState(!analysisData);
   const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
   const form = useForm<OverallAnalysisFormValues>({
@@ -137,8 +138,6 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   });
   
   React.useEffect(() => {
-    // This effect synchronizes the form with the analysisData prop.
-    // It runs when analysisData or the asset itself changes.
     if (analysisData) {
         const formStatus = statusMapToForm[analysisData.status as string] || statusMapToForm[asset.status as string] || "Operating As Expected";
         form.reset({
@@ -151,7 +150,6 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
             status: formStatus,
         });
     } else {
-        // If there's no analysis data, reset to a blank form
         form.reset({
             permanentPoolPerformance: undefined,
             estimatedControlElevation: undefined,
@@ -165,11 +163,11 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
   }, [analysisData, asset.status, form]);
 
   React.useEffect(() => {
-    // This effect controls the edit/view mode.
-    // It also resets the mode when the asset changes.
-    setIsEditing(!analysisData);
-  }, [analysisData, asset.id]);
-
+    // If there is no analysis data, force edit mode.
+    if (!analysisData) {
+      onEditChange(true);
+    }
+  }, [analysisData, onEditChange]);
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
     setIsSubmitting(true);
@@ -185,15 +183,14 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
       toast({ title: "Success", description: "Overall analysis has been saved." });
-      setIsEditing(false); // Exit edit mode on successful save
+      onEditChange(false); // Exit edit mode on successful save
     }
     setIsSubmitting(false);
   };
   
   const handleCancel = () => {
-    // Only allow canceling if there is data to return to.
     if (analysisData) {
-      setIsEditing(false);
+      onEditChange(false);
     }
   }
   
@@ -202,6 +199,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
       return <CardContent><div className="text-center text-muted-foreground py-8">Loading analysis...</div></CardContent>;
     }
     
+    // The view is now determined by the `isEditing` prop from the parent
     if (isEditing) {
       return (
         <CardContent>
@@ -364,13 +362,13 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
     }
     
     if (analysisData) {
-      return <ReadOnlyAnalysisView data={analysisData} onEdit={() => setIsEditing(true)} />;
+      return <ReadOnlyAnalysisView data={analysisData} onEdit={() => onEditChange(true)} />;
     }
     
     return (
         <CardContent>
             <div className="text-center py-8 text-muted-foreground">
-                <p>An error occurred determining the view state.</p>
+                <p>No analysis data available. Start by filling out the form.</p>
             </div>
         </CardContent>
     );
@@ -378,7 +376,7 @@ export default function OverallAnalysis({ asset, analysisData, loading }: Overal
 
   return (
     <Card className="col-span-1 lg:col-span-4 shadow-sm">
-      <Accordion type="single" collapsible>
+      <Accordion type="single" collapsible defaultValue="item-1">
         <AccordionItem value="item-1" className="border-b-0">
           <AccordionTrigger className="p-6">
             <div className="flex items-start gap-4 text-left">
