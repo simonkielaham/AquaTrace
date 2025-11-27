@@ -436,14 +436,15 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
       const result = await saveOverallAnalysisAction(data);
       if (result && !result.errors && result.savedData) {
-        const newStatus = result.savedData.status;
         const assetId = result.savedData.assetId;
         
-        // This is the key: force a full data refresh for the asset
+        // This is the key fix: by incrementing dataVersion, we are telling the
+        // system that this asset's data is stale and must be completely refetched
+        // from the server, guaranteeing that the fresh analysis is loaded.
         incrementDataVersion();
         
-        // Also update the asset status in the main list for immediate feedback
-        setAssets(prev => prev.map(a => a.id === assetId ? { ...a, status: newStatus } : a));
+        // Also update the asset status in the main list for immediate feedback in the sidebar.
+        setAssets(prev => prev.map(a => a.id === assetId ? { ...a, status: result.savedData.status } : a));
       }
       return result;
     } catch (error) {
@@ -606,3 +607,5 @@ export const useAssets = (): AssetContextType => {
   }
   return context;
 };
+
+    
