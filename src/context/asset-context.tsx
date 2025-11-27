@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
@@ -39,6 +40,7 @@ import {
   saveAnalysis as saveAnalysisAction,
   getProcessedData,
   getOverallAnalysis as getOverallAnalysisAction,
+  getRawOverallAnalysisJson as getRawOverallAnalysisJsonAction,
   saveOverallAnalysis as saveOverallAnalysisAction,
 } from '@/app/actions';
 
@@ -70,6 +72,7 @@ interface AssetContextType {
   deleteDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   saveAnalysis: (data: SavedAnalysisData & { eventId: string }) => Promise<any>;
   getOverallAnalysis: (assetId: string) => Promise<OverallAnalysisData | null>;
+  getRawOverallAnalysisJson: (assetId: string) => Promise<string>;
   saveOverallAnalysis: (data: any) => Promise<any>;
   loading: boolean;
   stagedFiles: StagedFile[];
@@ -431,6 +434,15 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
           return null;
       }
   }, []);
+
+  const getRawOverallAnalysisJson = useCallback(async (assetId: string) => {
+    try {
+        return await getRawOverallAnalysisJsonAction(assetId);
+    } catch (error) {
+        console.error(error);
+        return '{"error": "Failed to fetch raw analysis JSON."}';
+    }
+  }, []);
   
   const saveOverallAnalysis = useCallback(async (data: any) => {
     try {
@@ -582,6 +594,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     deleteDatafile,
     saveAnalysis,
     getOverallAnalysis,
+    getRawOverallAnalysisJson,
     saveOverallAnalysis,
     loading,
     stagedFiles,

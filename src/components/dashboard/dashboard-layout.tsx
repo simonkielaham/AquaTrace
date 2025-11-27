@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -20,6 +21,7 @@ import { useAssets } from "@/context/asset-context";
 import PerformanceChart from "@/components/dashboard/performance-chart";
 import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
+import AnalysisQaqc from "./analysis-qaqc";
 
 
 export default function DashboardLayout() {
@@ -214,6 +216,7 @@ export default function DashboardLayout() {
                   isEditing={isOverallAnalysisEditing}
                   onEditChange={setIsOverallAnalysisEditing}
                 />
+              <AnalysisQaqc asset={selectedAsset} />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <SurveyPointManager asset={selectedAsset} data={chartData} surveyPoints={surveyPoints} loading={isChartLoading}/>
               <TapeDownManager asset={selectedAsset} deployments={assetDeployments} data={chartData} surveyPoints={surveyPoints} loading={isChartLoading} />

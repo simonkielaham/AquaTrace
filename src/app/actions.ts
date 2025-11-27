@@ -1138,6 +1138,22 @@ export async function getOverallAnalysis(assetId: string): Promise<OverallAnalys
     }
 }
 
+export async function getRawOverallAnalysisJson(assetId: string): Promise<string> {
+    try {
+        const allAnalysis = await readJsonFile<{[key: string]: OverallAnalysisData}>(overallAnalysisFilePath);
+        const assetAnalysis = allAnalysis[assetId];
+        if (assetAnalysis) {
+            return JSON.stringify(assetAnalysis, null, 2);
+        }
+        return "{\n  \"message\": \"No analysis data found for this asset on the server.\"\n}";
+    } catch (error) {
+        console.error(`Failed to get raw overall analysis for asset ${assetId}:`, error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        return JSON.stringify({ error: "Failed to read analysis file.", details: errorMessage }, null, 2);
+    }
+}
+
+
 export async function saveOverallAnalysis(data: any) {
     const logPayload = { data };
     const validatedFields = saveOverallAnalysisSchema.safeParse(data);
