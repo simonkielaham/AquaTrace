@@ -58,9 +58,6 @@ export default function DashboardLayout() {
         title: "Fetching Data...",
         description: `Querying sensor and weather data for ${selectedAsset?.name}.`,
       });
-      // When asset changes, reset the editing state for overall analysis
-      setIsOverallAnalysisEditing(false);
-
       fetchAssetData(selectedAssetId).then(() => {
           toast({
             id: toastId,
@@ -85,10 +82,11 @@ export default function DashboardLayout() {
         barometer: false,
       });
 
-      // Reset chart brush range when asset changes
+      // Reset chart brush range and analysis editing state when asset changes
       setChartBrushRange({});
+      setIsOverallAnalysisEditing(false);
     }
-  }, [selectedAsset]);
+  }, [selectedAssetId, selectedAsset]);
 
   // Listener for report generation chart rendering
   React.useEffect(() => {

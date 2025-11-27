@@ -138,6 +138,8 @@ export default function OverallAnalysis({ asset, analysisData, loading, isEditin
   });
   
   React.useEffect(() => {
+    // This effect now correctly synchronizes the form with the incoming data prop.
+    // It runs whenever the asset or its analysis data changes.
     if (analysisData) {
         const formStatus = statusMapToForm[analysisData.status as string] || statusMapToForm[asset.status as string] || "Operating As Expected";
         form.reset({
@@ -162,13 +164,6 @@ export default function OverallAnalysis({ asset, analysisData, loading, isEditin
     }
   }, [analysisData, asset.status, form]);
 
-  React.useEffect(() => {
-    // If there is no analysis data, force edit mode.
-    if (!analysisData) {
-      onEditChange(true);
-    }
-  }, [analysisData, onEditChange]);
-
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
     setIsSubmitting(true);
     const serverPayload = {
@@ -189,18 +184,19 @@ export default function OverallAnalysis({ asset, analysisData, loading, isEditin
   };
   
   const handleCancel = () => {
-    if (analysisData) {
-      onEditChange(false);
-    }
+    onEditChange(false);
+    // form.reset() is called by the useEffect when analysisData changes,
+    // so we don't need to do it here manually.
   }
   
+  const effectiveIsEditing = isEditing || !analysisData;
+
   const renderContent = () => {
     if (loading) {
       return <CardContent><div className="text-center text-muted-foreground py-8">Loading analysis...</div></CardContent>;
     }
     
-    // The view is now determined by the `isEditing` prop from the parent
-    if (isEditing) {
+    if (effectiveIsEditing) {
       return (
         <CardContent>
             <Form {...form}>
@@ -365,6 +361,7 @@ export default function OverallAnalysis({ asset, analysisData, loading, isEditin
       return <ReadOnlyAnalysisView data={analysisData} onEdit={() => onEditChange(true)} />;
     }
     
+    // This case should not be hit if effectiveIsEditing is true, but it's a safe fallback.
     return (
         <CardContent>
             <div className="text-center py-8 text-muted-foreground">
@@ -385,7 +382,7 @@ export default function OverallAnalysis({ asset, analysisData, loading, isEditin
                 <CardTitle className="font-headline text-2xl">Overall Asset Analysis</CardTitle>
                 <CardDescription className="mt-1">
                   Provide a high-level engineering assessment of the asset's performance.
-                  {lastUpdated && !isEditing && <span className="block text-xs mt-1">Last updated: {lastUpdated}</span>}
+                  {lastUpdated && !effectiveIsEditing && <span className="block text-xs mt-1">Last updated: {lastUpdated}</span>}
                 </CardDescription>
               </div>
             </div>
