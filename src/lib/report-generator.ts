@@ -157,7 +157,7 @@ function drawChart(
   if (waterLevelPoints.length > 1) {
       doc.setDrawColor(HamiltonColors.green);
       doc.setLineWidth(0.5);
-      doc.path(waterLevelPoints).stroke();
+      doc.lines(waterLevelPoints);
   }
 
 
