@@ -1093,12 +1093,12 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             const baselineTime = event.startDate - 3 * 60 * 60 * 1000;
             const baselinePoints = allData.filter(p => p.timestamp >= baselineTime && p.timestamp < event.startDate && p.waterLevel !== undefined);
             
-            const validBaselinePoints = baselinePoints.filter(p => typeof p.waterLevel === 'number');
+            const validBaselinePoints = baselinePoints.filter(p => typeof p.waterLevel === 'number' && isFinite(p.waterLevel));
             const baselineElevation = validBaselinePoints.length > 0
                 ? validBaselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / validBaselinePoints.length
                 : undefined;
 
-            const validEventPoints = event.dataPoints.filter(p => p.waterLevel !== undefined);
+            const validEventPoints = event.dataPoints.filter(p => p.waterLevel !== undefined && isFinite(p.waterLevel));
             const peakPoint = validEventPoints.length > 0
                 ? validEventPoints.reduce((max, p) => (p.waterLevel! > (max.waterLevel ?? -Infinity)) ? p : max, { waterLevel: -Infinity } as ChartablePoint)
                 : { waterLevel: -Infinity };
@@ -1352,3 +1352,5 @@ export async function saveDeploymentAnalysis(data: any) {
 
 
       
+
+    
