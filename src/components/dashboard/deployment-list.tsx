@@ -127,6 +127,31 @@ const assignDatafileSchema = baseDatafileSchema.extend({
     path: ["waterLevelColumn"],
 });
 
+const getIntelligentMapping = (headers: string[]): Partial<z.infer<typeof baseDatafileSchema>> => {
+    const mapping: Partial<z.infer<typeof baseDatafileSchema>> = {};
+    const lowerCaseHeaders = headers.map(h => h.toLowerCase());
+
+    const findMatch = (keywords: string[]): string | undefined => {
+        for (const keyword of keywords) {
+            const exactMatchIndex = lowerCaseHeaders.findIndex(h => h === keyword);
+            if (exactMatchIndex !== -1) return headers[exactMatchIndex];
+        }
+        for (const keyword of keywords) {
+            const partialMatchIndex = lowerCaseHeaders.findIndex(h => h.includes(keyword));
+            if (partialMatchIndex !== -1) return headers[partialMatchIndex];
+        }
+        return undefined;
+    };
+
+    mapping.datetimeColumn = findMatch(['date', 'time', 'timestamp']);
+    mapping.waterLevelColumn = findMatch(['waterlevel', 'water level', 'level', 'wl']);
+    mapping.precipitationColumn = findMatch(['precipitation', 'rain', 'precip']);
+    mapping.sensorPressureColumn = findMatch(['sensor pressure', 'absolute pressure', 'abs pressure', 'pressure']);
+    mapping.temperatureColumn = findMatch(['temperature', 'temp']);
+    mapping.barometerColumn = findMatch(['barometer', 'baro']);
+
+    return mapping;
+}
 
 function NewDeploymentDialog({ asset }: { asset: Asset }) {
   const { toast } = useToast();
@@ -677,9 +702,17 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
         complete: (results) => {
             const data = results.data as string[][];
             if (data.length > 0) {
-              setCsvHeaders(data[0].filter(h => h));
+              const headers = data[0].filter(h => h);
+              setCsvHeaders(headers);
               setCsvSample(data);
-              toast({ title: "File Parsed", description: "Please map the required columns." });
+              
+              const intelligentMap = getIntelligentMapping(headers);
+              form.reset({
+                  ...form.getValues(),
+                  ...intelligentMap,
+              });
+
+              toast({ title: "File Parsed", description: "Please confirm the mapped columns." });
             } else {
                toast({ variant: "destructive", title: "Parsing Error", description: "Could not parse CSV. Check file format." });
             }
@@ -803,8 +836,22 @@ function ReassignDatafileDialog({ deployment, datafile, children }: { deployment
             complete: (results) => {
                 const data = results.data as string[][];
                 if (data.length > 0) {
-                    setCsvHeaders(data[0].filter(h => h));
+                    const headers = data[0].filter(h => h);
+                    setCsvHeaders(headers);
                     setCsvSample(data);
+
+                    const intelligentMap = getIntelligentMapping(headers);
+                    // We only apply the intelligent map if the original mapping is not already set
+                    const currentValues = form.getValues();
+                    const newValues = { ...currentValues };
+
+                    for (const key in intelligentMap) {
+                        const formKey = key as keyof typeof intelligentMap;
+                        if (!currentValues[formKey] && intelligentMap[formKey]) {
+                            newValues[formKey] = intelligentMap[formKey];
+                        }
+                    }
+                    form.reset(newValues);
                 }
                 setIsParsing(false);
             },
@@ -813,7 +860,7 @@ function ReassignDatafileDialog({ deployment, datafile, children }: { deployment
                 setIsParsing(false);
             }
         });
-    }, [datafile.id, getSourceFileContent, toast]);
+    }, [datafile.id, getSourceFileContent, toast, form]);
 
     const handleOpenChange = (open: boolean) => {
         setIsOpen(open);
