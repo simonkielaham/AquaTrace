@@ -154,15 +154,17 @@ function drawChart(
         .filter((p): p is [number, number] => p !== null);
 
     if (waterLevelPoints.length > 1) {
-        const fillPath: [number, number][] = [...waterLevelPoints];
-        // Create a closed shape for filling
+        // Create a new path for the filled area
+        const fillPath = [...waterLevelPoints];
         fillPath.push([waterLevelPoints[waterLevelPoints.length - 1][0], dims.y + dims.height]); // Bottom-right
         fillPath.push([waterLevelPoints[0][0], dims.y + dims.height]); // Bottom-left
-        fillPath.push(waterLevelPoints[0]); // Back to start
+        fillPath.push(waterLevelPoints[0]); // Close path
 
+        // Fill the area
         doc.setFillColor(HamiltonColors.green);
-        doc.path(fillPath).fill('F', {a: 0.1});
+        doc.path(fillPath).fill('F', {a:0.1});
         
+        // Stroke the top line
         doc.setDrawColor(HamiltonColors.green);
         doc.setLineWidth(0.4);
         doc.path(waterLevelPoints).stroke();
