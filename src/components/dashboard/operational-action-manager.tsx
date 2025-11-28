@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils";
 import { CalendarIcon, PlusCircle, Trash2, Loader2, Clock, ChevronDown, Settings } from "lucide-react";
 
 const operationalActionSchema = z.object({
-  deploymentId: z.string({ required_error: "A deployment must be selected." }),
+  deploymentId: z.string({ required_error: "A deployment must be selected." }).min(1, "A deployment must be selected."),
   date: z.date({ required_error: "A date is required." }),
   time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format. Use HH:MM" }),
   action: z.string().min(3, "An action description of at least 3 characters is required."),
@@ -226,7 +226,7 @@ export default function OperationalActionManager({ asset, deployments, operation
                         </FormItem>
                       )}
                     />
-                    <Button type="submit" disabled={isSubmitting} className="w-full lg:w-auto">
+                    <Button type="submit" disabled={isSubmitting || !form.formState.isValid} className="w-full lg:w-auto">
                       <PlusCircle className="mr-2 h-4 w-4" />
                       {isSubmitting ? "Logging..." : "Log Action"}
                     </Button>
