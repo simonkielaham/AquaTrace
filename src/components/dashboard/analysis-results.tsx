@@ -101,7 +101,7 @@ const analysisFormSchema = z.object({
 type AnalysisFormValues = z.infer<typeof analysisFormSchema>;
 
 
-function EventAnalysisDetails({ event, diagnostics }: { event: AnalysisPeriod, diagnostics?: any[] }) {
+function EventAnalysisDetails({ event, diagnostics, onSaveSuccess }: { event: AnalysisPeriod, diagnostics?: any[], onSaveSuccess: (eventId: string) => void }) {
   const { saveAnalysis, selectedAssetId, assets } = useAssets();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = React.useState(false);
@@ -167,6 +167,7 @@ function EventAnalysisDetails({ event, diagnostics }: { event: AnalysisPeriod, d
         description: `Your analysis for this event have been saved.`
       });
       setIsEditing(false);
+      onSaveSuccess(event.id);
     }
 
     setIsSaving(false);
@@ -511,6 +512,8 @@ function EventAnalysisDetails({ event, diagnostics }: { event: AnalysisPeriod, d
 
 
 export default function AnalysisResults({ weatherSummary, diagnostics, onSelectEvent }: AnalysisResultsProps) {
+  const [openItems, setOpenItems] = React.useState<string[]>([]);
+  
   if (!weatherSummary || !weatherSummary.events || weatherSummary.events.length === 0) {
     return (
       <Card className="col-span-1 lg:col-span-4 shadow-sm">
@@ -530,6 +533,11 @@ export default function AnalysisResults({ weatherSummary, diagnostics, onSelectE
     );
   }
 
+  const handleSaveSuccess = (eventId: string) => {
+    setOpenItems(prev => prev.filter(id => id !== eventId));
+  };
+
+
   return (
     <Card className="col-span-1 lg:col-span-4 shadow-sm">
       <CardHeader>
@@ -540,7 +548,7 @@ export default function AnalysisResults({ weatherSummary, diagnostics, onSelectE
       </CardHeader>
       <CardContent>
         <TooltipProvider>
-            <Accordion type="multiple" className="space-y-2">
+            <Accordion type="multiple" className="space-y-2" value={openItems} onValueChange={setOpenItems}>
                 {weatherSummary.events.map((event) => {
                     const peakDiff = event.analysis?.peakElevation && event.analysis?.baselineElevation
                         ? event.analysis.peakElevation - event.analysis.baselineElevation
@@ -584,7 +592,12 @@ export default function AnalysisResults({ weatherSummary, diagnostics, onSelectE
                                         }
                                         {format(new Date(event.startDate), "Pp")}
                                     </div>
-                                    <div>{formatDuration(event.startDate, event.endDate)}</div>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <div>{formatDuration(event.startDate, event.endDate)}</div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Event Duration</TooltipContent>
+                                    </Tooltip>
                                     <Tooltip>
                                         <TooltipTrigger className="flex items-center gap-2">
                                             <Droplets className="h-4 w-4 text-blue-400" />
@@ -633,7 +646,7 @@ export default function AnalysisResults({ weatherSummary, diagnostics, onSelectE
                                 <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-4" />
                             </AccordionTrigger>
                             <AccordionContent>
-                                <EventAnalysisDetails event={event} diagnostics={eventDiagnostics} />
+                                <EventAnalysisDetails event={event} diagnostics={eventDiagnostics} onSaveSuccess={handleSaveSuccess} />
                             </AccordionContent>
                         </AccordionItem>
                     )
