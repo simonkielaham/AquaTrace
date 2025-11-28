@@ -914,7 +914,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 console.warn(`CSV parsing error in file ${file.filename}:`, parseResult.errors);
                 continue; // Skip to next file
             }
-
+            
             const dataPoints = (parseResult.data as any[]).slice(file.columnMapping.startRow - 2);
 
             dataPoints.forEach((row: any) => {
@@ -1035,12 +1035,18 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
         const events: AnalysisPeriod[] = [];
         let currentEvent: AnalysisPeriod | null = null;
-        const rainThreshold = 0.1; // mm, lowered to catch smaller events
+        const rainThreshold = 0.1; // mm
         const eventGapHours = 6;
         let lastRainTimestamp = 0;
 
         for (const point of allData) {
             const hasRain = (point.precipitation || 0) > rainThreshold;
+
+            if (currentEvent && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
+                // End of the current event because gap is long enough
+                events.push(currentEvent);
+                currentEvent = null;
+            }
 
             if (hasRain) {
                 if (!currentEvent) {
@@ -1051,28 +1057,22 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                         deploymentId,
                         startDate: point.timestamp,
                         endDate: point.timestamp,
-                        totalPrecipitation: point.precipitation || 0,
-                        dataPoints: [point]
+                        totalPrecipitation: 0,
+                        dataPoints: []
                     };
-                } else {
-                    // Continuing an existing event
-                    currentEvent.endDate = point.timestamp;
-                    currentEvent.totalPrecipitation += point.precipitation || 0;
-                    currentEvent.dataPoints.push(point);
                 }
+                
+                // Add point to the current event
+                currentEvent.endDate = point.timestamp;
+                currentEvent.totalPrecipitation += point.precipitation || 0;
+                currentEvent.dataPoints.push(point);
                 lastRainTimestamp = point.timestamp;
-            } else {
-                if (currentEvent && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
-                    // End of the current event because gap is long enough
-                    events.push(currentEvent);
-                    currentEvent = null;
-                } else if (currentEvent) {
-                    // Still within the event gap, just add the point to the current event
-                    currentEvent.dataPoints.push(point);
-                    currentEvent.endDate = point.timestamp;
-                }
+            } else if (currentEvent) {
+                // This is a dry point but the event is not over yet. Add it to capture drawdown.
+                currentEvent.dataPoints.push(point);
             }
         }
+
         if (currentEvent) {
             events.push(currentEvent); // Add the last event if it's still open
         }
