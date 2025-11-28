@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { WeatherSummary, AnalysisPeriod } from "@/lib/placeholder-data";
@@ -33,6 +34,12 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit, EyeOff, Pencil, X, Clock, AreaChart, Waves, Lightbulb, Search } from "lucide-react";
 import { format, formatDistance } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -532,76 +539,110 @@ export default function AnalysisResults({ weatherSummary, diagnostics, onSelectE
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Accordion type="multiple" className="space-y-2">
-            {weatherSummary.events.map((event) => {
-                const peakDiff = event.analysis?.peakElevation && event.analysis?.baselineElevation
-                    ? event.analysis.peakElevation - event.analysis.baselineElevation
-                    : undefined;
+        <TooltipProvider>
+            <Accordion type="multiple" className="space-y-2">
+                {weatherSummary.events.map((event) => {
+                    const peakDiff = event.analysis?.peakElevation && event.analysis?.baselineElevation
+                        ? event.analysis.peakElevation - event.analysis.baselineElevation
+                        : undefined;
 
-                const returnedToBaseline = event.analysis?.postEventElevation !== undefined && event.analysis?.baselineElevation !== undefined 
-                    ? event.analysis.postEventElevation <= (event.analysis.baselineElevation + 0.03)
-                    : false;
+                    const returnedToBaseline = event.analysis?.postEventElevation !== undefined && event.analysis?.baselineElevation !== undefined 
+                        ? event.analysis.postEventElevation <= (event.analysis.baselineElevation + 0.03)
+                        : false;
 
-                const isReviewed = !!event.analysis?.analystInitials;
-                const isDisregarded = !!event.analysis?.disregarded;
+                    const isReviewed = !!event.analysis?.analystInitials;
+                    const isDisregarded = !!event.analysis?.disregarded;
 
-                const eventDiagnostics = diagnostics ? diagnostics[event.id] : [];
-                const topDiagnosis = eventDiagnostics?.sort((a:any, b:any) => b.confidence - a.confidence)[0];
-                    
-                return (
-                    <AccordionItem value={event.id} key={event.id} className={cn("border rounded-lg bg-background", isDisregarded && "bg-muted/50")}>
-                        <AccordionTrigger 
-                            className={cn("p-4 hover:no-underline", isDisregarded && "opacity-60")}
-                            onClick={() => onSelectEvent(event.startDate, event.endDate)}
-                        >
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-left flex-1 items-center text-sm">
-                                 <div className="font-medium flex items-center gap-2">
-                                    {isDisregarded && <EyeOff className="h-4 w-4 text-muted-foreground" title="Disregarded"/>}
-                                    {isReviewed && !isDisregarded && <CheckCircle className="h-4 w-4 text-green-500" title="Reviewed"/>}
-                                    {topDiagnosis && !isDisregarded && getConfidenceIcon(topDiagnosis.confidence)}
-                                    {format(new Date(event.startDate), "Pp")}
-                                 </div>
-                                 <div>{formatDuration(event.startDate, event.endDate)}</div>
-                                 <div className="flex items-center gap-2">
-                                    <Droplets className="h-4 w-4 text-blue-400" />
-                                    <span>{event.totalPrecipitation.toFixed(2)} mm</span>
-                                 </div>
-                                 <div className="hidden md:flex items-center gap-2">
-                                    <TrendingUp className="h-4 w-4 text-destructive" />
-                                    <div className="flex flex-col items-start">
-                                      <span>{event.analysis?.peakElevation?.toFixed(2) ?? '-'} m</span>
-                                      {peakDiff !== undefined && (
-                                        <span className="text-xs text-destructive/80 font-mono">
-                                            {peakDiff > 0 ? '+' : ''}{peakDiff.toFixed(2)}m
-                                        </span>
-                                      )}
+                    const eventDiagnostics = diagnostics ? diagnostics[event.id] : [];
+                    const topDiagnosis = eventDiagnostics?.sort((a:any, b:any) => b.confidence - a.confidence)[0];
+                        
+                    return (
+                        <AccordionItem value={event.id} key={event.id} className={cn("border rounded-lg bg-background", isDisregarded && "bg-muted/50")}>
+                            <AccordionTrigger 
+                                className={cn("p-4 hover:no-underline", isDisregarded && "opacity-60")}
+                                onClick={() => onSelectEvent(event.startDate, event.endDate)}
+                            >
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-left flex-1 items-center text-sm">
+                                    <div className="font-medium flex items-center gap-2">
+                                        {isDisregarded && 
+                                            <Tooltip>
+                                                <TooltipTrigger><EyeOff className="h-4 w-4 text-muted-foreground"/></TooltipTrigger>
+                                                <TooltipContent>Event Disregarded</TooltipContent>
+                                            </Tooltip>
+                                        }
+                                        {isReviewed && !isDisregarded && 
+                                            <Tooltip>
+                                                <TooltipTrigger><CheckCircle className="h-4 w-4 text-green-500"/></TooltipTrigger>
+                                                <TooltipContent>Reviewed by Analyst</TooltipContent>
+                                            </Tooltip>
+                                        }
+                                        {topDiagnosis && !isDisregarded &&
+                                            <Tooltip>
+                                                <TooltipTrigger>{getConfidenceIcon(topDiagnosis.confidence)}</TooltipTrigger>
+                                                <TooltipContent>Top Diagnosis: {topDiagnosis.title}</TooltipContent>
+                                            </Tooltip>
+                                        }
+                                        {format(new Date(event.startDate), "Pp")}
                                     </div>
-                                 </div>
-                                <div className={cn(
-                                    "hidden md:flex items-center gap-2",
-                                    !returnedToBaseline ? "text-destructive" : "text-green-600"
-                                )}>
-                                    <Waves className="h-4 w-4" />
-                                    <div className="flex flex-col items-start">
-                                        <span>{event.analysis?.postEventElevation?.toFixed(2) ?? '-'} m</span>
-                                        {event.analysis?.poolRecoveryDifference !== undefined && (
-                                            <span className={cn("text-xs font-mono", Math.abs(event.analysis.poolRecoveryDifference) > 0.03 ? "text-destructive/80" : "text-green-600/80")}>
-                                               {event.analysis.poolRecoveryDifference > 0 ? '+' : ''}{(event.analysis.poolRecoveryDifference * 100).toFixed(1)}cm
-                                            </span>
-                                        )}
-                                    </div>
+                                    <div>{formatDuration(event.startDate, event.endDate)}</div>
+                                    <Tooltip>
+                                        <TooltipTrigger className="flex items-center gap-2">
+                                            <Droplets className="h-4 w-4 text-blue-400" />
+                                            <span>{event.totalPrecipitation.toFixed(2)} mm</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Total Precipitation</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                        <TooltipTrigger className="hidden md:flex items-center gap-2">
+                                            <TrendingUp className="h-4 w-4 text-destructive" />
+                                            <div className="flex flex-col items-start">
+                                            <span>{event.analysis?.peakElevation?.toFixed(2) ?? '-'} m</span>
+                                            {peakDiff !== undefined && (
+                                                <span className="text-xs text-destructive/80 font-mono">
+                                                    {peakDiff > 0 ? '+' : ''}{peakDiff.toFixed(2)}m
+                                                </span>
+                                            )}
+                                            </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Peak Elevation: {event.analysis?.peakElevation?.toFixed(2) ?? 'N/A'} m</p>
+                                            <p>Rise from Baseline: {peakDiff !== undefined ? `${peakDiff > 0 ? '+' : ''}${peakDiff.toFixed(2)}m` : 'N/A'}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                        <TooltipTrigger className={cn(
+                                            "hidden md:flex items-center gap-2",
+                                            !returnedToBaseline ? "text-destructive" : "text-green-600"
+                                        )}>
+                                            <Waves className="h-4 w-4" />
+                                            <div className="flex flex-col items-start">
+                                                <span>{event.analysis?.postEventElevation?.toFixed(2) ?? '-'} m</span>
+                                                {event.analysis?.poolRecoveryDifference !== undefined && (
+                                                    <span className={cn("text-xs font-mono", Math.abs(event.analysis.poolRecoveryDifference) > 0.03 ? "text-destructive/80" : "text-green-600/80")}>
+                                                    {event.analysis.poolRecoveryDifference > 0 ? '+' : ''}{(event.analysis.poolRecoveryDifference * 100).toFixed(1)}cm
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Post-Event Elevation: {event.analysis?.postEventElevation?.toFixed(2) ?? 'N/A'} m</p>
+                                            <p>Offset from Pool: {event.analysis?.poolRecoveryDifference !== undefined ? `${(event.analysis.poolRecoveryDifference * 100).toFixed(1)}cm` : 'N/A'}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
                                 </div>
-                            </div>
-                            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-4" />
-                        </AccordionTrigger>
-                        <AccordionContent>
-                            <EventAnalysisDetails event={event} diagnostics={eventDiagnostics} />
-                        </AccordionContent>
-                    </AccordionItem>
-                )
-            })}
-        </Accordion>
+                                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-4" />
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <EventAnalysisDetails event={event} diagnostics={eventDiagnostics} />
+                            </AccordionContent>
+                        </AccordionItem>
+                    )
+                })}
+            </Accordion>
+        </TooltipProvider>
       </CardContent>
     </Card>
   );
 }
+
+    
