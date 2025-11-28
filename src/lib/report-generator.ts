@@ -68,7 +68,8 @@ interface ChartDimensions {
 
 function calculateBounds(
   data: ChartablePoint[],
-  asset: Asset
+  asset: Asset,
+  isEventChart: boolean
 ): ChartBounds {
   const elevations = data
     .map((d) => d.waterLevel)
@@ -78,7 +79,10 @@ function calculateBounds(
     .map((d) => d.precipitation)
     .filter((v): v is number => typeof v === 'number' && v > 0);
   
-  const allElevations = [...elevations, asset.permanentPoolElevation];
+  const allElevations: number[] = [...elevations];
+  if (!isEventChart) {
+    allElevations.push(asset.permanentPoolElevation);
+  }
 
   const validElevations = allElevations.filter(e => typeof e === 'number' && isFinite(e));
   
@@ -111,8 +115,8 @@ function drawChart(
   eventsToAnnotate?: AnalysisPeriod[]
 ) {
   if (data.length < 2) return;
-
-  const bounds = calculateBounds(data, asset);
+  const isEventChart = !!eventsToAnnotate;
+  const bounds = calculateBounds(data, asset, !isEventChart);
 
   const scaleX = (val: number) => dims.x + ((val - bounds.minX) / (bounds.maxX - bounds.minX)) * dims.width;
   const scaleY = (val: number) => dims.y + dims.height - ((val - bounds.minY) / (bounds.maxY - bounds.minY)) * dims.height;
@@ -151,19 +155,21 @@ function drawChart(
   }
 
   // Draw Water Level Line
+  doc.setDrawColor(HamiltonColors.green);
+  doc.setLineWidth(0.5);
+
   const waterLevelPoints = data
     .map(p => (typeof p.waterLevel === 'number' ? {x: scaleX(p.timestamp), y: scaleY(p.waterLevel)} : null))
     .filter((p): p is {x: number, y: number} => p !== null);
 
   if (waterLevelPoints.length > 1) {
-    doc.setDrawColor(HamiltonColors.green);
-    doc.setLineWidth(0.5);
     doc.moveTo(waterLevelPoints[0].x, waterLevelPoints[0].y);
     for (let i = 1; i < waterLevelPoints.length; i++) {
         doc.lineTo(waterLevelPoints[i].x, waterLevelPoints[i].y);
     }
-    doc.stroke(); // Render the path
+    doc.stroke();
   }
+
 
   // Draw Precipitation Bars
   doc.setFillColor(HamiltonColors.blue);
@@ -179,39 +185,35 @@ function drawChart(
     }
   });
 
-  // Draw Reference Lines
-  const permanentPool = { name: 'Permanent Pool', elevation: asset.permanentPoolElevation };
-  
-  if(typeof permanentPool.elevation === 'number') {
-    const y = scaleY(permanentPool.elevation);
-    doc.setDrawColor(HamiltonColors.blue);
-    doc.setLineWidth(0.5);
-    doc.line(dims.x, y, dims.x + dims.width, y);
-    doc.setFontSize(7);
-    doc.text(permanentPool.name, dims.x + dims.width + 17, y + 1.5, { align: 'left'});
-  }
+  // Draw Permanent Pool Line
+  const y = scaleY(asset.permanentPoolElevation);
+  doc.setDrawColor(HamiltonColors.blue);
+  doc.setLineWidth(0.5);
+  doc.line(dims.x, y, dims.x + dims.width, y);
+  doc.setFontSize(7);
+  doc.text('Permanent Pool', dims.x + dims.width + 17, y + 1.5, { align: 'left'});
   doc.setDrawColor(HamiltonColors.darkGrey);
 
   // Draw Event Annotations
   if (eventsToAnnotate) {
     eventsToAnnotate.forEach((event, index) => {
         const x = scaleX(event.startDate);
-        const y = dims.y - 8;
+        const y = dims.y + dims.height + 8; // Position below x-axis labels
         
         doc.setFillColor(HamiltonColors.darkGrey);
         doc.setDrawColor(HamiltonColors.darkGrey);
         doc.setLineWidth(0.3);
 
-        // Arrow
-        doc.line(x, y + 6, x, y + 2); // shaft
-        doc.triangle(x - 1, y + 2, x + 1, y + 2, x, y, 'F'); // head
+        // Arrow pointing up
+        doc.line(x, y, x, y + 4); // shaft
+        doc.triangle(x - 1, y, x + 1, y, x, y - 2, 'F'); // head
 
         // Numbered Circle
-        doc.circle(x, y - 2.5, 2.5, 'F');
+        doc.circle(x, y + 7, 2.5, 'F');
         doc.setFontSize(8);
         doc.setTextColor(HamiltonColors.white);
         doc.setFont(FONT_BODY, 'bold');
-        doc.text(`${index + 1}`, x, y - 1, { align: 'center' });
+        doc.text(`${index + 1}`, x, y + 8, { align: 'center' });
     });
     doc.setTextColor(HamiltonColors.darkGrey);
     doc.setFont(FONT_BODY, 'normal');
@@ -382,9 +384,10 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
       width: pageWidth - PAGE_MARGIN * 2 - 25,
       height: 70
   };
-  checkPageBreak(overviewChartDims.height + 15);
+  // Add extra space at the bottom for event markers
+  checkPageBreak(overviewChartDims.height + 25);
   drawChart(doc, chartData, asset, overviewChartDims, reviewedEvents);
-  yPos += overviewChartDims.height + 15;
+  yPos += overviewChartDims.height + 25;
 
   addSubheader("Event Overview");
   addField("Total Reviewed Events:", `${reviewedEvents.length}`);
