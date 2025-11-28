@@ -78,14 +78,19 @@ function calculateBounds(
     .map((d) => d.precipitation)
     .filter((v): v is number => typeof v === 'number' && v > 0);
   
-  const designElevations = asset.designElevations.map(de => de.elevation);
-  
-  const allElevations = [...elevations, asset.permanentPoolElevation, ...designElevations];
+  const allElevations = [...elevations, asset.permanentPoolElevation];
 
   const validElevations = allElevations.filter(e => typeof e === 'number' && isFinite(e));
   
-  const minY = validElevations.length > 0 ? Math.min(...validElevations) - 0.2 : 0;
-  const maxY = validElevations.length > 0 ? Math.max(...validElevations) + 0.2 : 1;
+  let minY = 0, maxY = 1;
+  if (validElevations.length > 0) {
+      minY = Math.min(...validElevations);
+      maxY = Math.max(...validElevations);
+  }
+  
+  const yPadding = (maxY - minY) * 0.1 > 0 ? (maxY - minY) * 0.1 : 0.2;
+  minY -= yPadding;
+  maxY += yPadding;
 
 
   return {
@@ -145,18 +150,16 @@ function drawChart(
   }
 
   // --- START: Corrected Water Level Line Drawing ---
-  const waterLevelPoints: [number, number][] = data
-    .map(p => (typeof p.waterLevel === 'number' ? [scaleX(p.timestamp), scaleY(p.waterLevel)] : null))
-    .filter((p): p is [number, number] => p !== null);
+  const waterLevelPoints = data
+    .map(p => (typeof p.waterLevel === 'number' ? {x: scaleX(p.timestamp), y: scaleY(p.waterLevel)} : null))
+    .filter((p): p is {x: number, y: number} => p !== null);
 
   if (waterLevelPoints.length > 1) {
     doc.setDrawColor(HamiltonColors.green);
     doc.setLineWidth(0.5);
-    
-    // Use moveTo and lineTo for reliable line drawing
-    doc.moveTo(waterLevelPoints[0][0], waterLevelPoints[0][1]);
+    doc.moveTo(waterLevelPoints[0].x, waterLevelPoints[0].y);
     for (let i = 1; i < waterLevelPoints.length; i++) {
-        doc.lineTo(waterLevelPoints[i][0], waterLevelPoints[i][1]);
+        doc.lineTo(waterLevelPoints[i].x, waterLevelPoints[i].y);
     }
     doc.stroke(); // Render the path
   }
@@ -178,22 +181,16 @@ function drawChart(
   });
 
   // Draw Reference Lines
-  const allDesignElevations = [
-      { name: 'Permanent Pool', elevation: asset.permanentPoolElevation, color: HamiltonColors.blue, dash: undefined },
-      ...asset.designElevations.map(de => ({ ...de, color: '#C70202', dash: [2, 2] as [number, number] }))
-  ];
-
-  allDesignElevations.forEach(de => {
-    if(typeof de.elevation !== 'number') return;
-    const y = scaleY(de.elevation);
-    doc.setDrawColor(de.color);
+  const permanentPool = { name: 'Permanent Pool', elevation: asset.permanentPoolElevation, color: HamiltonColors.blue, dash: undefined };
+  
+  if(typeof permanentPool.elevation === 'number') {
+    const y = scaleY(permanentPool.elevation);
+    doc.setDrawColor(permanentPool.color);
     doc.setLineWidth(0.5);
-    if(de.dash) doc.setLineDashPattern(de.dash, 0);
     doc.line(dims.x, y, dims.x + dims.width, y);
-    doc.setLineDashPattern([], 0);
     doc.setFontSize(7);
-    doc.text(de.name, dims.x + dims.width + 17, y + 1.5, { align: 'left'});
-  });
+    doc.text(permanentPool.name, dims.x + dims.width + 17, y + 1.5, { align: 'left'});
+  }
   doc.setDrawColor(HamiltonColors.darkGrey);
 }
 
@@ -335,7 +332,7 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   
   // --- 3. Summary Statistics Page ---
   onProgress("Creating summary statistics page...");
-  doc.addPage(); // This page will become the summary stats page, AFTER the TOC is inserted
+  doc.addPage();
   yPos = PAGE_MARGIN + 10;
   addSectionHeader("Summary Statistics", true);
   
