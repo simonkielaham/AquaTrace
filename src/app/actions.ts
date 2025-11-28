@@ -916,7 +916,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 continue; // Skip to next file
             }
             
-            const dataPoints = (parseResult.data as any[]).slice(file.columnMapping.startRow - 2);
+            const dataPoints = (parseResult.data as any[]);
 
             dataPoints.forEach((row: any) => {
                     const timestampStr = row[file.columnMapping.datetimeColumn];
@@ -989,7 +989,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             });
 
             // Merge weather data into allData
-            allData = allData.map(p => {
+            allData.forEach(p => {
                 // Find the closest weather point in time
                 let closestTimestamp = -1;
                 let minDiff = Infinity;
@@ -1006,10 +1006,12 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 if (closestTimestamp !== -1 && minDiff < 60 * 60 * 1000) {
                     const weatherPoint = weatherPoints.get(closestTimestamp);
                     if (weatherPoint) {
-                        return { ...p, ...weatherPoint };
+                        p.precipitation = (p.precipitation || 0) + (weatherPoint.precipitation || 0);
+                        if (!p.temperature) {
+                            p.temperature = weatherPoint.temperature;
+                        }
                     }
                 }
-                return p;
             });
         }
         
@@ -1058,10 +1060,10 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 }
                 lastRainTimestamp = point.timestamp;
             }
-
+            
             if (currentEvent) {
                 // If there's an active event, check if it should be closed
-                if (!hasRain && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
+                if (!hasRain && lastRainTimestamp > 0 && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
                     // Close the event if the gap is exceeded
                     events.push(currentEvent);
                     currentEvent = null;
@@ -1084,20 +1086,25 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
         for (const event of events) {
             const baselineTime = event.startDate - 3 * 60 * 60 * 1000;
             const baselinePoints = allData.filter(p => p.timestamp >= baselineTime && p.timestamp < event.startDate && p.waterLevel !== undefined);
-            const baselineElevation = baselinePoints.length > 0 ? baselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / baselinePoints.length : undefined;
+            
+            const validBaselinePoints = baselinePoints.filter(p => typeof p.waterLevel === 'number');
+            const baselineElevation = validBaselinePoints.length > 0
+                ? validBaselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / validBaselinePoints.length
+                : undefined;
 
             const peakPoint = event.dataPoints.filter(p => p.waterLevel !== undefined).reduce((max, p) => (p.waterLevel! > (max.waterLevel ?? -Infinity)) ? p : max, { waterLevel: -Infinity } as ChartablePoint);
-            const peakElevation = peakPoint.waterLevel !== -Infinity ? peakPoint.waterLevel : undefined;
+            
+            const peakElevation = peakPoint.waterLevel !== undefined && isFinite(peakPoint.waterLevel) ? peakPoint.waterLevel : undefined;
             const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) ? peakElevation - baselineElevation : 0;
             
             const postEventTime = event.endDate + 48 * 60 * 60 * 1000;
-            const postEventPoints = allData.filter(p => p.timestamp >= postEventTime - 60*60*1000 && p.timestamp <= postEventTime && p.waterLevel);
+            const postEventPoints = allData.filter(p => p.timestamp >= postEventTime - 60*60*1000 && p.timestamp <= postEventTime && p.waterLevel !== undefined);
             const postEventElevation = postEventPoints.length > 0 ? postEventPoints.reduce((sum, p) => sum + p.waterLevel!, 0) / postEventPoints.length : undefined;
 
             // Drawdown analysis
             let timeToBaseline: string | undefined;
             let drawdownAnalysis: string | undefined;
-            if (peakElevation && baselineElevation) {
+            if (peakElevation !== undefined && baselineElevation !== undefined) {
                 const drawdownPoints = event.dataPoints.filter(p => p.timestamp >= (peakPoint.timestamp || event.startDate) && p.waterLevel !== undefined);
                 const baselineReturnPoint = drawdownPoints.find(p => p.waterLevel! <= baselineElevation);
                 if (baselineReturnPoint) {
@@ -1129,7 +1136,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             };
 
             // Automated disregard logic
-            if (event.totalPrecipitation < 1 && peakRise < 0.002) { // 1mm precip, 2mm rise
+            if (event.totalPrecipitation < 1 && peakRise < 0.002) {
                 event.analysis.disregarded = true;
                 event.analysis.notes = "Automatically disregarded due to minor precipitation and water level change.";
             }
