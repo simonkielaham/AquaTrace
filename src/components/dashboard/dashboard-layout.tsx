@@ -22,6 +22,7 @@ import PerformanceChart from "@/components/dashboard/performance-chart";
 import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import AnalysisQaqc from "./analysis-qaqc";
+import FileLocationStatus from "./file-location-status";
 
 
 export default function DashboardLayout() {
@@ -196,6 +197,7 @@ export default function DashboardLayout() {
                 visibleSensorData={visibleSensorData}
                 onSensorDataVisibilityChange={handleSensorDataVisibilityChange}
               />
+              <FileLocationStatus asset={selectedAsset} deployments={assetDeployments} />
               <PerformanceChart 
                 asset={selectedAsset} 
                 chartData={chartData}

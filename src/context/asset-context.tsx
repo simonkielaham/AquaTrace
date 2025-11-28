@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
@@ -40,6 +41,7 @@ import {
   getDeploymentAnalysis as getOverallAnalysisAction,
   getRawDeploymentAnalysisJson as getRawOverallAnalysisJsonAction,
   saveDeploymentAnalysis as saveOverallAnalysisAction,
+  checkFileExists as checkFileExistsAction,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -72,6 +74,7 @@ interface AssetContextType {
   getOverallAnalysis: (deploymentId: string) => Promise<OverallAnalysisData | null>;
   getRawOverallAnalysisJson: (deploymentId: string) => Promise<string>;
   saveOverallAnalysis: (data: any) => Promise<any>;
+  checkFileExists: (filePath: string) => Promise<boolean>;
   loading: boolean;
   stagedFiles: StagedFile[];
   loadingStagedFiles: boolean;
@@ -461,6 +464,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [deployments, incrementDataVersion]);
 
+  const checkFileExists = useCallback(async (filePath: string) => {
+    try {
+      return await checkFileExistsAction(filePath);
+    } catch (error) {
+      console.error(`Error checking file existence for ${filePath}:`, error);
+      return false;
+    }
+  }, []);
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
     try {
@@ -587,6 +598,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     getOverallAnalysis,
     getRawOverallAnalysisJson,
     saveOverallAnalysis,
+    checkFileExists,
     loading,
     stagedFiles,
     loadingStagedFiles,

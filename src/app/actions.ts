@@ -180,6 +180,19 @@ async function writeLog(logEntry: Omit<ActivityLog, 'id' | 'timestamp'>) {
   }
 }
 
+
+// == File System Actions ==
+export async function checkFileExists(relativePath: string): Promise<boolean> {
+  const fullPath = path.join(process.cwd(), relativePath);
+  try {
+    await fs.access(fullPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+
 // == Asset Actions ==
 
 export async function createAsset(data: any) {
@@ -366,7 +379,7 @@ export async function updateDeployment(deploymentId: string, assetId: string, da
       name,
     };
     deployments[deploymentIndex] = updatedDeployment;
-    await writeJsonFile(deploymentsFilePath, deployments);
+    await writeJsonFile(deploymentsFilePath, updatedDeployment);
 
     // After updating a deployment, we need to reprocess its data
     await processAndAnalyzeDeployment(deploymentId);
@@ -871,6 +884,11 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
         const deployment = deployments.find(d => d.id === deploymentId);
         if (!deployment || !deployment.files || deployment.files.length === 0) {
             await writeLog({ action: 'processAndAnalyzeDeployment', status: 'warning', deploymentId, payload: { message: "No deployment or files found. Aborting." }});
+            // When unassigning the last file, clear old data
+            const deploymentDataPath = path.join(processedDir, deploymentId);
+            await fs.mkdir(deploymentDataPath, { recursive: true });
+            await writeJsonFile(path.join(deploymentDataPath, 'data.json'), []);
+            await writeJsonFile(path.join(deploymentDataPath, 'events.json'), { totalPrecipitation: 0, events: [] });
             return;
         }
 
@@ -892,7 +910,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 dynamicTyping: true,
             });
 
-            const filePoints = (parseResult.data as any[]).slice(file.columnMapping.startRow - 2)
+            const filePoints = (parseResult.data as any[]).slice(file.columnMapping.startRow - 1)
                 .map((row: any): ChartablePoint | null => {
                     const timestampStr = row[file.columnMapping.datetimeColumn];
                     if (!timestampStr) return null;
@@ -901,19 +919,21 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                     
                     let point: ChartablePoint = { timestamp };
 
-                    if (file.columnMapping.dataType === 'water-level' && file.columnMapping.waterLevelColumn) {
-                       point.rawWaterLevel = row[file.columnMapping.waterLevelColumn];
-                       point.waterLevel = deployment.sensorElevation + point.rawWaterLevel;
+                    if ((file.columnMapping.dataType === 'water-level' || file.columnMapping.dataType === 'sensor-suite') && file.columnMapping.waterLevelColumn) {
+                       const rawLevel = row[file.columnMapping.waterLevelColumn];
+                       if(typeof rawLevel === 'number') {
+                         point.rawWaterLevel = rawLevel;
+                         point.waterLevel = deployment.sensorElevation + rawLevel;
+                       }
                     }
                      if (file.columnMapping.dataType === 'sensor-suite') {
                         if (file.columnMapping.sensorPressureColumn) {
                             const pressure = row[file.columnMapping.sensorPressureColumn];
-                            // Assuming pressure is in kPa, convert to meters of water column (1 kPa ≈ 0.10197 m)
-                            point.rawWaterLevel = pressure * 0.10197;
-                            point.waterLevel = deployment.sensorElevation + point.rawWaterLevel;
-                        } else if(file.columnMapping.waterLevelColumn) {
-                            point.rawWaterLevel = row[file.columnMapping.waterLevelColumn];
-                            point.waterLevel = deployment.sensorElevation + point.rawWaterLevel;
+                            if(typeof pressure === 'number' && !point.waterLevel) { // Don't overwrite if water level is already set
+                                // Assuming pressure is in kPa, convert to meters of water column (1 kPa ≈ 0.10197 m)
+                                point.rawWaterLevel = pressure * 0.10197;
+                                point.waterLevel = deployment.sensorElevation + point.rawWaterLevel;
+                            }
                         }
                         if (file.columnMapping.temperatureColumn) point.temperature = row[file.columnMapping.temperatureColumn];
                         if (file.columnMapping.barometerColumn) point.barometer = row[file.columnMapping.barometerColumn];
@@ -923,7 +943,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                     }
                     
                     return point;
-                }).filter((p): p is ChartablePoint => p !== null && p.timestamp !== null);
+                }).filter((p): p is ChartablePoint => p !== null && p.timestamp !== null && Object.keys(p).length > 1);
             allData.push(...filePoints);
         }
         
@@ -955,7 +975,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 timestamp: new Date(row.date).getTime(),
                 precipitation: row.precipitation,
                 temperature: row.temperature,
-            }));
+            })).filter(p => !isNaN(p.timestamp));
 
             // Merge weather data into allData
             allData = allData.map(p => {
