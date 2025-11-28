@@ -1097,7 +1097,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             const validEventPoints = event.dataPoints.filter(p => typeof p.waterLevel === 'number' && isFinite(p.waterLevel));
             
             const peakPoint = validEventPoints.length > 0 
-              ? validEventPoints.reduce((max, p) => (p.waterLevel! > max.waterLevel!) ? p : max, { waterLevel: -Infinity, timestamp: 0 })
+              ? validEventPoints.reduce((max, p) => (p.waterLevel! > max.waterLevel!) ? p : max, { waterLevel: -Infinity, timestamp: 0 } as ChartablePoint)
               : null;
             
             const peakElevation = peakPoint?.waterLevel ?? 0;
