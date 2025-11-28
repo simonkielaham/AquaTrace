@@ -144,17 +144,23 @@ function drawChart(
       doc.text(format(new Date(timestamp), 'M/d HH:mm'), x, dims.y + dims.height + 5, { align: 'center'});
   }
 
-  // Draw Water Level Line
-    const waterLevelPoints: [number, number][] = data
+  // --- START: Corrected Water Level Line Drawing ---
+  const waterLevelPoints: [number, number][] = data
     .map(p => (typeof p.waterLevel === 'number' ? [scaleX(p.timestamp), scaleY(p.waterLevel)] : null))
     .filter((p): p is [number, number] => p !== null);
-
 
   if (waterLevelPoints.length > 1) {
     doc.setDrawColor(HamiltonColors.green);
     doc.setLineWidth(0.5);
-    doc.lines(waterLevelPoints, 0, 0, [1,1], 'S');
+    
+    // Use moveTo and lineTo for reliable line drawing
+    doc.moveTo(waterLevelPoints[0][0], waterLevelPoints[0][1]);
+    for (let i = 1; i < waterLevelPoints.length; i++) {
+        doc.lineTo(waterLevelPoints[i][0], waterLevelPoints[i][1]);
+    }
+    doc.stroke(); // Render the path
   }
+  // --- END: Corrected Water Level Line Drawing ---
 
 
   // Draw Precipitation Bars
@@ -237,7 +243,11 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
 
   const addSectionHeader = (title: string, addToc = false) => {
     // This check MUST happen first.
-    checkPageBreak(16);
+    if (checkPageBreak(16)) {
+        // If a page break happened, the previous section header might have been the last thing on the page.
+        // This is generally okay, but we ensure yPos is reset.
+    }
+    
     if (addToc) {
         toc.push({ title: title, page: doc.internal.getNumberOfPages() });
     }
@@ -325,8 +335,8 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   
   // --- 3. Summary Statistics Page ---
   onProgress("Creating summary statistics page...");
-  doc.addPage();
-  yPos = PAGE_MARGIN + 10; // New page starts here
+  doc.addPage(); // This page will become the summary stats page, AFTER the TOC is inserted
+  yPos = PAGE_MARGIN + 10;
   addSectionHeader("Summary Statistics", true);
   
   // Analysis counts
