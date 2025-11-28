@@ -450,21 +450,12 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
 
   const getOverallAnalysis = useCallback(async (deploymentId: string) => {
       try {
-          // Find the first deployment for the asset to get its analysis.
-          // This might need refinement if multiple deployments per asset have separate analyses.
-          const asset = assets.find(a => a.id === selectedAssetId);
-          if (asset) {
-            const assetDeployments = deployments.filter(d => d.assetId === asset.id);
-            if(assetDeployments.length > 0) {
-              return await getOverallAnalysisAction(assetDeployments[0].id);
-            }
-          }
-          return null;
+          return await getOverallAnalysisAction(deploymentId);
       } catch (error) {
           console.error(error);
           return null;
       }
-  }, [assets, deployments, selectedAssetId]);
+  }, []);
 
   const getRawOverallAnalysisJson = useCallback(async (assetId: string) => {
     try {
