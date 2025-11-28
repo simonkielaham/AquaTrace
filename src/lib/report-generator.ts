@@ -144,28 +144,29 @@ function drawChart(
   }
 
   // Draw Water Level Area & Line
-  const waterLevelPoints: [number, number][] = data
-    .map(p => {
-        if (typeof p.waterLevel === 'number') {
-            return [scaleX(p.timestamp), scaleY(p.waterLevel)];
-        }
-        return null;
-    })
-    .filter((p): p is [number, number] => p !== null);
+    const waterLevelPoints: [number, number][] = data
+        .map(p => {
+            if (typeof p.waterLevel === 'number') {
+                return [scaleX(p.timestamp), scaleY(p.waterLevel)];
+            }
+            return null;
+        })
+        .filter((p): p is [number, number] => p !== null);
 
-  if (waterLevelPoints.length > 1) {
-      const fillPath: [number, number][] = [...waterLevelPoints];
-      fillPath.push([waterLevelPoints[waterLevelPoints.length - 1][0], dims.y + dims.height]); // Bottom-right
-      fillPath.push([waterLevelPoints[0][0], dims.y + dims.height]); // Bottom-left
-      fillPath.push(waterLevelPoints[0]); // Back to start
+    if (waterLevelPoints.length > 1) {
+        const fillPath: [number, number][] = [...waterLevelPoints];
+        // Create a closed shape for filling
+        fillPath.push([waterLevelPoints[waterLevelPoints.length - 1][0], dims.y + dims.height]); // Bottom-right
+        fillPath.push([waterLevelPoints[0][0], dims.y + dims.height]); // Bottom-left
+        fillPath.push(waterLevelPoints[0]); // Back to start
 
-      doc.setFillColor(HamiltonColors.green);
-      doc.path(fillPath).fill('F', {a: 0.1});
-      
-      doc.setDrawColor(HamiltonColors.green);
-      doc.setLineWidth(0.4);
-      doc.path(waterLevelPoints).stroke();
-  }
+        doc.setFillColor(HamiltonColors.green);
+        doc.path(fillPath).fill('F', {a: 0.1});
+        
+        doc.setDrawColor(HamiltonColors.green);
+        doc.setLineWidth(0.4);
+        doc.path(waterLevelPoints).stroke();
+    }
 
 
   // Draw Precipitation Bars
@@ -247,7 +248,9 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   }
 
   const addSectionHeader = (title: string, addToc = false) => {
-    checkPageBreak(16);
+    if (checkPageBreak(16)) {
+        // Page break occurred
+    }
     if (addToc) {
         toc.push({ title: title, page: doc.internal.getNumberOfPages() });
     }
@@ -321,16 +324,21 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   doc.setFont(FONT_BODY, "normal");
   doc.setFontSize(12);
   doc.setTextColor(HamiltonColors.darkGrey);
+
+  const dataStartDate = chartData.length > 0 ? format(new Date(chartData[0].timestamp), "PPP") : 'N/A';
+  const dataEndDate = chartData.length > 0 ? format(new Date(chartData[chartData.length - 1].timestamp), "PPP") : 'N/A';
+
   doc.text(`Location: ${asset.location}`, pageWidth / 2, pageHeight / 2 + 20, { align: "center" });
-  doc.text(`Report Date: ${format(new Date(), "PPP")}`, pageWidth / 2, pageHeight / 2 + 30, { align: "center" });
-  doc.text(`Analyst: ${overallAnalysis.analystInitials}`, pageWidth / 2, pageHeight / 2 + 40, { align: "center" });
+  doc.text(`Data Period: ${dataStartDate} to ${dataEndDate}`, pageWidth / 2, pageHeight / 2 + 30, { align: "center" });
+  doc.text(`Report Date: ${format(new Date(), "PPP")}`, pageWidth / 2, pageHeight / 2 + 40, { align: "center" });
+  doc.text(`Analyst: ${overallAnalysis.analystInitials}`, pageWidth / 2, pageHeight / 2 + 50, { align: "center" });
   
   // TOC placeholder, will be filled later
   const tocPage = 2;
-  doc.addPage();
   
   // --- 3. Summary Statistics Page ---
   onProgress("Creating summary statistics page...");
+  doc.addPage();
   yPos = PAGE_MARGIN + 10; // New page starts here
   addSectionHeader("Summary Statistics", true);
   
