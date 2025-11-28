@@ -405,6 +405,7 @@ export default function PerformanceChart({
               type="number"
               domain={sensorDomains.temperature}
               hide={!visibleSensorData.temperature}
+              tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
             />
              <YAxis
               yAxisId="pressure"
@@ -416,6 +417,7 @@ export default function PerformanceChart({
               type="number"
               domain={sensorDomains.sensorPressure}
               hide={!visibleSensorData.sensorPressure}
+              tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
             />
             <YAxis
               yAxisId="barometer"
@@ -427,6 +429,7 @@ export default function PerformanceChart({
               type="number"
               domain={sensorDomains.barometer}
               hide={!visibleSensorData.barometer}
+              tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
             />
             <ChartTooltip
               cursor={false}
