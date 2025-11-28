@@ -58,9 +58,10 @@ interface ExistingPointsTableProps {
     surveyPoints: SurveyPoint[];
     data: ChartablePoint[];
     loading: boolean;
+    deployments: Deployment[];
 }
 
-function ExistingPointsTable({ surveyPoints, data, loading }: ExistingPointsTableProps) {
+function ExistingPointsTable({ surveyPoints, data, loading, deployments }: ExistingPointsTableProps) {
     const { deleteSurveyPoint } = useAssets();
     const [isDeleting, setIsDeleting] = React.useState('');
     const { toast } = useToast();
@@ -90,9 +91,13 @@ function ExistingPointsTable({ surveyPoints, data, loading }: ExistingPointsTabl
         });
     }, [tapeDownPoints, data]);
     
-    const handleDelete = async (pointId: string) => {
-        setIsDeleting(pointId);
-        const result = await deleteSurveyPoint(pointId);
+    const handleDelete = async (point: SurveyPoint) => {
+        if (!point.deploymentId) {
+            toast({ variant: "destructive", title: "Error", description: "Cannot delete point, deployment ID is missing." });
+            return;
+        }
+        setIsDeleting(point.id);
+        const result = await deleteSurveyPoint(point.deploymentId, point.id);
         if (result?.message && result.message.startsWith('Error:')) {
             toast({ variant: "destructive", title: "Error", description: result.message });
         } else {
@@ -145,7 +150,7 @@ function ExistingPointsTable({ surveyPoints, data, loading }: ExistingPointsTabl
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleDelete(point.id)}
+                                onClick={() => handleDelete(point)}
                                 disabled={!!isDeleting}
                                 title="Delete tape-down measurement"
                             >
@@ -208,7 +213,7 @@ export default function TapeDownManager({ asset, deployments, surveyPoints, data
       deploymentId: selectedDeployment.id,
     };
 
-    const result = await addSurveyPoint(asset.id, serverData);
+    const result = await addSurveyPoint(serverData);
     
     if (result?.message && result.message.startsWith('Error:')) {
       toast({ variant: "destructive", title: "Error", description: result.message });
@@ -365,7 +370,7 @@ export default function TapeDownManager({ asset, deployments, surveyPoints, data
                 <div className="space-y-4">
                   <h4 className="font-medium">Existing Tape-Down Measurements</h4>
                   <ScrollArea className="h-[250px] rounded-md border">
-                    <ExistingPointsTable surveyPoints={surveyPoints} data={data} loading={loading} />
+                    <ExistingPointsTable surveyPoints={surveyPoints} data={data} loading={loading} deployments={deployments} />
                   </ScrollArea>
                 </div>
             </CardContent>
@@ -375,5 +380,3 @@ export default function TapeDownManager({ asset, deployments, surveyPoints, data
     </Card>
   );
 }
-
-    
