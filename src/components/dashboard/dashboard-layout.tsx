@@ -33,9 +33,6 @@ export default function DashboardLayout() {
   const [isOverallAnalysisEditing, setIsOverallAnalysisEditing] = React.useState(false);
 
 
-  // State for the offscreen chart used for report generation
-  const [reportRenderRequest, setReportRenderRequest] = React.useState<{isFullChart: boolean} | null>(null);
-
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   const currentAssetData = selectedAssetId ? assetData[selectedAssetId] : null;
   const isChartLoading = !currentAssetData || (currentAssetData as any).loading;
@@ -90,26 +87,6 @@ export default function DashboardLayout() {
       setIsOverallAnalysisEditing(false);
     }
   }, [selectedAssetId, selectedAsset]);
-
-  // Listener for report generation chart rendering
-  React.useEffect(() => {
-    const handleRenderRequest = (event: Event) => {
-        const customEvent = event as CustomEvent;
-        setReportRenderRequest(customEvent.detail);
-    };
-
-    const chartContainer = document.getElementById('performance-chart-container-for-report');
-    if (chartContainer) {
-        chartContainer.addEventListener('render-chart-for-report', handleRenderRequest);
-    }
-
-    return () => {
-        if (chartContainer) {
-            chartContainer.removeEventListener('render-chart-for-report', handleRenderRequest);
-        }
-    };
-  }, []);
-
   
   const handleSelectEventTimeRange = React.useCallback((eventStartDate: number, eventEndDate: number) => {
     if (!chartData || chartData.length === 0) return;
@@ -243,21 +220,6 @@ export default function DashboardLayout() {
             </div>
           </main>
         </div>
-      </div>
-      {/* Offscreen chart for report generation */}
-      <div id="performance-chart-container-for-report" className="fixed -left-[9999px] top-0 w-[1000px] bg-background p-4">
-        {selectedAsset && chartData && reportRenderRequest && (
-            <PerformanceChart
-                asset={selectedAsset}
-                chartData={chartData}
-                loading={false}
-                brushRange={reportRenderRequest.isFullChart ? {} : chartBrushRange}
-                onBrushChange={() => {}} // No-op for report chart
-                visibleElevations={visibleElevations}
-                visibleSensorData={visibleSensorData}
-                isReportMode={true}
-            />
-        )}
       </div>
     </SidebarProvider>
   );

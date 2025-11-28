@@ -1,5 +1,4 @@
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { format } from "date-fns";
 import {
   Asset,
@@ -27,6 +26,138 @@ const formatText = (text?: string | null) => text || "N/A";
 const formatNumber = (num?: number | null, decimals = 2) =>
   typeof num === "number" ? num.toFixed(decimals) : "N/A";
 
+// --- START: PDF Chart Drawing Logic ---
+
+interface ChartBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  minPrecip: number;
+  maxPrecip: number;
+}
+
+interface ChartDimensions {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function calculateBounds(
+  data: ChartablePoint[],
+  asset: Asset
+): ChartBounds {
+  const elevations = data
+    .map((d) => d.waterLevel)
+    .filter((v): v is number => typeof v === 'number');
+  const precipitations = data
+    .map((d) => d.precipitation)
+    .filter((v): v is number => typeof v === 'number');
+  
+  const designElevations = asset.designElevations.map(de => de.elevation);
+  
+  const allElevations = [...elevations, asset.permanentPoolElevation, ...designElevations];
+
+  return {
+    minX: data[0]?.timestamp,
+    maxX: data[data.length - 1]?.timestamp,
+    minY: Math.min(...allElevations) - 0.2, // 20cm padding
+    maxY: Math.max(...allElevations) + 0.2,
+    minPrecip: 0,
+    maxPrecip: Math.max(1, ...precipitations),
+  };
+}
+
+function drawChart(
+  doc: jsPDF,
+  data: ChartablePoint[],
+  asset: Asset,
+  dims: ChartDimensions
+) {
+  if (data.length < 2) return;
+
+  const bounds = calculateBounds(data, asset);
+
+  const scaleX = (val: number) => dims.x + ((val - bounds.minX) / (bounds.maxX - bounds.minX)) * dims.width;
+  const scaleY = (val: number) => dims.y + dims.height - ((val - bounds.minY) / (bounds.maxY - bounds.minY)) * dims.height;
+  const scalePrecip = (val: number) => ((val - bounds.minPrecip) / (bounds.maxPrecip - bounds.minPrecip)) * (dims.height / 3);
+
+  // Draw Grid & Axes
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.2);
+  const yAxisTicks = 5;
+  for (let i = 0; i <= yAxisTicks; i++) {
+    const val = bounds.minY + (i / yAxisTicks) * (bounds.maxY - bounds.minY);
+    const y = scaleY(val);
+    doc.line(dims.x, y, dims.x + dims.width, y);
+    doc.setFontSize(7);
+    doc.text(`${val.toFixed(1)}m`, dims.x - 2, y + 2, { align: 'right' });
+  }
+  const precipTicks = 3;
+  for (let i = 0; i <= precipTicks; i++) {
+    const val = bounds.minPrecip + (i/precipTicks) * bounds.maxPrecip;
+    const y = dims.y + dims.height - scalePrecip(val);
+     doc.setFontSize(7);
+     doc.setTextColor(100, 100, 255);
+     doc.text(`${val.toFixed(1)}mm`, dims.x + dims.width + 2, y + 2, { align: 'left' });
+  }
+  doc.setTextColor(0,0,0);
+
+  // Draw Water Level Area
+  doc.setFillColor(120, 150, 180);
+  const waterLevelPoints: [number, number][] = [];
+  data.forEach(p => {
+    if (typeof p.waterLevel === 'number') {
+      waterLevelPoints.push([scaleX(p.timestamp), scaleY(p.waterLevel)]);
+    }
+  });
+  if(waterLevelPoints.length > 0) {
+      const firstPoint = waterLevelPoints[0];
+      const lastPoint = waterLevelPoints[waterLevelPoints.length - 1];
+      const baselineY = dims.y + dims.height;
+      doc.path([
+          ...waterLevelPoints,
+          [lastPoint[0], baselineY],
+          [firstPoint[0], baselineY],
+      ]).fill();
+  }
+
+  // Draw Precipitation Bars
+  doc.setFillColor(100, 100, 255);
+  const barWidth = dims.width / data.length * 0.8;
+  data.forEach(p => {
+    if (typeof p.precipitation === 'number' && p.precipitation > 0) {
+      const precipHeight = scalePrecip(p.precipitation);
+      if (precipHeight > 0) {
+        const x = scaleX(p.timestamp) - barWidth/2;
+        const y = dims.y + dims.height - precipHeight;
+        doc.rect(x, y, barWidth, precipHeight, "F");
+      }
+    }
+  });
+
+  // Draw Reference Lines
+  const allDesignElevations = [
+      { name: 'Permanent Pool', elevation: asset.permanentPoolElevation, color: [6, 78, 59], dash: undefined },
+      ...asset.designElevations.map(de => ({ ...de, color: [199, 2, 2], dash: [2, 2] as [number, number] }))
+  ];
+
+  allDesignElevations.forEach(de => {
+    const y = scaleY(de.elevation);
+    doc.setDrawColor(de.color[0], de.color[1], de.color[2]);
+    doc.setLineWidth(0.5);
+    if(de.dash) doc.setLineDashPattern(de.dash, 0);
+    doc.line(dims.x, y, dims.x + dims.width, y);
+    doc.setLineDashPattern([], 0);
+    doc.setFontSize(7);
+    doc.text(de.name, dims.x + dims.width + 2, y - 1, { align: 'left'});
+  });
+  doc.setDrawColor(0,0,0);
+}
+
+// --- END: PDF Chart Drawing Logic ---
+
 export const generateReport = async (data: ReportData, onProgress: ProgressCallback) => {
   const { asset, deployments, chartData, weatherSummary, overallAnalysis } = data;
   const reviewedEvents = (weatherSummary?.events || []).filter(e => !e.analysis?.disregarded);
@@ -38,7 +169,15 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   const margin = 15;
   let yPos = margin;
 
+  const checkPageBreak = (heightNeeded: number) => {
+    if (yPos + heightNeeded > pageHeight - margin) {
+      doc.addPage();
+      yPos = margin;
+    }
+  }
+
   const addHeader = (title: string) => {
+    checkPageBreak(16);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.text(title, margin, yPos);
@@ -49,22 +188,19 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   };
 
   const addSubheader = (title: string) => {
+    checkPageBreak(12);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.text(title, margin, yPos);
     yPos += 6;
   }
   
-  const addText = (text: string, indent = 0, options: { isSplit: boolean } = { isSplit: true }) => {
+  const addText = (text: string, indent = 0) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    const splitText = options.isSplit ? doc.splitTextToSize(text, pageWidth - margin * 2 - indent) : [text];
+    const splitText = doc.splitTextToSize(text, pageWidth - margin * 2 - indent);
     const textHeight = doc.getTextDimensions(splitText).h;
-
-    if (yPos + textHeight > pageHeight - margin) {
-        doc.addPage();
-        yPos = margin;
-    }
+    checkPageBreak(textHeight + 2);
     doc.text(splitText, margin + indent, yPos);
     yPos += textHeight + 2;
   }
@@ -74,11 +210,7 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
       const valueX = margin + labelWidth + 2;
       const splitValue = doc.splitTextToSize(value, pageWidth - valueX - margin);
       const fieldHeight = doc.getTextDimensions(splitValue).h;
-
-      if (yPos + fieldHeight > pageHeight - margin) {
-          doc.addPage();
-          yPos = margin;
-      }
+      checkPageBreak(fieldHeight + 2);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.text(label, margin, yPos);
@@ -110,14 +242,15 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
 
   addSubheader("Summary");
   addText(formatText(overallAnalysis.summary));
+  yPos+=4;
 
   addSubheader("Assessment Details");
   addField("Permanent Pool Performance:", formatText(overallAnalysis.permanentPoolPerformance?.replace(/_/g, ' ')).replace(/\b\w/g, l => l.toUpperCase()));
   addField("Estimated Control Elevation:", `${formatNumber(overallAnalysis.estimatedControlElevation)} m`);
   addField("Response to Rain Events:", formatText(overallAnalysis.rainResponse?.replace(/_/g, ' ')).replace(/\b\w/g, l => l.toUpperCase()));
   addField("Further Investigation:", formatText(overallAnalysis.furtherInvestigation?.replace(/_/g, ' ')).replace(/\b\w/g, l => l.toUpperCase()));
+  yPos+=4;
   
-  yPos += 10;
   addSubheader("Asset Details");
   addField("Asset ID:", asset.id);
   addField("Location:", `${asset.latitude.toFixed(4)}, ${asset.longitude.toFixed(4)}`);
@@ -131,51 +264,32 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
     });
   }
 
-  // --- 3. Full Period Chart ---
-  onProgress("Capturing full performance chart...");
-  const chartElement = document.getElementById('performance-chart-container-for-report');
-  if (!chartElement) {
-      throw new Error("Chart container for report not found. This is an internal error.");
-  }
-  chartElement.dispatchEvent(new CustomEvent('render-chart-for-report', { detail: { isFullChart: true } }));
-  await new Promise(resolve => setTimeout(resolve, 500));
-  const fullCanvas = await html2canvas(chartElement, { logging: false, useCORS: true, scale: 2 });
-  const fullImgData = fullCanvas.toDataURL("image/png");
-
-  // --- 4. Event Pages ---
+  // --- 3. Event Pages ---
   for (const [index, event] of reviewedEvents.entries()) {
     onProgress(`Processing event ${index + 1} of ${reviewedEvents.length}...`);
     doc.addPage();
     yPos = margin;
     addHeader(`Precipitation Event: ${format(new Date(event.startDate), "Pp")}`);
     
-    // Calculate the crop region from the full chart canvas
-    const fullDateRange = chartData[chartData.length-1].timestamp - chartData[0].timestamp;
+    // Define chart dimensions
+    const chartDims: ChartDimensions = {
+        x: margin,
+        y: yPos,
+        width: pageWidth - margin * 2 - 20, // leave space for labels
+        height: 60
+    };
+    
+    checkPageBreak(chartDims.height + 10);
+
     const eventStartDate = event.startDate;
     const eventEndDate = event.endDate + (48 * 60 * 60 * 1000);
+    const eventData = chartData.filter(d => d.timestamp >= eventStartDate && d.timestamp <= eventEndDate);
     
-    const startX = (eventStartDate - chartData[0].timestamp) / fullDateRange * fullCanvas.width;
-    const endX = (eventEndDate - chartData[0].timestamp) / fullDateRange * fullCanvas.width;
-    const cropWidth = endX - startX;
-
-    if (cropWidth > 0) {
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = cropWidth;
-      tempCanvas.height = fullCanvas.height;
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCtx?.drawImage(fullCanvas, startX, 0, cropWidth, fullCanvas.height, 0, 0, cropWidth, fullCanvas.height);
-      const eventImgData = tempCanvas.toDataURL("image/png");
-
-      const imgWidth = pageWidth - margin * 2;
-      const imgHeight = (tempCanvas.height * imgWidth) / tempCanvas.width;
-
-      if (yPos + imgHeight > pageHeight - margin) {
-        doc.addPage();
-        yPos = margin;
-      }
-      
-      doc.addImage(eventImgData, "PNG", margin, yPos, imgWidth, imgHeight);
-      yPos += imgHeight + 5;
+    if(eventData.length > 1) {
+        drawChart(doc, eventData, asset, chartDims);
+        yPos += chartDims.height + 15;
+    } else {
+        addText("Not enough data to render a chart for this event period.");
     }
     
     addSubheader("Event Summary");
