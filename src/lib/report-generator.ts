@@ -10,6 +10,7 @@ import {
   OverallAnalysisData,
   AnalysisPeriod,
 } from "@/lib/placeholder-data";
+import { DiagnosticResult } from "./diagnostics/rules-engine";
 
 interface ReportData {
   asset: Asset;
@@ -17,6 +18,7 @@ interface ReportData {
   chartData: ChartablePoint[];
   weatherSummary: WeatherSummary | null;
   overallAnalysis: OverallAnalysisData;
+  diagnostics: { [eventId: string]: DiagnosticResult[] } | null;
 }
 
 type ProgressCallback = (message: string) => void;
@@ -103,6 +105,7 @@ function drawChart(
     doc.setFontSize(7);
     doc.text(`${val.toFixed(2)}m`, dims.x - 2, y + 2, { align: 'right' });
   }
+
   const precipTicks = 3;
   for (let i = 0; i <= precipTicks; i++) {
     const val = bounds.minPrecip + (i/precipTicks) * bounds.maxPrecip;
@@ -112,30 +115,41 @@ function drawChart(
      doc.text(`${val.toFixed(1)}mm`, dims.x + dims.width + 2, y + 2, { align: 'left' });
   }
   doc.setTextColor(0,0,0);
+  
+  // Draw X-Axis Labels
+  doc.setFontSize(7);
+  doc.setTextColor(100, 100, 100);
+  const xAxisTicks = 4;
+  for (let i = 0; i <= xAxisTicks; i++) {
+      const timestamp = bounds.minX + (i / xAxisTicks) * (bounds.maxX - bounds.minX);
+      const x = scaleX(timestamp);
+      doc.text(format(new Date(timestamp), 'M/d HH:mm'), x, dims.y + dims.height + 5, { align: 'center'});
+  }
+  doc.setTextColor(0,0,0);
+
 
   // Draw Water Level Area
   doc.setFillColor(120, 150, 180);
   doc.setDrawColor(120, 150, 180);
   doc.setLineWidth(0.3);
-  const waterLevelPoints: [number, number][] = [];
-  data.forEach(p => {
-    if (typeof p.waterLevel === 'number') {
-      waterLevelPoints.push([scaleX(p.timestamp), scaleY(p.waterLevel)]);
-    }
-  });
+  const waterLevelPoints: [number, number][] = data
+    .map(p => {
+        if (typeof p.waterLevel === 'number') {
+            return [scaleX(p.timestamp), scaleY(p.waterLevel)];
+        }
+        return null;
+    })
+    .filter((p): p is [number, number] => p !== null);
+
 
   if (waterLevelPoints.length > 1) {
     const fillPath: [number, number][] = [];
     const baselineY = dims.y + dims.height;
     
-    // Start from baseline at the first point's X
     fillPath.push([waterLevelPoints[0][0], baselineY]);
-    
-    // Add all the water level points
     fillPath.push(...waterLevelPoints);
-    
-    // End at baseline at the last point's X
     fillPath.push([waterLevelPoints[waterLevelPoints.length - 1][0], baselineY]);
+    fillPath.push([waterLevelPoints[0][0], baselineY]); // Close the path
 
     doc.path(fillPath).fill();
   }
@@ -178,7 +192,7 @@ function drawChart(
 // --- END: PDF Chart Drawing Logic ---
 
 export const generateReport = async (data: ReportData, onProgress: ProgressCallback) => {
-  const { asset, deployments, chartData, weatherSummary, overallAnalysis } = data;
+  const { asset, deployments, chartData, weatherSummary, overallAnalysis, diagnostics } = data;
   const reviewedEvents = (weatherSummary?.events || []).filter(e => !e.analysis?.disregarded);
 
   onProgress("Initializing PDF document...");
@@ -187,15 +201,22 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   let yPos = margin;
+  
+  let toc: { title: string, page: number }[] = [];
 
   const checkPageBreak = (heightNeeded: number) => {
     if (yPos + heightNeeded > pageHeight - margin) {
       doc.addPage();
       yPos = margin;
+      return true;
     }
+    return false;
   }
 
-  const addHeader = (title: string) => {
+  const addHeader = (title: string, addToc = false) => {
+    if (addToc) {
+        toc.push({ title: title, page: doc.internal.getNumberOfPages() });
+    }
     checkPageBreak(16);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
@@ -224,19 +245,24 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
     yPos += textHeight + 2;
   }
 
-  const addField = (label: string, value: string) => {
+  const addField = (label: string, value: string, yOffset?: number) => {
+      const y = yOffset || yPos;
       const labelWidth = doc.getTextDimensions(label, { font: doc.getFont('helvetica', 'bold') }).w;
       const valueX = margin + labelWidth + 2;
       const splitValue = doc.splitTextToSize(value, pageWidth - valueX - margin);
       const fieldHeight = doc.getTextDimensions(splitValue).h;
-      checkPageBreak(fieldHeight + 2);
+
+      if (!yOffset) checkPageBreak(fieldHeight + 2);
+      
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
-      doc.text(label, margin, yPos);
+      doc.text(label, margin, y);
 
       doc.setFont("helvetica", "normal");
-      doc.text(splitValue, valueX, yPos);
-      yPos += fieldHeight + 2;
+      doc.text(splitValue, valueX, y);
+      
+      if (!yOffset) yPos += fieldHeight + 2;
+      return fieldHeight;
   }
 
   // --- 1. Title Page ---
@@ -254,51 +280,67 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   doc.text(`Generated: ${format(new Date(), "PPP")}`, pageWidth / 2, pageHeight / 2 + 20, { align: "center" });
   doc.text(`By: ${overallAnalysis.analystInitials}`, pageWidth / 2, pageHeight / 2 + 30, { align: "center" });
   
-  // --- 2. Summary Page ---
+  // TOC placeholder, will be filled later
+  const tocPage = 2;
+  doc.addPage();
+  
+  // --- 3. Summary Statistics Page ---
+  onProgress("Creating summary statistics page...");
   doc.addPage();
   yPos = margin;
-  addHeader("Overall Asset Analysis");
-
-  addSubheader("Summary");
-  addText(formatText(overallAnalysis.summary));
-  yPos+=4;
-
-  addSubheader("Assessment Details");
-  addField("Permanent Pool Performance:", formatText(overallAnalysis.permanentPoolPerformance?.replace(/_/g, ' ')).replace(/\b\w/g, l => l.toUpperCase()));
-  addField("Estimated Control Elevation:", `${formatNumber(overallAnalysis.estimatedControlElevation)} m`);
-  addField("Response to Rain Events:", formatText(overallAnalysis.rainResponse?.replace(/_/g, ' ')).replace(/\b\w/g, l => l.toUpperCase()));
-  addField("Further Investigation:", formatText(overallAnalysis.furtherInvestigation?.replace(/_/g, ' ')).replace(/\b\w/g, l => l.toUpperCase()));
-  yPos+=4;
+  addHeader("Summary Statistics", true);
   
-  addSubheader("Asset Details");
-  addField("Asset ID:", asset.id);
-  addField("Location:", `${asset.latitude.toFixed(4)}, ${asset.longitude.toFixed(4)}`);
-  addField("Permanent Pool Elevation:", `${formatNumber(asset.permanentPoolElevation)} m`);
+  // Analysis counts
+  const statusCounts = reviewedEvents.reduce((acc, event) => {
+    const status = event.analysis?.drawdownAnalysis || 'Incomplete';
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
-  if(deployments.length > 0) {
-    yPos += 5;
-    addSubheader("Deployments");
-    deployments.forEach(d => {
-       addText(`- ${d.name || d.sensorId}: Sensor Elevation ${formatNumber(d.sensorElevation)}m, Stillwell Top ${formatNumber(d.stillwellTop)}m`, 5);
+  // Diagnostics counts
+  const diagnosticCounts = Object.values(diagnostics || {})
+    .flat()
+    .reduce((acc, diag) => {
+      acc[diag.title] = (acc[diag.title] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+
+  addSubheader("Event Overview");
+  addField("Total Reviewed Events:", `${reviewedEvents.length}`);
+  yPos += 5;
+
+  addSubheader("Manual Analysis Breakdown");
+  Object.entries(statusCounts).forEach(([status, count]) => {
+      addField(`${status}:`, `${count} event(s)`);
+  });
+  yPos += 5;
+
+  addSubheader("Automated Diagnostics Breakdown");
+  if(Object.keys(diagnosticCounts).length > 0) {
+    Object.entries(diagnosticCounts).forEach(([title, count]) => {
+        addField(`${title}:`, `${count} event(s)`);
     });
+  } else {
+    addText("No automated diagnostic flags were raised for any event.");
   }
 
-  // --- 3. Event Pages ---
+
+  // --- 4. Event Pages ---
   for (const [index, event] of reviewedEvents.entries()) {
     onProgress(`Processing event ${index + 1} of ${reviewedEvents.length}...`);
     doc.addPage();
     yPos = margin;
-    addHeader(`Precipitation Event: ${format(new Date(event.startDate), "Pp")}`);
+    addHeader(`Event: ${format(new Date(event.startDate), "Pp")}`, true);
     
-    // Define chart dimensions
     const chartDims: ChartDimensions = {
         x: margin,
         y: yPos,
-        width: pageWidth - margin * 2 - 25, // leave space for labels
+        width: pageWidth - margin * 2 - 25,
         height: 60
     };
     
-    checkPageBreak(chartDims.height + 10);
+    checkPageBreak(chartDims.height + 15);
 
     const eventStartDate = event.startDate;
     const eventEndDate = event.endDate + (48 * 60 * 60 * 1000);
@@ -323,11 +365,48 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
     addField("Drawdown Analysis:", formatText(event.analysis?.drawdownAnalysis));
     
     yPos += 5;
+    
+    const eventDiagnostics = diagnostics ? diagnostics[event.id] : [];
+    if(eventDiagnostics && eventDiagnostics.length > 0) {
+        addSubheader("Automated Diagnostics");
+        eventDiagnostics.forEach(diag => {
+            addText(`- ${diag.title} (Confidence: ${(diag.confidence * 100).toFixed(0)}%)`);
+        });
+        yPos += 5;
+    }
+    
     addSubheader("Analyst Review");
     addField("Status:", formatText(event.analysis?.status?.replace(/_/g, ' ')).replace(/\b\w/g, l => l.toUpperCase()));
     addText(formatText(event.analysis?.notes));
     yPos += 2;
     addField("Signed Off By:", formatText(event.analysis?.analystInitials));
+  }
+  
+  // --- 2. Index Page (after all pages are created) ---
+  onProgress("Creating index page...");
+  doc.insertPage(tocPage);
+  doc.setPage(tocPage);
+  yPos = margin;
+  addHeader("Index");
+  
+  toc.forEach(item => {
+      const titleWidth = doc.getTextDimensions(item.title).w;
+      const dots = ".".repeat(Math.max(0, Math.floor((pageWidth - margin * 2 - titleWidth - 10) / 1)));
+      checkPageBreak(8);
+      doc.setFontSize(12);
+      doc.text(item.title, margin, yPos);
+      doc.text(dots, margin + titleWidth, yPos, { align: 'left'});
+      doc.text(String(item.page), pageWidth - margin, yPos, { align: 'right'});
+      yPos += 8;
+  });
+
+  // --- Add Page Numbers ---
+  onProgress("Adding page numbers...");
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(10);
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
   }
 
   onProgress("Finalizing PDF...");

@@ -37,6 +37,7 @@ export default function PageHeader() {
     const events = currentAssetData.weatherSummary?.events || [];
     const asset = assets.find(a => a.id === selectedAssetId);
     const assetDeployments = deployments.filter(d => d.assetId === selectedAssetId);
+    const diagnostics = currentAssetData.diagnostics;
 
     if (!asset) {
          toast({
@@ -98,6 +99,7 @@ export default function PageHeader() {
             chartData: currentAssetData.data,
             weatherSummary: currentAssetData.weatherSummary,
             overallAnalysis: overallAnalysis!,
+            diagnostics: diagnostics,
         }, (progress) => {
              toast({
                 id: "report-status",
