@@ -1,5 +1,16 @@
 
 
+export type ActivityLog = {
+  id: string;
+  timestamp: string;
+  action: string;
+  status: 'success' | 'failure' | 'start' | 'warning';
+  assetId?: string;
+  deploymentId?: string;
+  payload?: any;
+  response?: any;
+};
+
 export type AssetStatus = "operating_as_expected" | "minor_concerns" | "critical_concerns" | "unknown";
 
 export type Asset = {
@@ -41,11 +52,6 @@ export type StagedFile = {
   type: string;
   uploadDate: string;
 }
-
-export type DataPoint = {
-  timestamp: number;
-  waterLevel: number;
-};
 
 export type SurveyPoint = {
   id: string;
@@ -114,8 +120,6 @@ export type AnalysisPeriod = {
         primaryDrawdownElevationChange?: number;
         drawdownAnalysis?: string;
         poolRecoveryDifference?: number; // Difference between post-event elevation and permanent pool
-        estimatedTrueBaseline?: number;
-        marginOfError?: number;
         notes?: string;
         status?: "normal" | "not_normal" | "holding_water" | "leaking";
         analystInitials?: string;
