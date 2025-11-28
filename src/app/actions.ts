@@ -1042,12 +1042,6 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
         for (const point of allData) {
             const hasRain = (point.precipitation || 0) > rainThreshold;
 
-            if (currentEvent && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
-                // End of the current event because gap is long enough
-                events.push(currentEvent);
-                currentEvent = null;
-            }
-
             if (hasRain) {
                 if (!currentEvent) {
                     // Start of a new event
@@ -1061,15 +1055,20 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                         dataPoints: []
                     };
                 }
-                
                 // Add point to the current event
                 currentEvent.endDate = point.timestamp;
                 currentEvent.totalPrecipitation += point.precipitation || 0;
                 currentEvent.dataPoints.push(point);
                 lastRainTimestamp = point.timestamp;
-            } else if (currentEvent) {
-                // This is a dry point but the event is not over yet. Add it to capture drawdown.
-                currentEvent.dataPoints.push(point);
+            } else {
+                 if (currentEvent && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
+                    // End of the current event because gap is long enough
+                    events.push(currentEvent);
+                    currentEvent = null;
+                } else if (currentEvent) {
+                    // This is a dry point but the event is not over yet. Add it to capture drawdown.
+                    currentEvent.dataPoints.push(point);
+                }
             }
         }
 
@@ -1085,17 +1084,47 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
             const peakPoint = event.dataPoints.filter(p => p.waterLevel).reduce((max, p) => p.waterLevel! > max.waterLevel! ? p : max, { waterLevel: -Infinity });
             const peakElevation = peakPoint.waterLevel !== -Infinity ? peakPoint.waterLevel : undefined;
+            const peakRise = (peakElevation && baselineElevation) ? peakElevation - baselineElevation : 0;
 
             const postEventTime = event.endDate + 48 * 60 * 60 * 1000;
             const postEventPoints = allData.filter(p => p.timestamp >= postEventTime - 60*60*1000 && p.timestamp <= postEventTime && p.waterLevel);
             const postEventElevation = postEventPoints.length > 0 ? postEventPoints.reduce((sum, p) => sum + p.waterLevel!, 0) / postEventPoints.length : undefined;
 
+            // Drawdown analysis
+            let timeToBaseline: string | undefined;
+            let drawdownAnalysis: string | undefined;
+            if (peakElevation && baselineElevation) {
+                const drawdownPoints = event.dataPoints.filter(p => p.timestamp >= (peakPoint.timestamp || event.startDate) && p.waterLevel);
+                const baselineReturnPoint = drawdownPoints.find(p => p.waterLevel! <= baselineElevation);
+                if (baselineReturnPoint) {
+                    timeToBaseline = formatDistance(new Date(peakPoint.timestamp || event.startDate), new Date(baselineReturnPoint.timestamp), { includeSeconds: true });
+                    
+                    const hoursToReturn = (baselineReturnPoint.timestamp - (peakPoint.timestamp || event.startDate)) / (1000 * 60 * 60);
+                    // Assuming a "Normal" drawdown is e.g. 24-72 hours. This is a placeholder.
+                    if (hoursToReturn < 24) drawdownAnalysis = "Fast";
+                    else if (hoursToReturn > 72) drawdownAnalysis = "Slow";
+                    else drawdownAnalysis = "Normal";
+
+                } else {
+                    timeToBaseline = "Did not return to baseline within event period";
+                    drawdownAnalysis = "Incomplete";
+                }
+            }
+
+
             event.analysis = {
                 baselineElevation,
                 peakElevation,
                 postEventElevation,
-                // More complex analysis would go here
+                timeToBaseline,
+                drawdownAnalysis,
             };
+
+            // Automated disregard logic
+            if (event.totalPrecipitation < 5 && peakRise < 0.02) { // 5mm precip, 2cm rise
+                event.analysis.disregarded = true;
+                event.analysis.notes = "Automatically disregarded due to minor precipitation and water level change.";
+            }
         }
         
         const weatherSummary: WeatherSummary = {

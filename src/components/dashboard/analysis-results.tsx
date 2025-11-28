@@ -33,7 +33,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
-import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit, EyeOff, Pencil, X } from "lucide-react";
+import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit, EyeOff, Pencil, X, Clock, AreaChart } from "lucide-react";
 import { format, formatDistance } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAssets } from "@/context/asset-context";
@@ -48,24 +48,21 @@ const formatDuration = (start: number, end: number) => {
   return formatDistance(new Date(start), new Date(end), { includeSeconds: true });
 };
 
-const MetricCard = ({ title, value, unit, icon: Icon, iconColor, subValue, marginOfError }: { title: string, value?: number | string, unit: string, icon: React.ElementType, iconColor?: string, subValue?: string, marginOfError?: number }) => {
+const MetricCard = ({ title, value, unit, icon: Icon, iconColor, subValue }: { title: string, value?: number | string, unit?: string, icon: React.ElementType, iconColor?: string, subValue?: string }) => {
     return (
         <div className="flex items-start gap-3 rounded-lg border p-3">
             <Icon className={`h-5 w-5 mt-1 shrink-0 ${iconColor || 'text-muted-foreground'}`} />
             <div>
                 <p className="text-sm text-muted-foreground">{title}</p>
                 {value !== undefined && value !== null ? (
-                   <>
-                    <p className="text-xl font-bold font-headline">
+                   <p className="text-xl font-bold font-headline">
                         {typeof value === 'number' ? value.toFixed(3) : value}
                         {unit && <span className="text-sm font-normal font-body text-muted-foreground ml-1">{unit}</span>}
                     </p>
-                     {marginOfError && <p className="text-xs text-muted-foreground font-mono">±{(marginOfError * 100).toFixed(1)} cm</p>}
-                    </>
                 ) : (
                      <p className="text-sm text-muted-foreground mt-2">Not available</p>
                 )}
-                {subValue && !marginOfError && <p className="text-xs text-muted-foreground mt-1">{subValue}</p>}
+                {subValue && <p className="text-xs text-muted-foreground mt-1">{subValue}</p>}
             </div>
         </div>
     )
@@ -98,12 +95,18 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
   });
   
   React.useEffect(() => {
+    const isDisregarded = event.analysis?.disregarded || false;
     form.reset({
         notes: event.analysis?.notes || "",
         status: event.analysis?.status || "normal",
         analystInitials: event.analysis?.analystInitials || "",
-        disregarded: event.analysis?.disregarded || false,
+        disregarded: isDisregarded,
     });
+     // If automatically disregarded, don't start in editing mode
+    if (isDisregarded && !event.analysis?.analystInitials) {
+        setIsEditing(false);
+    }
+
   }, [event, form]);
 
 
@@ -164,9 +167,9 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
   }, [event.analysis]);
   
   const overallAssessment = React.useMemo(() => {
-    const margin = event.analysis?.marginOfError || 0;
     if(event.analysis?.postEventElevation && event.analysis?.baselineElevation) {
       const diff = event.analysis.postEventElevation - event.analysis.baselineElevation;
+      const margin = 0.02; // 2cm margin of error
       if (diff > margin) {
         return { 
           text: `Asset did not return to baseline (+${diff.toFixed(2)}m).`,
@@ -195,14 +198,13 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
     return (
         <div className="bg-muted/30 p-4 rounded-b-md space-y-4">
              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
                      <MetricCard 
                         title="Baseline Elevation"
                         value={event.analysis?.baselineElevation}
                         unit="m"
                         icon={ArrowRight}
                         subValue="3 hours prior to event"
-                        marginOfError={event.analysis?.marginOfError}
                     />
                     <MetricCard 
                         title="Peak Elevation"
@@ -211,25 +213,17 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                         icon={TrendingUp}
                         iconColor="text-destructive"
                         subValue={peakDiff !== undefined ? `${peakDiff > 0 ? '+' : ''}${peakDiff.toFixed(2)}m from baseline` : "During event + 48hrs"}
-                        marginOfError={event.analysis?.marginOfError}
+                    />
+                     <MetricCard 
+                        title="Time to Baseline"
+                        value={event.analysis?.timeToBaseline}
+                        icon={Clock}
                     />
                     <MetricCard 
-                        title="Post-Event Elevation"
-                        value={event.analysis?.postEventElevation}
-                        unit="m"
-                        icon={TrendingDown}
-                        iconColor="text-green-500"
-                        subValue={postEventDiff !== undefined ? `${postEventDiff > 0 ? '+' : ''}${postEventDiff.toFixed(2)}m from baseline` : "48 hours after event"}
-                        marginOfError={event.analysis?.marginOfError}
+                        title="Drawdown Analysis"
+                        value={event.analysis?.drawdownAnalysis}
+                        icon={AreaChart}
                     />
-                    <div className="p-3 border rounded-lg col-span-full bg-background">
-                        <p className="text-sm font-semibold">Detailed Analysis</p>
-                        <div className="mt-2 text-sm text-muted-foreground space-y-1">
-                            <p><span className="font-medium text-foreground">Time to Baseline:</span> {event.analysis?.timeToBaseline || "N/A"}</p>
-                            <p><span className="font-medium text-foreground">Drawdown Analysis:</span> {event.analysis?.drawdownAnalysis || "N/A"}</p>
-                            <p><span className="font-medium text-foreground">Estimated True Baseline:</span> {event.analysis?.estimatedTrueBaseline ? `${event.analysis.estimatedTrueBaseline.toFixed(3)}m` : "N/A"}</p>
-                        </div>
-                    </div>
 
                     <div className="p-4 border bg-background rounded-lg col-span-full">
                         <Label className="font-medium text-sm mb-2">Analyst Notes</Label>
@@ -272,14 +266,13 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
       <form onSubmit={form.handleSubmit(handleSave)}>
         <div className="bg-muted/30 p-4 rounded-b-md">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
                     <MetricCard 
                         title="Baseline Elevation"
                         value={event.analysis?.baselineElevation}
                         unit="m"
                         icon={ArrowRight}
                         subValue="3 hours prior to event"
-                        marginOfError={event.analysis?.marginOfError}
                     />
                     <MetricCard 
                         title="Peak Elevation"
@@ -288,25 +281,17 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                         icon={TrendingUp}
                         iconColor="text-destructive"
                         subValue={peakDiff !== undefined ? `${peakDiff > 0 ? '+' : ''}${peakDiff.toFixed(2)}m from baseline` : "During event + 48hrs"}
-                        marginOfError={event.analysis?.marginOfError}
+                    />
+                     <MetricCard 
+                        title="Time to Baseline"
+                        value={event.analysis?.timeToBaseline}
+                        icon={Clock}
                     />
                     <MetricCard 
-                        title="Post-Event Elevation"
-                        value={event.analysis?.postEventElevation}
-                        unit="m"
-                        icon={TrendingDown}
-                        iconColor="text-green-500"
-                        subValue={postEventDiff !== undefined ? `${postEventDiff > 0 ? '+' : ''}${postEventDiff.toFixed(2)}m from baseline` : "48 hours after event"}
-                        marginOfError={event.analysis?.marginOfError}
+                        title="Drawdown Analysis"
+                        value={event.analysis?.drawdownAnalysis}
+                        icon={AreaChart}
                     />
-                    <div className="p-3 border rounded-lg col-span-full">
-                        <p className="text-sm font-semibold">Detailed Analysis</p>
-                        <div className="mt-2 text-sm text-muted-foreground space-y-1">
-                            <p><span className="font-medium">Time to Baseline:</span> {event.analysis?.timeToBaseline || "N/A"}</p>
-                            <p><span className="font-medium">Drawdown Analysis:</span> {event.analysis?.drawdownAnalysis || "N/A"}</p>
-                            <p><span className="font-medium">Estimated True Baseline:</span> {event.analysis?.estimatedTrueBaseline ? `${event.analysis.estimatedTrueBaseline.toFixed(3)}m` : "N/A"}</p>
-                        </div>
-                    </div>
 
                     <div className="p-4 border bg-background rounded-lg col-span-full">
                     <FormField
@@ -473,12 +458,11 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                     ? event.analysis.peakElevation - event.analysis.baselineElevation
                     : undefined;
 
-                const margin = event.analysis?.marginOfError || 0;
                 const postEventDiff = event.analysis?.postEventElevation && event.analysis?.baselineElevation
                     ? event.analysis.postEventElevation - event.analysis.baselineElevation
                     : undefined;
                 
-                const returnedToBaseline = postEventDiff !== undefined && postEventDiff <= margin;
+                const returnedToBaseline = postEventDiff !== undefined && postEventDiff <= 0.02; // 2cm margin
 
                 const isReviewed = !!event.analysis?.analystInitials;
                 const isDisregarded = !!event.analysis?.disregarded;
