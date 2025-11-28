@@ -154,7 +154,7 @@ function drawChart(
     .filter((p): p is [number, number] => p !== null);
 
   if (waterLevelPoints.length > 1) {
-      const fillPath = [...waterLevelPoints];
+      const fillPath: [number, number][] = [...waterLevelPoints];
       fillPath.push([waterLevelPoints[waterLevelPoints.length - 1][0], dims.y + dims.height]); // Bottom-right
       fillPath.push([waterLevelPoints[0][0], dims.y + dims.height]); // Bottom-left
       fillPath.push(waterLevelPoints[0]); // Back to start
@@ -232,7 +232,7 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
         doc.setFont(FONT_BODY, 'normal');
         doc.setFontSize(8);
         doc.setTextColor(HamiltonColors.darkGrey);
-        const footerText = `Page ${i} of ${pageCount} | Generated: ${format(new Date(), "yyyy-MM-dd")}`;
+        const footerText = `Page ${i} of ${pageCount}`;
         doc.text(footerText, pageWidth / 2, pageHeight - 7, { align: 'center' });
     }
   };
@@ -331,8 +331,7 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   
   // --- 3. Summary Statistics Page ---
   onProgress("Creating summary statistics page...");
-  doc.addPage();
-  yPos = PAGE_MARGIN + 10;
+  yPos = PAGE_MARGIN + 10; // New page starts here
   addSectionHeader("Summary Statistics", true);
   
   // Analysis counts
