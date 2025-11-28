@@ -951,7 +951,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                      if (file.columnMapping.dataType === 'sensor-suite') {
                         if (file.columnMapping.sensorPressureColumn) {
                             const pressure = row[file.columnMapping.sensorPressureColumn];
-                            if(typeof pressure === 'number' && !point.waterLevel) {
+                            if(typeof pressure === 'number') {
                                 point.rawWaterLevel = pressure * 0.10197; // kPa to meters water column
                                 point.waterLevel = deployment.sensorElevation + point.rawWaterLevel;
                             }
