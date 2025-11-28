@@ -132,16 +132,20 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       const baseName = path.basename(filePath);
-      // For files that are expected to be arrays or objects, return an empty version instead of erroring
-      if (['assets.json', 'deployments.json', 'activity-log.json', 'events.json', 'survey-points.json', 'operational-actions.json'].includes(baseName)) {
+      if (['assets.json', 'deployments.json', 'activity-log.json', 'survey-points.json', 'operational-actions.json'].includes(baseName)) {
           return [] as T;
       }
-      
-      if (['analysis-results.json', 'data.json', 'deployment-analysis.json'].includes(baseName)) {
+      if (['analysis-results.json', 'deployment-analysis.json', 'data.json'].includes(baseName)) {
           return {} as T;
       }
-
-      return {} as T; // Default empty object for other missing files
+      if (filePath.endsWith('.json')) {
+         const arrayFiles = ['assets.json', 'deployments.json', 'activity-log.json', 'events.json', 'survey-points.json', 'operational-actions.json'];
+         if (arrayFiles.includes(path.basename(filePath))) {
+            return [] as T;
+         }
+         return {} as T; // Default for other JSON files like deployment-analysis.json
+      }
+      return {} as T;
     }
     console.error(`Error reading ${filePath}:`, error);
     throw new Error(`Could not read data file: ${path.basename(filePath)}`);
@@ -737,6 +741,123 @@ export async function deleteDatafile(deploymentId: string, fileId: string) {
   }
 }
 
+// == Staged File Actions ==
+export async function uploadStagedFile(formData: FormData) {
+  const file = formData.get('file') as File;
+  if (!file) {
+    return { message: 'Error: No file provided.' };
+  }
+  
+  try {
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    const filePath = path.join(stagedDir, file.name);
+    await fs.writeFile(filePath, buffer);
+    return { message: 'File uploaded successfully' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    return { message: `Error: ${message}` };
+  }
+}
+
+export async function getStagedFiles(): Promise<StagedFile[]> {
+    try {
+        await fs.mkdir(stagedDir, { recursive: true });
+        const filenames = await fs.readdir(stagedDir);
+        const files = await Promise.all(
+            filenames.map(async (filename) => {
+                if (filename.startsWith('.')) return null;
+                const filePath = path.join(stagedDir, filename);
+                const stats = await fs.stat(filePath);
+                return {
+                    filename,
+                    path: filePath,
+                    size: stats.size,
+                    type: path.extname(filename),
+                    uploadDate: stats.mtime.toISOString(),
+                };
+            })
+        );
+        return files.filter((file): file is StagedFile => file !== null);
+    } catch (error) {
+        console.error("Failed to get staged files:", error);
+        return [];
+    }
+}
+
+export async function deleteStagedFile(filename: string) {
+  try {
+    const filePath = path.join(stagedDir, filename);
+    await fs.unlink(filePath);
+    return { message: 'File deleted from staging.' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    return { message: `Error: ${message}` };
+  }
+}
+
+export async function getStagedFileContent(filename: string): Promise<string | null> {
+    try {
+        const filePath = path.join(stagedDir, filename);
+        const content = await fs.readFile(filePath, 'utf-8');
+        return content;
+    } catch (error) {
+        console.error(`Failed to read staged file ${filename}:`, error);
+        return null;
+    }
+}
+
+export async function getSourceFileContent(filename: string): Promise<string | null> {
+    try {
+        const filePath = path.join(sourcefileDir, filename);
+        const content = await fs.readFile(filePath, 'utf-8');
+        return content;
+    } catch (error) {
+        console.error(`Failed to read source file ${filename}:`, error);
+        return null;
+    }
+}
+
+export async function reassignDatafile(formData: FormData) {
+  const rawData = Object.fromEntries(formData);
+  const validatedFields = reassignDatafileSchema.safeParse(rawData);
+
+  if (!validatedFields.success) {
+    return { errors: validatedFields.error.flatten().fieldErrors, message: "Validation failed." };
+  }
+  
+  const { deploymentId, fileId, ...columnMapping } = validatedFields.data;
+
+  try {
+      let deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+      const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
+      if (deploymentIndex === -1) throw new Error("Deployment not found");
+      
+      const fileIndex = deployments[deploymentIndex].files?.findIndex(f => f.id === fileId);
+      if (fileIndex === undefined || fileIndex === -1) throw new Error("File not found in deployment");
+
+      const updatedFile = {
+          ...deployments[deploymentIndex].files![fileIndex],
+          columnMapping: {
+              ...deployments[deploymentIndex].files![fileIndex].columnMapping,
+              ...columnMapping,
+          },
+      };
+
+      deployments[deploymentIndex].files![fileIndex] = updatedFile;
+      await writeJsonFile(deploymentsFilePath, deployments);
+
+      await processAndAnalyzeDeployment(deploymentId);
+      
+      revalidatePath('/');
+      return { message: 'File re-assigned and re-processed successfully.', updatedFile };
+
+  } catch (error) {
+      const message = error instanceof Error ? error.message : "An unknown error occurred.";
+      return { message: `Error: ${message}` };
+  }
+}
+
 async function processAndAnalyzeDeployment(deploymentId: string) {
     // This is a placeholder for the full data processing and analysis pipeline
     // In a real application, this would be a complex function involving:
@@ -756,3 +877,133 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
     });
 }
     
+
+// == Analysis Actions ==
+
+export async function getProcessedData(deploymentId: string): Promise<{ data: ChartablePoint[], weatherSummary: WeatherSummary | null }> {
+    try {
+        const dataFilePath = path.join(processedDir, deploymentId, 'data.json');
+        const eventsFilePath = path.join(processedDir, deploymentId, 'events.json');
+
+        const chartData = await readJsonFile<ChartablePoint[]>(dataFilePath);
+        const eventData = await readJsonFile<WeatherSummary>(eventsFilePath);
+
+        return { data: chartData, weatherSummary: eventData };
+    } catch (error) {
+        console.error(`Failed to get processed data for deployment ${deploymentId}:`, error);
+        return { data: [], weatherSummary: null };
+    }
+}
+
+export async function saveAnalysis(data: any) {
+  const logPayload = { ...data };
+  const validatedFields = saveAnalysisSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+    await writeLog({ action: 'saveAnalysis', status: 'failure', payload: logPayload, response });
+    return response;
+  }
+
+  const { eventId, ...analysisData } = validatedFields.data;
+
+  try {
+    const analysisResultsPath = path.join(dataDir, 'analysis-results.json');
+    const allResults = await readJsonFile<Record<string, SavedAnalysisData>>(analysisResultsPath);
+    
+    allResults[eventId] = {
+        ...(allResults[eventId] || {}),
+        ...analysisData
+    };
+
+    await writeJsonFile(analysisResultsPath, allResults);
+    
+    revalidatePath('/');
+
+    const response = { message: 'Analysis saved successfully.', savedData: { eventId, ...analysisData } };
+    await writeLog({ action: 'saveAnalysis', status: 'success', payload: logPayload, response });
+    return response;
+    
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'saveAnalysis', status: 'failure', payload: logPayload, response });
+    return response;
+  }
+}
+
+export async function getDeploymentAnalysis(deploymentId: string): Promise<OverallAnalysisData | null> {
+    try {
+        const analysisFilePath = path.join(processedDir, deploymentId, 'deployment-analysis.json');
+        const analysisData = await readJsonFile<OverallAnalysisData>(analysisFilePath);
+        return Object.keys(analysisData).length > 0 ? analysisData : null;
+    } catch (error) {
+        console.error(`Failed to get overall analysis for deployment ${deploymentId}:`, error);
+        return null;
+    }
+}
+
+export async function getRawDeploymentAnalysisJson(deploymentId: string): Promise<string> {
+    try {
+        const analysisFilePath = path.join(processedDir, deploymentId, 'deployment-analysis.json');
+        const analysisData = await readJsonFile<OverallAnalysisData>(analysisFilePath);
+        if (Object.keys(analysisData).length > 0) {
+            return JSON.stringify(analysisData, null, 2);
+        }
+        return JSON.stringify({ message: "No analysis data found for this deployment on the server." }, null, 2);
+    } catch (error) {
+        console.error(`Failed to get raw overall analysis for deployment ${deploymentId}:`, error);
+        return JSON.stringify({ error: `Failed to fetch analysis data: ${error instanceof Error ? error.message : 'Unknown error'}` }, null, 2);
+    }
+}
+
+export async function saveDeploymentAnalysis(data: any) {
+  const logPayload = { ...data };
+  const validatedFields = saveDeploymentAnalysisSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+    await writeLog({ action: 'saveDeploymentAnalysis', status: 'failure', payload: logPayload, response });
+    return response;
+  }
+  
+  const { deploymentId, ...analysisData } = validatedFields.data;
+  
+  try {
+    const analysisFilePath = path.join(processedDir, deploymentId, 'deployment-analysis.json');
+    const existingAnalysis = await readJsonFile<OverallAnalysisData>(analysisFilePath);
+
+    const savedData: OverallAnalysisData = {
+        ...existingAnalysis,
+        ...analysisData,
+        deploymentId,
+        lastUpdated: new Date().toISOString(),
+    };
+    
+    await writeJsonFile(analysisFilePath, savedData);
+
+    const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const deployment = deployments.find(d => d.id === deploymentId);
+
+    if (deployment && analysisData.status) {
+        const assets = await readJsonFile<Asset[]>(assetsFilePath);
+        const updatedAssets = assets.map(asset => {
+            if (asset.id === deployment.assetId) {
+                return { ...asset, status: analysisData.status as AssetStatus };
+            }
+            return asset;
+        });
+        await writeJsonFile(assetsFilePath, updatedAssets);
+    }
+
+    revalidatePath('/');
+    const response = { message: 'Deployment analysis saved successfully.', savedData };
+    await writeLog({ action: 'saveDeploymentAnalysis', status: 'success', deploymentId, payload: logPayload, response });
+    return response;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'saveDeploymentAnalysis', status: 'failure', deploymentId, payload: logPayload, response });
+    return response;
+  }
+}
