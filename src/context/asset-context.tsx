@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
@@ -471,8 +470,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       }
       return result;
     } catch (error) {
-        const message = await getErrorMessage(error);
-        return { message: `Error: ${message}` };
+      const message = await getErrorMessage(error);
+      return { message: `Error: ${message}` };
     }
   }, [fetchStagedFiles]);
 

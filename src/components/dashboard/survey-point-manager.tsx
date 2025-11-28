@@ -1,8 +1,6 @@
-
-
 "use client";
 
-import type { Asset, SurveyPoint, DataPoint, ChartablePoint } from "@/lib/placeholder-data";
+import type { Asset, SurveyPoint, Deployment, ChartablePoint } from "@/lib/placeholder-data";
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -25,6 +23,13 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -36,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { CalendarIcon, PlusCircle, Trash2, Loader2, Clock, ChevronDown, MapPin } from "lucide-react";
 
 const surveyPointSchema = z.object({
+  deploymentId: z.string({ required_error: "A deployment must be selected." }),
   date: z.date({ required_error: "A date is required." }),
   time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format. Use HH:MM" }),
   elevation: z.coerce.number({ required_error: "An elevation is required." }),
@@ -51,12 +57,13 @@ export type EnrichedSurveyPoint = SurveyPoint & {
 
 interface SurveyPointManagerProps {
     asset: Asset;
+    deployments: Deployment[];
     surveyPoints: SurveyPoint[];
     data: ChartablePoint[];
     loading: boolean;
 }
 
-export default function SurveyPointManager({ asset, surveyPoints, data, loading }: SurveyPointManagerProps) {
+export default function SurveyPointManager({ asset, deployments, surveyPoints, data, loading }: SurveyPointManagerProps) {
   const { toast } = useToast();
   const { addSurveyPoint, deleteSurveyPoint } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -106,9 +113,10 @@ export default function SurveyPointManager({ asset, surveyPoints, data, loading 
       timestamp: combinedDateTime.toISOString(),
       elevation: formData.elevation,
       source: 'manual',
+      deploymentId: formData.deploymentId,
     };
 
-    const result = await addSurveyPoint(asset.id, serverData);
+    const result = await addSurveyPoint(serverData);
     
     if (result?.message && result.message.startsWith('Error:')) {
       toast({ variant: "destructive", title: "Error", description: result.message });
@@ -120,9 +128,9 @@ export default function SurveyPointManager({ asset, surveyPoints, data, loading 
     setIsSubmitting(false);
   };
 
-  const handleDelete = async (pointId: string) => {
+  const handleDelete = async (deploymentId: string, pointId: string) => {
     setIsDeleting(pointId);
-    const result = await deleteSurveyPoint(pointId);
+    const result = await deleteSurveyPoint(deploymentId, pointId);
      if (result?.message && result.message.startsWith('Error:')) {
       toast({ variant: "destructive", title: "Error", description: result.message });
     } else {
@@ -152,7 +160,31 @@ export default function SurveyPointManager({ asset, surveyPoints, data, loading 
               <div className="space-y-4">
                 <h4 className="font-medium">Add New Point</h4>
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(handleSubmit)} className="flex items-end gap-4">
+                  <form onSubmit={form.handleSubmit(handleSubmit)} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 items-end gap-4">
+                    <FormField
+                      control={form.control}
+                      name="deploymentId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Deployment</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                <SelectValue placeholder={deployments.length > 0 ? "Select a deployment..." : "No deployments for this asset"} />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {deployments.map(d => (
+                                    <SelectItem key={d.id} value={d.id}>
+                                        {d.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <FormField
                       control={form.control}
                       name="date"
@@ -165,7 +197,7 @@ export default function SurveyPointManager({ asset, surveyPoints, data, loading 
                                 <Button
                                   variant={"outline"}
                                   className={cn(
-                                    "w-[240px] pl-3 text-left font-normal",
+                                    "w-full pl-3 text-left font-normal",
                                     !field.value && "text-muted-foreground"
                                   )}
                                 >
@@ -203,7 +235,7 @@ export default function SurveyPointManager({ asset, surveyPoints, data, loading 
                             <div className="relative">
                               <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <FormControl>
-                              <Input type="text" placeholder="HH:MM" className="w-[130px] pl-10" {...field} />
+                              <Input type="text" placeholder="HH:MM" className="w-full pl-10" {...field} />
                             </FormControl>
                             </div>
                           <FormMessage />
@@ -217,13 +249,13 @@ export default function SurveyPointManager({ asset, surveyPoints, data, loading 
                         <FormItem>
                           <FormLabel>Elevation (m)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.01" placeholder="e.g., 125.42" className="w-[180px]" {...field} />
+                            <Input type="number" step="0.01" placeholder="e.g., 125.42" className="w-full" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                    <Button type="submit" disabled={isSubmitting}>
+                    <Button type="submit" disabled={isSubmitting} className="w-full lg:w-auto">
                       <PlusCircle className="mr-2 h-4 w-4" />
                       {isSubmitting ? "Adding..." : "Add Point"}
                     </Button>
@@ -278,7 +310,7 @@ export default function SurveyPointManager({ asset, surveyPoints, data, loading 
                                     <Button 
                                       variant="ghost" 
                                       size="icon" 
-                                      onClick={() => handleDelete(point.id)}
+                                      onClick={() => handleDelete(point.deploymentId!, point.id)}
                                       disabled={!!isDeleting}
                                       title="Delete survey point"
                                   >
@@ -299,5 +331,3 @@ export default function SurveyPointManager({ asset, surveyPoints, data, loading 
     </Card>
   );
 }
-
-    
