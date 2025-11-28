@@ -116,6 +116,7 @@ export type AnalysisPeriod = {
         peakElevation?: number;
         baselineElevation?: number;
         postEventElevation?: number;
+        timeToBaseline?: number; // in hours
         primaryDrawdownDuration?: string;
         primaryDrawdownElevationChange?: number;
         drawdownAnalysis?: string;

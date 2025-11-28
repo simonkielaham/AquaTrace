@@ -79,7 +79,7 @@ const MetricCard = ({ title, value, unit, icon: Icon, iconColor, subValue }: { t
                 <p className="text-sm text-muted-foreground">{title}</p>
                 {value !== undefined && value !== null ? (
                    <p className="text-xl font-bold font-headline">
-                        {typeof value === 'number' ? value.toFixed(3) : value}
+                        {typeof value === 'number' ? value.toFixed(2) : value}
                         {unit && <span className="text-sm font-normal font-body text-muted-foreground ml-1">{unit}</span>}
                     </p>
                 ) : (
@@ -270,6 +270,7 @@ function EventAnalysisDetails({ event, diagnostics, onSaveSuccess }: { event: An
                      <MetricCard 
                         title="Time to Baseline"
                         value={event.analysis?.timeToBaseline}
+                        unit="hr"
                         icon={Clock}
                     />
                     <MetricCard 
@@ -364,6 +365,7 @@ function EventAnalysisDetails({ event, diagnostics, onSaveSuccess }: { event: An
                      <MetricCard 
                         title="Time to Baseline"
                         value={event.analysis?.timeToBaseline}
+                        unit="hr"
                         icon={Clock}
                     />
                     <MetricCard 

@@ -1109,6 +1109,14 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             const postEventPoints = allData.filter(p => p.timestamp >= postEventTime - 60*60*1000 && p.timestamp <= postEventTime && p.waterLevel !== undefined);
             const postEventElevation = postEventPoints.length > 0 ? postEventPoints.reduce((sum, p) => sum + p.waterLevel!, 0) / postEventPoints.length : undefined;
 
+            let timeToBaseline: number | undefined;
+            if (peakTimestamp && baselineElevation) {
+                const returnPoint = allData.find(p => p.timestamp > peakTimestamp && p.waterLevel !== undefined && p.waterLevel <= baselineElevation);
+                if (returnPoint) {
+                    timeToBaseline = (returnPoint.timestamp - peakTimestamp) / (1000 * 60 * 60); // in hours
+                }
+            }
+
             // Advanced Drawdown Analysis
             let primaryDrawdownDuration: string | undefined;
             let primaryDrawdownElevationChange: number | undefined;
@@ -1167,6 +1175,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 peakElevation,
                 baselineElevation,
                 postEventElevation,
+                timeToBaseline,
                 primaryDrawdownDuration,
                 primaryDrawdownElevationChange,
                 drawdownAnalysis,
