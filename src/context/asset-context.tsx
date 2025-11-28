@@ -2,6 +2,8 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { 
   Asset, 
   Deployment,
@@ -44,6 +46,7 @@ import {
   checkFileExists as checkFileExistsAction,
   getDeploymentDiagnostics,
 } from '@/app/actions';
+import { assetFormSchema, AssetFormValues } from '@/components/asset-management/asset-form';
 
 import initialAssets from '@/../data/assets.json';
 import initialDeployments from '@/../data/deployments.json';
@@ -94,6 +97,7 @@ interface AssetContextType {
   assetData: { [assetId: string]: AssetData };
   fetchAssetData: (assetId: string) => Promise<void>;
   incrementDataVersion: () => void;
+  useAssetForm: (defaultValues?: Partial<AssetFormValues>) => ReturnType<typeof useForm<AssetFormValues>>;
 }
 
 const AssetContext = createContext<AssetContextType | undefined>(undefined);
@@ -457,21 +461,14 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       }
   }, []);
 
-  const getRawOverallAnalysisJson = useCallback(async (assetId: string) => {
+  const getRawOverallAnalysisJson = useCallback(async (deploymentId: string) => {
     try {
-        const asset = assets.find(a => a.id === assetId);
-        if (!asset) return JSON.stringify({ error: `Asset with ID ${assetId} not found.` }, null, 2);
-        
-        // Find first deployment for this asset, assuming analysis is stored per-deployment
-        const deployment = deployments.find(d => d.assetId === assetId);
-        if (!deployment) return JSON.stringify({ message: "No analysis data found for this deployment on the server." }, null, 2);
-
-        return await getRawOverallAnalysisJsonAction(deployment.id);
+      return await getRawOverallAnalysisJsonAction(deploymentId);
     } catch (error) {
         console.error(error);
         return '{"error": "Failed to fetch raw analysis JSON."}';
     }
-  }, [assets, deployments]);
+  }, []);
   
   const saveOverallAnalysis = useCallback(async (data: any) => {
     try {
@@ -612,6 +609,13 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     return await getOperationalActionsAction(deploymentId);
   }, []);
 
+  const useAssetForm = (defaultValues?: Partial<AssetFormValues>) => {
+    return useForm<AssetFormValues>({
+      resolver: zodResolver(assetFormSchema),
+      defaultValues,
+    });
+  }
+
 
   const value = {
     assets,
@@ -650,6 +654,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     assetData,
     fetchAssetData,
     incrementDataVersion,
+    useAssetForm,
   };
 
   return <AssetContext.Provider value={value}>{children}</AssetContext.Provider>;

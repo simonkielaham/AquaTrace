@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Target, Globe, FilePenLine, Trash2, Thermometer, Gauge, Wind } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { EditAssetDialog, DeleteAssetDialog } from "@/app/asset-management/page";
+import { EditAssetDialog, DeleteAssetDialog } from "@/components/asset-management/asset-dialogs";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import React from 'react';
