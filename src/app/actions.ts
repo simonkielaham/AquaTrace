@@ -993,45 +993,29 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
             const weatherParse = Papa.parse(weatherDataCsv, { header: true, dynamicTyping: true });
             
-            // Prorate hourly weather data across higher frequency water level data
-            const hourlyGroups = new Map<number, ChartablePoint[]>();
-            allData.forEach(p => {
-                const hourStart = new Date(p.timestamp);
-                hourStart.setMinutes(0, 0, 0);
-                const hourKey = hourStart.getTime();
-                if (!hourlyGroups.has(hourKey)) {
-                    hourlyGroups.set(hourKey, []);
-                }
-                hourlyGroups.get(hourKey)!.push(p);
-            });
-
-            const proratedPrecipMap = new Map<number, number>();
-            const proratedTempMap = new Map<number, number>();
-
             (weatherParse.data as any[]).forEach(row => {
+                if (!row.date || row.precipitation === undefined) return;
+
                 const timestamp = new Date(row.date).getTime();
                 if (!isNaN(timestamp)) {
-                    const hourGroup = hourlyGroups.get(timestamp);
-                    if (hourGroup && hourGroup.length > 0) {
-                        const proratedPrecipitation = (row.precipitation || 0) / hourGroup.length;
-                        proratedPrecipMap.set(timestamp, proratedPrecipitation);
-                        proratedTempMap.set(timestamp, row.temperature);
+                    // Find or create a point at the exact hourly timestamp
+                    let point = dataMap.get(timestamp);
+                    if (!point) {
+                        point = { timestamp };
+                        dataMap.set(timestamp, point);
+                    }
+
+                    // Assign precipitation value. Use '+' in case there was already data from another file.
+                    point.precipitation = (point.precipitation || 0) + (row.precipitation || 0);
+                    
+                    if (point.temperature === undefined && row.temperature !== undefined) {
+                        point.temperature = row.temperature;
                     }
                 }
             });
 
-            allData.forEach(p => {
-                const hourStart = new Date(p.timestamp);
-                hourStart.setMinutes(0, 0, 0);
-                const hourKey = hourStart.getTime();
-
-                if (proratedPrecipMap.has(hourKey)) {
-                    p.precipitation = (p.precipitation || 0) + proratedPrecipMap.get(hourKey)!;
-                }
-                if (p.temperature === undefined && proratedTempMap.has(hourKey)) {
-                    p.temperature = proratedTempMap.get(hourKey);
-                }
-            });
+            // Re-create and re-sort allData array after adding new weather points
+            allData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
         }
         
         // Final combined and sorted data
@@ -1063,15 +1047,15 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
         for (const point of allData) {
             const hasRain = (point.precipitation || 0) > rainThreshold;
-            const isEventClosing = currentEvent && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000);
-
-            if (isEventClosing) {
-                events.push(currentEvent!);
+            
+            // Logic to close an event
+            if (currentEvent && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
+                events.push(currentEvent);
                 currentEvent = null;
             }
             
-            const isNewEventStarting = hasRain && !currentEvent;
-            if (isNewEventStarting) {
+            // Logic to start a new event
+            if (hasRain && !currentEvent) {
                 currentEvent = {
                     id: `event-${point.timestamp}`,
                     assetId: asset.id,
@@ -1083,9 +1067,10 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 };
             }
 
+            // If an event is active, add data to it
             if (currentEvent) {
                 currentEvent.dataPoints.push(point);
-                currentEvent.endDate = point.timestamp;
+                currentEvent.endDate = point.timestamp; // Always update the end date
                 if (hasRain) {
                     currentEvent.totalPrecipitation += point.precipitation || 0;
                     lastRainTimestamp = point.timestamp;
@@ -1113,12 +1098,12 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             
             const peakPoint = validEventPoints.length > 0 
               ? validEventPoints.reduce((max, p) => (p.waterLevel! > max.waterLevel!) ? p : max, { waterLevel: -Infinity, timestamp: 0 })
-              : { waterLevel: 0, timestamp: 0 };
+              : null;
             
-            const peakElevation = peakPoint?.waterLevel;
-            const peakTimestamp = peakPoint?.timestamp;
+            const peakElevation = peakPoint?.waterLevel ?? 0;
+            const peakTimestamp = peakPoint?.timestamp ?? 0;
             
-            const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) ? peakElevation - baselineElevation : 0;
+            const peakRise = (peakElevation && baselineElevation) ? peakElevation - baselineElevation : 0;
             
             const postEventTime = event.endDate + 48 * 60 * 60 * 1000;
             const postEventPoints = allData.filter(p => p.timestamp >= postEventTime - 60*60*1000 && p.timestamp <= postEventTime && p.waterLevel !== undefined);
@@ -1369,6 +1354,8 @@ export async function saveDeploymentAnalysis(data: any) {
 
 
       
+
+    
 
     
 
