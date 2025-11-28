@@ -107,7 +107,8 @@ function drawChart(
   doc: jsPDF,
   data: ChartablePoint[],
   asset: Asset,
-  dims: ChartDimensions
+  dims: ChartDimensions,
+  eventsToAnnotate?: AnalysisPeriod[]
 ) {
   if (data.length < 2) return;
 
@@ -149,7 +150,7 @@ function drawChart(
       doc.text(format(new Date(timestamp), 'M/d HH:mm'), x, dims.y + dims.height + 5, { align: 'center'});
   }
 
-  // --- START: Corrected Water Level Line Drawing ---
+  // Draw Water Level Line
   const waterLevelPoints = data
     .map(p => (typeof p.waterLevel === 'number' ? {x: scaleX(p.timestamp), y: scaleY(p.waterLevel)} : null))
     .filter((p): p is {x: number, y: number} => p !== null);
@@ -163,8 +164,6 @@ function drawChart(
     }
     doc.stroke(); // Render the path
   }
-  // --- END: Corrected Water Level Line Drawing ---
-
 
   // Draw Precipitation Bars
   doc.setFillColor(HamiltonColors.blue);
@@ -181,17 +180,42 @@ function drawChart(
   });
 
   // Draw Reference Lines
-  const permanentPool = { name: 'Permanent Pool', elevation: asset.permanentPoolElevation, color: HamiltonColors.blue, dash: undefined };
+  const permanentPool = { name: 'Permanent Pool', elevation: asset.permanentPoolElevation };
   
   if(typeof permanentPool.elevation === 'number') {
     const y = scaleY(permanentPool.elevation);
-    doc.setDrawColor(permanentPool.color);
+    doc.setDrawColor(HamiltonColors.blue);
     doc.setLineWidth(0.5);
     doc.line(dims.x, y, dims.x + dims.width, y);
     doc.setFontSize(7);
     doc.text(permanentPool.name, dims.x + dims.width + 17, y + 1.5, { align: 'left'});
   }
   doc.setDrawColor(HamiltonColors.darkGrey);
+
+  // Draw Event Annotations
+  if (eventsToAnnotate) {
+    eventsToAnnotate.forEach((event, index) => {
+        const x = scaleX(event.startDate);
+        const y = dims.y - 8;
+        
+        doc.setFillColor(HamiltonColors.darkGrey);
+        doc.setDrawColor(HamiltonColors.darkGrey);
+        doc.setLineWidth(0.3);
+
+        // Arrow
+        doc.line(x, y + 6, x, y + 2); // shaft
+        doc.triangle(x - 1, y + 2, x + 1, y + 2, x, y, 'F'); // head
+
+        // Numbered Circle
+        doc.circle(x, y - 2.5, 2.5, 'F');
+        doc.setFontSize(8);
+        doc.setTextColor(HamiltonColors.white);
+        doc.setFont(FONT_BODY, 'bold');
+        doc.text(`${index + 1}`, x, y - 1, { align: 'center' });
+    });
+    doc.setTextColor(HamiltonColors.darkGrey);
+    doc.setFont(FONT_BODY, 'normal');
+  }
 }
 
 // --- END: PDF Chart Drawing Logic ---
@@ -351,6 +375,16 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
       return acc;
     }, {} as Record<string, number>);
 
+  addSubheader("Deployment Hydrograph Overview");
+  const overviewChartDims: ChartDimensions = {
+      x: PAGE_MARGIN,
+      y: yPos,
+      width: pageWidth - PAGE_MARGIN * 2 - 25,
+      height: 70
+  };
+  checkPageBreak(overviewChartDims.height + 15);
+  drawChart(doc, chartData, asset, overviewChartDims, reviewedEvents);
+  yPos += overviewChartDims.height + 15;
 
   addSubheader("Event Overview");
   addField("Total Reviewed Events:", `${reviewedEvents.length}`);
@@ -375,9 +409,9 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   // --- 4. Event Pages ---
   for (const [index, event] of reviewedEvents.entries()) {
     onProgress(`Processing event ${index + 1} of ${reviewedEvents.length}...`);
-    doc.addPage();
+    checkPageBreak(pageHeight); // checkPageBreak with a large value will always add a new page.
     yPos = PAGE_MARGIN + 10;
-    addSectionHeader(`Event: ${format(new Date(event.startDate), "Pp")}`, true);
+    addSectionHeader(`Event ${index + 1}: ${format(new Date(event.startDate), "Pp")}`, true);
     
     const chartDims: ChartDimensions = {
         x: PAGE_MARGIN,
@@ -454,3 +488,4 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   const filename = `${asset.name.replace(/\s+/g, '_')}_Performance_Report.pdf`;
   doc.save(filename);
 };
+
