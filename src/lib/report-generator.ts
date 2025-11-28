@@ -28,7 +28,7 @@ const formatText = (text?: string | null) => text || "N/A";
 
 // Helper function to format numbers
 const formatNumber = (num?: number | null, decimals = 2) =>
-  typeof num === "number" ? num.toFixed(decimals) : "N/A";
+  typeof num === 'number' ? num.toFixed(decimals) : "N/A";
 
 // --- START: PDF Chart Drawing Logic ---
 
@@ -64,7 +64,7 @@ function calculateBounds(
   
   const allElevations = [...elevations, asset.permanentPoolElevation, ...designElevations];
 
-  const validElevations = allElevations.filter(e => typeof e === 'number');
+  const validElevations = allElevations.filter(e => typeof e === 'number' && isFinite(e));
   
   const minY = validElevations.length > 0 ? Math.min(...validElevations) - 0.2 : 0;
   const maxY = validElevations.length > 0 ? Math.max(...validElevations) + 0.2 : 1;
@@ -129,8 +129,6 @@ function drawChart(
 
 
   // Draw Water Level Area
-  doc.setDrawColor(120, 150, 180);
-  doc.setLineWidth(0.3);
   const waterLevelPoints: [number, number][] = data
     .map(p => {
         if (typeof p.waterLevel === 'number') {
@@ -141,18 +139,15 @@ function drawChart(
     .filter((p): p is [number, number] => p !== null);
 
   if (waterLevelPoints.length > 1) {
-    // Create the path for the filled area. This must be a closed shape.
     const fillPath = [...waterLevelPoints];
-    // Move to the bottom-right of the data, then bottom-left, to close the shape for filling.
     fillPath.push([waterLevelPoints[waterLevelPoints.length - 1][0], dims.y + dims.height]);
     fillPath.push([waterLevelPoints[0][0], dims.y + dims.height]);
     
-    // Set fill color and draw the filled, closed path
     doc.setFillColor(120, 150, 180, 0.4);
     doc.path(fillPath).fill();
     
-    // Set stroke color and draw just the top line of the water level
     doc.setDrawColor(120, 150, 180);
+    doc.setLineWidth(0.3);
     doc.path(waterLevelPoints).stroke();
   }
 
@@ -249,6 +244,7 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
 
   const addField = (label: string, value: string, yOffset?: number) => {
       const y = yOffset || yPos;
+      doc.setFontSize(10);
       const labelWidth = doc.getTextDimensions(label, { font: doc.getFont('helvetica', 'bold') }).w;
       const valueX = margin + labelWidth + 2;
       const splitValue = doc.splitTextToSize(value, pageWidth - valueX - margin);
@@ -257,7 +253,7 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
       if (!yOffset) checkPageBreak(fieldHeight + 2);
       
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
+      
       doc.text(label, margin, y);
 
       doc.setFont("helvetica", "normal");
@@ -392,10 +388,10 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   addHeader("Index");
   
   toc.forEach(item => {
-      const titleWidth = doc.getTextDimensions(item.title).w;
-      const dots = ".".repeat(Math.max(0, Math.floor((pageWidth - margin * 2 - titleWidth - 10) / 1)));
-      checkPageBreak(8);
       doc.setFontSize(12);
+      const titleWidth = doc.getTextDimensions(item.title).w;
+      const dots = ".".repeat(Math.max(0, Math.floor((pageWidth - margin * 2 - titleWidth - 10) / 1.1)));
+      checkPageBreak(8);
       doc.text(item.title, margin, yPos);
       doc.text(dots, margin + titleWidth, yPos, { align: 'left'});
       doc.text(String(item.page), pageWidth - margin, yPos, { align: 'right'});
