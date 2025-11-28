@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData, OperationalAction, AssetStatus } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
-import { format, formatDistance } from 'date-fns';
+import { format, formatDistance, startOfDay } from 'date-fns';
 import { getWeatherData } from '../../sourceexamples/weather-service';
 
 
@@ -379,7 +379,7 @@ export async function updateDeployment(deploymentId: string, assetId: string, da
       name,
     };
     deployments[deploymentIndex] = updatedDeployment;
-    await writeJsonFile(deploymentsFilePath, updatedDeployment);
+    await writeJsonFile(deploymentsFilePath, deployments);
 
     // After updating a deployment, we need to reprocess its data
     await processAndAnalyzeDeployment(deploymentId);
@@ -939,7 +939,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                         if (file.columnMapping.barometerColumn) point.barometer = row[file.columnMapping.barometerColumn];
                     }
                     if (file.columnMapping.precipitationColumn) {
-                        point.precipitation = row[file.columnMapping.precipitationColumn];
+                        point.precipitation = (point.precipitation || 0) + row[file.columnMapping.precipitationColumn];
                     }
                     
                     dataMap.set(timestamp, point);
@@ -993,6 +993,16 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
         
         // Final combined and sorted data
         allData.sort((a,b) => a.timestamp - b.timestamp);
+        
+        // Calculate cumulative daily precipitation
+        const dailyPrecipMap = new Map<number, number>();
+        allData.forEach(p => {
+            const dayStart = startOfDay(new Date(p.timestamp)).getTime();
+            const currentTotal = dailyPrecipMap.get(dayStart) || 0;
+            const newTotal = currentTotal + (p.precipitation || 0);
+            dailyPrecipMap.set(dayStart, newTotal);
+            p.dailyPrecipitation = newTotal;
+        });
 
         // Run diagnostics and event segmentation
         const totalPrecipitation = allData.reduce((acc, p) => acc + (p.precipitation || 0), 0);
@@ -1218,3 +1228,5 @@ export async function saveDeploymentAnalysis(data: any) {
     return response;
   }
 }
+
+    
