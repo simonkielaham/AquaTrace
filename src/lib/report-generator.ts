@@ -129,7 +129,7 @@ function drawChart(
 
 
   // Draw Water Level Area
-  doc.setFillColor(120, 150, 180);
+  doc.setFillColor(120, 150, 180, 0.4);
   doc.setDrawColor(120, 150, 180);
   doc.setLineWidth(0.3);
   const waterLevelPoints: [number, number][] = data
@@ -143,15 +143,15 @@ function drawChart(
 
 
   if (waterLevelPoints.length > 1) {
-    const fillPath: [number, number][] = [];
-    const baselineY = dims.y + dims.height;
+    // Create the path for the filled area
+    const fillPath = [...waterLevelPoints];
+    fillPath.push([waterLevelPoints[waterLevelPoints.length - 1][0], dims.y + dims.height]);
+    fillPath.push([waterLevelPoints[0][0], dims.y + dims.height]);
     
-    fillPath.push([waterLevelPoints[0][0], baselineY]);
-    fillPath.push(...waterLevelPoints);
-    fillPath.push([waterLevelPoints[waterLevelPoints.length - 1][0], baselineY]);
-    fillPath.push([waterLevelPoints[0][0], baselineY]); // Close the path
-
     doc.path(fillPath).fill();
+    
+    // Draw the top line of the water level
+    doc.path(waterLevelPoints).stroke();
   }
 
 
