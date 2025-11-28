@@ -1,4 +1,3 @@
-
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { format } from "date-fns";
@@ -28,7 +27,6 @@ const formatText = (text?: string | null) => text || "N/A";
 const formatNumber = (num?: number | null, decimals = 2) =>
   typeof num === "number" ? num.toFixed(decimals) : "N/A";
 
-
 export const generateReport = async (data: ReportData, onProgress: ProgressCallback) => {
   const { asset, deployments, chartData, weatherSummary, overallAnalysis } = data;
   const reviewedEvents = (weatherSummary?.events || []).filter(e => !e.analysis?.disregarded);
@@ -44,10 +42,10 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.text(title, margin, yPos);
-    yPos += 10;
+    yPos += 8;
     doc.setDrawColor(200, 200, 200);
     doc.line(margin, yPos, pageWidth - margin, yPos);
-    yPos += 10;
+    yPos += 8;
   };
 
   const addSubheader = (title: string) => {
@@ -57,31 +55,37 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
     yPos += 6;
   }
   
-  const addText = (text: string, indent = 0) => {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      const splitText = doc.splitTextToSize(text, pageWidth - margin * 2 - indent);
-      doc.text(splitText, margin + indent, yPos);
-      yPos += (splitText.length * 4) + 4;
-      if (yPos > pageHeight - margin) {
-          doc.addPage();
-          yPos = margin;
-      }
+  const addText = (text: string, indent = 0, options: { isSplit: boolean } = { isSplit: true }) => {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const splitText = options.isSplit ? doc.splitTextToSize(text, pageWidth - margin * 2 - indent) : [text];
+    const textHeight = doc.getTextDimensions(splitText).h;
+
+    if (yPos + textHeight > pageHeight - margin) {
+        doc.addPage();
+        yPos = margin;
+    }
+    doc.text(splitText, margin + indent, yPos);
+    yPos += textHeight + 2;
   }
 
   const addField = (label: string, value: string) => {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.text(label, margin, yPos);
-      doc.setFont("helvetica", "normal");
-      const valueX = margin + 50;
+      const labelWidth = doc.getTextDimensions(label, { font: doc.getFont('helvetica', 'bold') }).w;
+      const valueX = margin + labelWidth + 2;
       const splitValue = doc.splitTextToSize(value, pageWidth - valueX - margin);
-      doc.text(splitValue, valueX, yPos);
-      yPos += (splitValue.length * 4) + 2;
-       if (yPos > pageHeight - margin) {
+      const fieldHeight = doc.getTextDimensions(splitValue).h;
+
+      if (yPos + fieldHeight > pageHeight - margin) {
           doc.addPage();
           yPos = margin;
       }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text(label, margin, yPos);
+
+      doc.setFont("helvetica", "normal");
+      doc.text(splitValue, valueX, yPos);
+      yPos += fieldHeight + 2;
   }
 
   // --- 1. Title Page ---
@@ -127,48 +131,51 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
     });
   }
 
-
-  // --- 3. Event Pages ---
+  // --- 3. Full Period Chart ---
+  onProgress("Capturing full performance chart...");
   const chartElement = document.getElementById('performance-chart-container-for-report');
   if (!chartElement) {
       throw new Error("Chart container for report not found. This is an internal error.");
   }
-  
+  chartElement.dispatchEvent(new CustomEvent('render-chart-for-report', { detail: { isFullChart: true } }));
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const fullCanvas = await html2canvas(chartElement, { logging: false, useCORS: true, scale: 2 });
+  const fullImgData = fullCanvas.toDataURL("image/png");
+
+  // --- 4. Event Pages ---
   for (const [index, event] of reviewedEvents.entries()) {
     onProgress(`Processing event ${index + 1} of ${reviewedEvents.length}...`);
     doc.addPage();
     yPos = margin;
     addHeader(`Precipitation Event: ${format(new Date(event.startDate), "Pp")}`);
     
-    // Dispatch a custom event to tell the chart to re-render for this event's timeframe
-    const renderEvent = new CustomEvent('render-chart-for-report', {
-        detail: { 
-            startDate: event.startDate, 
-            endDate: event.endDate + (48 * 60 * 60 * 1000)
-        }
-    });
-    chartElement.dispatchEvent(renderEvent);
+    // Calculate the crop region from the full chart canvas
+    const fullDateRange = chartData[chartData.length-1].timestamp - chartData[0].timestamp;
+    const eventStartDate = event.startDate;
+    const eventEndDate = event.endDate + (48 * 60 * 60 * 1000);
+    
+    const startX = (eventStartDate - chartData[0].timestamp) / fullDateRange * fullCanvas.width;
+    const endX = (eventEndDate - chartData[0].timestamp) / fullDateRange * fullCanvas.width;
+    const cropWidth = endX - startX;
 
-    // Wait for the chart to render
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    onProgress(`Capturing chart for event ${index + 1}...`);
-    const canvas = await html2canvas(chartElement, {
-        logging: false,
-        useCORS: true,
-        scale: 2, // Higher scale for better quality
-    });
-    const imgData = canvas.toDataURL("image/png");
-    
-    const imgWidth = pageWidth - margin * 2;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    
-    doc.addImage(imgData, "PNG", margin, yPos, imgWidth, imgHeight);
-    yPos += imgHeight + 10;
+    if (cropWidth > 0) {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = cropWidth;
+      tempCanvas.height = fullCanvas.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCtx?.drawImage(fullCanvas, startX, 0, cropWidth, fullCanvas.height, 0, 0, cropWidth, fullCanvas.height);
+      const eventImgData = tempCanvas.toDataURL("image/png");
 
-    if (yPos > pageHeight - margin - 60) { // Check if there's enough space for details
-      doc.addPage();
-      yPos = margin;
+      const imgWidth = pageWidth - margin * 2;
+      const imgHeight = (tempCanvas.height * imgWidth) / tempCanvas.width;
+
+      if (yPos + imgHeight > pageHeight - margin) {
+        doc.addPage();
+        yPos = margin;
+      }
+      
+      doc.addImage(eventImgData, "PNG", margin, yPos, imgWidth, imgHeight);
+      yPos += imgHeight + 5;
     }
     
     addSubheader("Event Summary");

@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -35,7 +34,7 @@ export default function DashboardLayout() {
 
 
   // State for the offscreen chart used for report generation
-  const [reportChartRange, setReportChartRange] = React.useState<{startDate: number, endDate: number} | null>(null);
+  const [reportRenderRequest, setReportRenderRequest] = React.useState<{isFullChart: boolean} | null>(null);
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   const currentAssetData = selectedAssetId ? assetData[selectedAssetId] : null;
@@ -96,7 +95,7 @@ export default function DashboardLayout() {
   React.useEffect(() => {
     const handleRenderRequest = (event: Event) => {
         const customEvent = event as CustomEvent;
-        setReportChartRange(customEvent.detail);
+        setReportRenderRequest(customEvent.detail);
     };
 
     const chartContainer = document.getElementById('performance-chart-container-for-report');
@@ -247,18 +246,16 @@ export default function DashboardLayout() {
       </div>
       {/* Offscreen chart for report generation */}
       <div id="performance-chart-container-for-report" className="fixed -left-[9999px] top-0 w-[1000px] bg-background p-4">
-        {selectedAsset && chartData && reportChartRange && (
+        {selectedAsset && chartData && reportRenderRequest && (
             <PerformanceChart
                 asset={selectedAsset}
                 chartData={chartData}
                 loading={false}
-                brushRange={{
-                    startIndex: chartData.findIndex(d => d.timestamp >= reportChartRange.startDate),
-                    endIndex: chartData.findIndex(d => d.timestamp >= reportChartRange.endDate)
-                }}
+                brushRange={reportRenderRequest.isFullChart ? {} : chartBrushRange}
                 onBrushChange={() => {}} // No-op for report chart
-                visibleElevations={{ ...visibleElevations, [selectedAsset.permanentPoolElevation.toString()]: true }} // Ensure pool is visible
+                visibleElevations={visibleElevations}
                 visibleSensorData={visibleSensorData}
+                isReportMode={true}
             />
         )}
       </div>

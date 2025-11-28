@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import type { Asset, ChartablePoint } from "@/lib/placeholder-data";
@@ -46,6 +44,7 @@ type PerformanceChartProps = {
   onBrushChange: (range: { startIndex?: number; endIndex?: number }) => void;
   visibleElevations: Record<string, boolean>;
   visibleSensorData: Record<string, boolean>;
+  isReportMode?: boolean; // New prop for report generation
 };
 
 
@@ -143,6 +142,7 @@ export default function PerformanceChart({
   onBrushChange,
   visibleElevations,
   visibleSensorData,
+  isReportMode = false,
 }: PerformanceChartProps) {
   const [isDataTableOpen, setIsDataTableOpen] = React.useState(false);
   const [yZoomRange, setYZoomRange] = React.useState<[number, number] | null>(null);
@@ -212,11 +212,11 @@ export default function PerformanceChart({
       return ['auto', 'auto'];
     }
 
-    const dataToConsider = brushRange && brushRange.startIndex !== undefined && brushRange.endIndex !== undefined
+    const dataToConsider = brushRange && brushRange.startIndex !== undefined && brushRange.endIndex !== undefined && !isReportMode
       ? chartData.slice(brushRange.startIndex, brushRange.endIndex + 1)
       : chartData;
 
-    const visibleDesignElevations = asset.designElevations.filter(de => visibleElevations[de.name]);
+    const visibleDesignElevations = asset.designElevations.filter(de => isReportMode || visibleElevations[de.name]);
 
     if (dataToConsider.length === 0) {
        const assetElevations = [
@@ -255,7 +255,7 @@ export default function PerformanceChart({
     const padding = (dataMax - dataMin) * 0.1 || 1;
 
     return [dataMin - padding, dataMax + padding];
-  }, [chartData, asset, loading, brushRange, visibleElevations]);
+  }, [chartData, asset, loading, brushRange, visibleElevations, isReportMode]);
 
   const sensorDomains = React.useMemo(() => {
     const dataToConsider = brushRange && brushRange.startIndex !== undefined && brushRange.endIndex !== undefined
@@ -287,8 +287,10 @@ export default function PerformanceChart({
   
   // Reset Y-axis zoom when the asset changes. The asset is the source of truth.
   React.useEffect(() => {
-    setYZoomRange(yAxisBounds as [number, number]);
-  }, [asset.id, yAxisBounds]);
+    if (!isReportMode) {
+      setYZoomRange(yAxisBounds as [number, number]);
+    }
+  }, [asset.id, yAxisBounds, isReportMode]);
 
   const handleResetView = () => {
     onBrushChange({});
@@ -299,7 +301,6 @@ export default function PerformanceChart({
     let payload = [
       { value: 'Water Elevation', type: 'line', id: 'waterLevel', dataKey: 'waterLevel', color: chartConfig.waterLevel.color },
       { value: 'Precipitation', type: 'rect', id: 'precipitation', dataKey: 'precipitation', color: chartConfig.precipitation.color },
-      { value: 'Daily Precipitation', type: 'line', id: 'dailyPrecipitation', dataKey: 'dailyPrecipitation', color: chartConfig.dailyPrecipitation.color },
       { value: 'Survey Points', type: 'scatter', id: 'elevation', dataKey: 'elevation', color: chartConfig.elevation.color },
       { value: 'Operational Action', type: 'scatter', id: 'operationalAction', dataKey: 'operationalAction', color: chartConfig.operationalAction.color },
     ];
@@ -314,7 +315,7 @@ export default function PerformanceChart({
     ].sort((a, b) => a.elevation - b.elevation);
 
     const designPayload = allDesignElevations
-        .filter(de => visibleElevations[de.name] || de.name === 'Permanent Pool')
+        .filter(de => (isReportMode && de.elevation > 0) || visibleElevations[de.name] || de.name === 'Permanent Pool')
         .map(de => ({
             value: de.name,
             type: 'line',
@@ -324,10 +325,10 @@ export default function PerformanceChart({
         }));
 
     return [...payload, ...designPayload];
-  }, [asset, chartConfig, visibleElevations, visibleSensorData]);
+  }, [asset, chartConfig, visibleElevations, visibleSensorData, isReportMode]);
 
 
-  if (loading) {
+  if (loading && !isReportMode) {
     return (
        <Card className="col-span-1 lg:col-span-4 shadow-sm">
         <CardHeader>
@@ -345,6 +346,185 @@ export default function PerformanceChart({
     )
   }
 
+  const chart = (
+    <ComposedChart
+      data={chartData}
+      margin={{ top: 5, right: 50, left: 20, bottom: isReportMode ? 20 : 90 }}
+      syncMethod="index"
+    >
+      <CartesianGrid vertical={false} />
+      <XAxis
+        dataKey="timestamp"
+        tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        tickLine={false}
+        axisLine={false}
+        tickMargin={8}
+        type="number"
+        domain={isReportMode && brushRange?.startIndex !== undefined && brushRange.endIndex !== undefined 
+          ? [chartData[brushRange.startIndex].timestamp, chartData[brushRange.endIndex].timestamp]
+          : ['dataMin', 'dataMax']}
+      />
+      <YAxis
+        yAxisId="left"
+        orientation="left"
+        unit="m"
+        tickLine={false}
+        axisLine={false}
+        tickMargin={8}
+        type="number"
+        domain={yZoomRange || yAxisBounds}
+        tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
+        allowDataOverflow={true}
+      />
+       <YAxis
+        yAxisId="right"
+        orientation="right"
+        unit="mm"
+        tickLine={false}
+        axisLine={false}
+        tickMargin={8}
+        type="number"
+        domain={[0, (dataMax: number) => Math.max(1, dataMax * 1.1)]}
+        reversed={true}
+        tickFormatter={(value) => (value as number).toFixed(0)}
+      />
+       <YAxis
+        yAxisId="temp"
+        orientation="right"
+        unit="°C"
+        tickLine={false}
+        axisLine={false}
+        tickMargin={8}
+        type="number"
+        domain={sensorDomains.temperature}
+        hide={!visibleSensorData.temperature}
+        tickFormatter={(value) => typeof value === 'number' ? value.toFixed(1) : value}
+      />
+       <YAxis
+        yAxisId="pressure"
+        orientation="right"
+        unit="kPa"
+        tickLine={false}
+        axisLine={false}
+        tickMargin={8}
+        type="number"
+        domain={sensorDomains.sensorPressure}
+        hide={!visibleSensorData.sensorPressure}
+        tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
+      />
+      <YAxis
+        yAxisId="barometer"
+        orientation="right"
+        unit="kPa"
+        tickLine={false}
+        axisLine={false}
+        tickMargin={8}
+        type="number"
+        domain={sensorDomains.barometer}
+        hide={!visibleSensorData.barometer}
+        tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
+      />
+      <ChartTooltip
+        cursor={false}
+        content={<CustomTooltipContent asset={asset} config={chartConfig} />}
+      />
+      <Area
+        yAxisId="left"
+        dataKey="waterLevel"
+        type="monotone"
+        fill="var(--color-waterLevel)"
+        fillOpacity={0.4}
+        stroke="var(--color-waterLevel)"
+        name="Water Elevation"
+        connectNulls
+        isAnimationActive={false}
+        dot={false}
+      />
+       <Bar
+        yAxisId="right"
+        dataKey="precipitation"
+        fill="hsl(var(--chart-2))"
+        fillOpacity={0.8}
+        stroke="hsl(var(--chart-2))"
+        strokeWidth={1}
+        name="Precipitation"
+        isAnimationActive={false}
+      />
+      <Scatter 
+        yAxisId="left"
+        dataKey="elevation" 
+        fill="var(--color-elevation)" 
+        name="Survey Points"
+        isAnimationActive={false}
+      />
+      <Scatter 
+        yAxisId="left"
+        dataKey="operationalAction" 
+        fill="var(--color-operationalAction)" 
+        name="Operational Action"
+        isAnimationActive={false}
+        shape="star"
+      />
+
+      {/* Sensor Data Lines */}
+      {visibleSensorData.temperature && <Line yAxisId="temp" type="monotone" dataKey="temperature" stroke="var(--color-temperature)" dot={false} isAnimationActive={false} name="Temperature" />}
+      {visibleSensorData.sensorPressure && <Line yAxisId="pressure" type="monotone" dataKey="sensorPressure" stroke="var(--color-sensorPressure)" dot={false} isAnimationActive={false} name="Sensor Pressure" />}
+      {visibleSensorData.barometer && <Line yAxisId="barometer" type="monotone" dataKey="barometer" stroke="var(--color-barometer)" dot={false} isAnimationActive={false} name="Barometer" />}
+
+      <ReferenceLine
+        yAxisId="left"
+        y={asset.permanentPoolElevation}
+        stroke={chartConfig["Permanent Pool"].color}
+        strokeWidth={2}
+        isFront
+      />
+      {asset.designElevations.map(de => {
+        if ((isReportMode && de.elevation > 0) || (!isReportMode && visibleElevations[de.name])) {
+          return (
+            <ReferenceLine
+              yAxisId="left"
+              key={de.name}
+              y={de.elevation}
+              stroke={chartConfig[de.name]?.color}
+              strokeDasharray="3 3"
+              isFront
+            />
+          )
+        }
+        return null;
+      })}
+
+      {!isReportMode && (
+        <Brush 
+            dataKey="timestamp" 
+            height={30} 
+            stroke="hsl(var(--chart-1))"
+            tickFormatter={(value) => new Date(value as number).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            y={390}
+            startIndex={brushRange?.startIndex}
+            endIndex={brushRange?.endIndex}
+            onChange={(range) => {
+                onBrushChange({startIndex: range.startIndex, endIndex: range.endIndex})
+            }}
+        />
+      )}
+       <Legend
+        content={<CustomLegend chartConfig={chartConfig} />}
+        verticalAlign="bottom"
+        wrapperStyle={{ paddingTop: '20px', display: isReportMode ? 'none' : 'flex' }}
+        payload={legendPayload}
+      />
+    </ComposedChart>
+  );
+
+  if (isReportMode) {
+    return (
+      <ChartContainer config={chartConfig} className="h-[300px] w-full">
+        {chart}
+      </ChartContainer>
+    );
+  }
+
   return (
     <Card className="col-span-1 lg:col-span-4 shadow-sm">
       <CardHeader>
@@ -356,185 +536,7 @@ export default function PerformanceChart({
       <CardContent>
        <div className="w-full flex gap-4">
         <ChartContainer config={chartConfig} className="h-[450px] w-full flex-1">
-          <ComposedChart
-            data={chartData}
-            margin={{ top: 5, right: 50, left: 20, bottom: 90 }}
-            syncMethod="index"
-          >
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="timestamp"
-              tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              type="number"
-              domain={['dataMin', 'dataMax']}
-            />
-            <YAxis
-              yAxisId="left"
-              orientation="left"
-              unit="m"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              type="number"
-              domain={yZoomRange || yAxisBounds}
-              tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
-              allowDataOverflow={true}
-            />
-             <YAxis
-              yAxisId="right"
-              orientation="right"
-              unit="mm"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              type="number"
-              domain={[0, (dataMax: number) => Math.max(1, dataMax * 1.1)]}
-              reversed={true}
-              tickFormatter={(value) => (value as number).toFixed(0)}
-            />
-             <YAxis
-              yAxisId="temp"
-              orientation="right"
-              unit="°C"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              type="number"
-              domain={sensorDomains.temperature}
-              hide={!visibleSensorData.temperature}
-              tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
-            />
-             <YAxis
-              yAxisId="pressure"
-              orientation="right"
-              unit="kPa"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              type="number"
-              domain={sensorDomains.sensorPressure}
-              hide={!visibleSensorData.sensorPressure}
-              tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
-            />
-            <YAxis
-              yAxisId="barometer"
-              orientation="right"
-              unit="kPa"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              type="number"
-              domain={sensorDomains.barometer}
-              hide={!visibleSensorData.barometer}
-              tickFormatter={(value) => typeof value === 'number' ? value.toFixed(2) : value}
-            />
-            <ChartTooltip
-              cursor={false}
-              content={<CustomTooltipContent asset={asset} config={chartConfig} />}
-            />
-             <Area
-              yAxisId="right"
-              dataKey="dailyPrecipitation"
-              type="step"
-              fill="var(--color-dailyPrecipitation)"
-              fillOpacity={0.2}
-              stroke="var(--color-dailyPrecipitation)"
-              strokeOpacity={0.4}
-              strokeWidth={1}
-              name="Daily Precipitation"
-              isAnimationActive={false}
-              dot={false}
-              connectNulls
-            />
-            <Area
-              yAxisId="left"
-              dataKey="waterLevel"
-              type="monotone"
-              fill="var(--color-waterLevel)"
-              fillOpacity={0.4}
-              stroke="var(--color-waterLevel)"
-              name="Water Elevation"
-              connectNulls
-              isAnimationActive={false}
-              dot={false}
-              stackId="a"
-            />
-             <Bar
-              yAxisId="right"
-              dataKey="precipitation"
-              fill="hsl(var(--chart-2))"
-              fillOpacity={0.8}
-              stroke="hsl(var(--chart-2))"
-              strokeWidth={1}
-              name="Precipitation"
-              isAnimationActive={false}
-              stackId="b"
-            />
-            <Scatter 
-              yAxisId="left"
-              dataKey="elevation" 
-              fill="var(--color-elevation)" 
-              name="Survey Points"
-              isAnimationActive={false}
-            />
-            <Scatter 
-              yAxisId="left"
-              dataKey="operationalAction" 
-              fill="var(--color-operationalAction)" 
-              name="Operational Action"
-              isAnimationActive={false}
-              shape="star"
-            />
-
-            {/* Sensor Data Lines */}
-            {visibleSensorData.temperature && <Line yAxisId="temp" type="monotone" dataKey="temperature" stroke="var(--color-temperature)" dot={false} isAnimationActive={false} name="Temperature" />}
-            {visibleSensorData.sensorPressure && <Line yAxisId="pressure" type="monotone" dataKey="sensorPressure" stroke="var(--color-sensorPressure)" dot={false} isAnimationActive={false} name="Sensor Pressure" />}
-            {visibleSensorData.barometer && <Line yAxisId="barometer" type="monotone" dataKey="barometer" stroke="var(--color-barometer)" dot={false} isAnimationActive={false} name="Barometer" />}
-
-            <ReferenceLine
-              yAxisId="left"
-              y={asset.permanentPoolElevation}
-              stroke={chartConfig["Permanent Pool"].color}
-              strokeWidth={2}
-              isFront
-            />
-            {asset.designElevations.map(de => {
-              if (visibleElevations[de.name]) {
-                return (
-                  <ReferenceLine
-                    yAxisId="left"
-                    key={de.name}
-                    y={de.elevation}
-                    stroke={chartConfig[de.name]?.color}
-                    strokeDasharray="3 3"
-                    isFront
-                  />
-                )
-              }
-              return null;
-            })}
-            <Brush 
-                dataKey="timestamp" 
-                height={30} 
-                stroke="hsl(var(--chart-1))"
-                tickFormatter={(value) => new Date(value as number).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                y={390}
-                startIndex={brushRange?.startIndex}
-                endIndex={brushRange?.endIndex}
-                onChange={(range) => {
-                    onBrushChange({startIndex: range.startIndex, endIndex: range.endIndex})
-                }}
-            />
-             <Legend
-              content={<CustomLegend chartConfig={chartConfig} />}
-              verticalAlign="bottom"
-              wrapperStyle={{ paddingTop: '20px' }}
-              payload={legendPayload}
-            />
-          </ComposedChart>
+          {chart}
         </ChartContainer>
         {yZoomRange && Array.isArray(yAxisBounds) && typeof yAxisBounds[0] === 'number' && typeof yAxisBounds[1] === 'number' && (
           <div className="w-10 flex flex-col items-center">
@@ -616,6 +618,3 @@ export default function PerformanceChart({
     </Card>
   );
 }
-
-    
-    
