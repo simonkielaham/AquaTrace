@@ -618,7 +618,7 @@ export async function assignDatafile(formData: FormData) {
       throw new Error(`CSV parsing error: ${parseResult.errors.map(e => e.message).join(', ')}`);
     }
 
-    const dataPoints = (parseResult.data as any[]).slice(columnMapping.startRow - 2); // PapaParse header is row 0
+    const dataPoints = (parseResult.data as any[]).slice(columnMapping.startRow - 2);
 
     if (dataPoints.length === 0) {
       throw new Error("No data points found in the file after the specified start row.");
@@ -915,9 +915,9 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 continue; // Skip to next file
             }
 
-            const dataPoints = parseResult.data as any[];
+            const dataPoints = (parseResult.data as any[]).slice(file.columnMapping.startRow - 2);
 
-            dataPoints.slice(file.columnMapping.startRow - 2).forEach((row: any) => {
+            dataPoints.forEach((row: any) => {
                     const timestampStr = row[file.columnMapping.datetimeColumn];
                     if (!timestampStr) return;
                     
@@ -945,7 +945,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                         if (file.columnMapping.barometerColumn) point.barometer = row[file.columnMapping.barometerColumn];
                     }
                     if (file.columnMapping.precipitationColumn) {
-                        point.precipitation = (point.precipitation || 0) + row[file.columnMapping.precipitationColumn];
+                        point.precipitation = (point.precipitation || 0) + (row[file.columnMapping.precipitationColumn] || 0);
                     }
                     
                     dataMap.set(timestamp, point);
@@ -963,7 +963,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
         }
 
         // Fetch external weather data if necessary
-        const hasPrecipitation = allData.some(p => p.precipitation !== undefined && p.precipitation !== null);
+        const hasPrecipitation = allData.some(p => p.precipitation !== undefined && p.precipitation !== null && p.precipitation > 0);
         const startDate = allData[0].timestamp;
         const endDate = allData[allData.length - 1].timestamp;
 
@@ -989,9 +989,24 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
             // Merge weather data into allData
             allData = allData.map(p => {
-                const weatherPoint = weatherPoints.get(p.timestamp);
-                if (weatherPoint) {
-                    return { ...p, ...weatherPoint };
+                // Find the closest weather point in time
+                let closestTimestamp = -1;
+                let minDiff = Infinity;
+                
+                for(const ts of weatherPoints.keys()) {
+                    const diff = Math.abs(p.timestamp - ts);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        closestTimestamp = ts;
+                    }
+                }
+
+                // If closest point is within a reasonable range (e.g., 1 hour), merge it
+                if (closestTimestamp !== -1 && minDiff < 60 * 60 * 1000) {
+                    const weatherPoint = weatherPoints.get(closestTimestamp);
+                    if (weatherPoint) {
+                        return { ...p, ...weatherPoint };
+                    }
                 }
                 return p;
             });
@@ -1003,11 +1018,16 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
         // Calculate cumulative daily precipitation
         const dailyPrecipMap = new Map<number, number>();
         allData.forEach(p => {
+            if (p.precipitation !== undefined && p.precipitation !== null) {
+              const dayStart = startOfDay(new Date(p.timestamp)).getTime();
+              const currentTotal = dailyPrecipMap.get(dayStart) || 0;
+              const newTotal = currentTotal + (p.precipitation || 0);
+              dailyPrecipMap.set(dayStart, newTotal);
+            }
+        });
+        allData.forEach(p => {
             const dayStart = startOfDay(new Date(p.timestamp)).getTime();
-            const currentTotal = dailyPrecipMap.get(dayStart) || 0;
-            const newTotal = currentTotal + (p.precipitation || 0);
-            dailyPrecipMap.set(dayStart, newTotal);
-            p.dailyPrecipitation = newTotal;
+            p.dailyPrecipitation = dailyPrecipMap.get(dayStart) || 0;
         });
 
         // Run diagnostics and event segmentation
@@ -1015,11 +1035,14 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
         const events: AnalysisPeriod[] = [];
         let currentEvent: AnalysisPeriod | null = null;
-        const rainThreshold = 0.5; // mm
+        const rainThreshold = 0.1; // mm, lowered to catch smaller events
         const eventGapHours = 6;
+        let lastRainTimestamp = 0;
 
         for (const point of allData) {
-            if ((point.precipitation || 0) > rainThreshold) {
+            const hasRain = (point.precipitation || 0) > rainThreshold;
+
+            if (hasRain) {
                 if (!currentEvent) {
                     // Start of a new event
                     currentEvent = {
@@ -1037,13 +1060,14 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                     currentEvent.totalPrecipitation += point.precipitation || 0;
                     currentEvent.dataPoints.push(point);
                 }
+                lastRainTimestamp = point.timestamp;
             } else {
-                if (currentEvent && (point.timestamp - currentEvent.endDate > eventGapHours * 60 * 60 * 1000)) {
-                    // End of the current event
+                if (currentEvent && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
+                    // End of the current event because gap is long enough
                     events.push(currentEvent);
                     currentEvent = null;
                 } else if (currentEvent) {
-                    // Still within the event gap, just add the point
+                    // Still within the event gap, just add the point to the current event
                     currentEvent.dataPoints.push(point);
                     currentEvent.endDate = point.timestamp;
                 }
