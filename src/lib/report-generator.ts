@@ -247,10 +247,10 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   }
 
   const addSectionHeader = (title: string, addToc = false) => {
+    checkPageBreak(16);
     if (addToc) {
         toc.push({ title: title, page: doc.internal.getNumberOfPages() });
     }
-    checkPageBreak(16);
     doc.setFont(FONT_HEADLINE, "bold");
     doc.setFontSize(16);
     doc.setTextColor(HamiltonColors.blue);
