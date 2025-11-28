@@ -566,11 +566,11 @@ export default function AnalysisResults({ weatherSummary, diagnostics, onSelectE
                         
                     return (
                         <AccordionItem value={event.id} key={event.id} className={cn("border rounded-lg bg-background", isDisregarded && "bg-muted/50")}>
-                            <AccordionTrigger 
-                                className={cn("p-4 hover:no-underline", isDisregarded && "opacity-60")}
+                            <div 
+                                className={cn("p-4 flex items-center gap-4", isDisregarded && "opacity-60")}
                                 onClick={() => onSelectEvent(event.startDate, event.endDate)}
                             >
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-left flex-1 items-center text-sm">
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-left flex-1 items-center text-sm cursor-pointer">
                                     <div className="font-medium flex items-center gap-2">
                                         {isDisregarded && 
                                             <Tooltip>
@@ -643,8 +643,10 @@ export default function AnalysisResults({ weatherSummary, diagnostics, onSelectE
                                         </TooltipContent>
                                     </Tooltip>
                                 </div>
-                                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-4" />
-                            </AccordionTrigger>
+                                <AccordionTrigger className="p-0 hover:no-underline justify-end ml-4">
+                                     <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                                </AccordionTrigger>
+                            </div>
                             <AccordionContent>
                                 <EventAnalysisDetails event={event} diagnostics={eventDiagnostics} onSaveSuccess={handleSaveSuccess} />
                             </AccordionContent>
