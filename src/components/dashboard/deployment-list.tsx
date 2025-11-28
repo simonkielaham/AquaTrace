@@ -566,7 +566,7 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
 
 function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
   const { toast } = useToast();
-  const { assignDatafileToDeployment, stagedFiles, loadingStagedFiles, getStagedFileContent } = useAssets();
+  const { assignDatafile, stagedFiles, loadingStagedFiles, getStagedFileContent } = useAssets();
   const [isOpen, setIsOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isParsing, setIsParsing] = React.useState(false);
@@ -610,7 +610,7 @@ function AssignDatafileDialog({ deployment }: { deployment: Deployment }) {
       }
     });
     
-    const result = await assignDatafileToDeployment(formData);
+    const result = await assignDatafile(formData);
 
     if (result?.message && result.message.startsWith('Error:')) {
       toast({ variant: "destructive", title: "Error Assigning File", description: result.message});
