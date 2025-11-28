@@ -618,7 +618,7 @@ export async function assignDatafile(formData: FormData) {
       throw new Error(`CSV parsing error: ${parseResult.errors.map(e => e.message).join(', ')}`);
     }
 
-    const dataPoints = parseResult.data.slice(columnMapping.startRow - 2); // PapaParse header is row 0
+    const dataPoints = (parseResult.data as any[]).slice(columnMapping.startRow - 2); // PapaParse header is row 0
 
     if (dataPoints.length === 0) {
       throw new Error("No data points found in the file after the specified start row.");
@@ -899,7 +899,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             return;
         }
         
-        let allData: ChartablePoint[] = [];
+        const dataMap = new Map<number, ChartablePoint>();
 
         for (const file of deployment.files) {
             const sourcePath = path.join(sourcefileDir, `${file.id}.csv`);
@@ -910,14 +910,15 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 dynamicTyping: true,
             });
 
-            const filePoints = (parseResult.data as any[]).slice(file.columnMapping.startRow - 1)
-                .map((row: any): ChartablePoint | null => {
+            (parseResult.data as any[]).slice(file.columnMapping.startRow - 1)
+                .forEach((row: any) => {
                     const timestampStr = row[file.columnMapping.datetimeColumn];
-                    if (!timestampStr) return null;
-                    const timestamp = new Date(timestampStr).getTime();
-                    if (isNaN(timestamp)) return null;
+                    if (!timestampStr) return;
                     
-                    let point: ChartablePoint = { timestamp };
+                    const timestamp = new Date(timestampStr).getTime();
+                    if (isNaN(timestamp)) return;
+
+                    let point = dataMap.get(timestamp) || { timestamp };
 
                     if ((file.columnMapping.dataType === 'water-level' || file.columnMapping.dataType === 'sensor-suite') && file.columnMapping.waterLevelColumn) {
                        const rawLevel = row[file.columnMapping.waterLevelColumn];
@@ -929,9 +930,8 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                      if (file.columnMapping.dataType === 'sensor-suite') {
                         if (file.columnMapping.sensorPressureColumn) {
                             const pressure = row[file.columnMapping.sensorPressureColumn];
-                            if(typeof pressure === 'number' && !point.waterLevel) { // Don't overwrite if water level is already set
-                                // Assuming pressure is in kPa, convert to meters of water column (1 kPa ≈ 0.10197 m)
-                                point.rawWaterLevel = pressure * 0.10197;
+                            if(typeof pressure === 'number' && !point.waterLevel) {
+                                point.rawWaterLevel = pressure * 0.10197; // kPa to meters water column
                                 point.waterLevel = deployment.sensorElevation + point.rawWaterLevel;
                             }
                         }
@@ -942,12 +942,11 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                         point.precipitation = row[file.columnMapping.precipitationColumn];
                     }
                     
-                    return point;
-                }).filter((p): p is ChartablePoint => p !== null && p.timestamp !== null && Object.keys(p).length > 1);
-            allData.push(...filePoints);
+                    dataMap.set(timestamp, point);
+                });
         }
         
-        allData.sort((a, b) => a.timestamp - b.timestamp);
+        let allData = Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
 
         if (allData.length === 0) {
             await writeLog({ action: 'processAndAnalyzeDeployment', status: 'warning', deploymentId, payload: { message: "No processable data points found in files." }});
@@ -958,7 +957,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
         }
 
         // Fetch external weather data if necessary
-        const hasPrecipitation = allData.some(p => p.precipitation !== undefined);
+        const hasPrecipitation = allData.some(p => p.precipitation !== undefined && p.precipitation !== null);
         const startDate = allData[0].timestamp;
         const endDate = allData[allData.length - 1].timestamp;
 
@@ -971,16 +970,24 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             });
             
             const weatherParse = Papa.parse(weatherDataCsv, { header: true, dynamicTyping: true });
-            const weatherPoints = (weatherParse.data as any[]).map(row => ({
-                timestamp: new Date(row.date).getTime(),
-                precipitation: row.precipitation,
-                temperature: row.temperature,
-            })).filter(p => !isNaN(p.timestamp));
+            const weatherPoints = new Map<number, { precipitation?: number, temperature?: number }>();
+            (weatherParse.data as any[]).forEach(row => {
+                const timestamp = new Date(row.date).getTime();
+                if (!isNaN(timestamp)) {
+                    weatherPoints.set(timestamp, {
+                        precipitation: row.precipitation,
+                        temperature: row.temperature,
+                    });
+                }
+            });
 
             // Merge weather data into allData
             allData = allData.map(p => {
-                const weatherPoint = weatherPoints.find(wp => wp.timestamp === p.timestamp);
-                return { ...p, ...weatherPoint };
+                const weatherPoint = weatherPoints.get(p.timestamp);
+                if (weatherPoint) {
+                    return { ...p, ...weatherPoint };
+                }
+                return p;
             });
         }
         
