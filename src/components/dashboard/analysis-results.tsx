@@ -439,7 +439,7 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
 
 
 export default function AnalysisResults({ weatherSummary, onSelectEvent }: AnalysisResultsProps) {
-  if (!weatherSummary || weatherSummary.events.length === 0) {
+  if (!weatherSummary || !weatherSummary.events || weatherSummary.events.length === 0) {
     return (
       <Card className="col-span-1 lg:col-span-4 shadow-sm">
         <CardHeader>
