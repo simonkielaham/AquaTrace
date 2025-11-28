@@ -33,14 +33,30 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
-import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit, EyeOff, Pencil, X, Clock, AreaChart, Waves } from "lucide-react";
+import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit, EyeOff, Pencil, X, Clock, AreaChart, Waves, Lightbulb, Search } from "lucide-react";
 import { format, formatDistance } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAssets } from "@/context/asset-context";
 import { useToast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+
+
+const getConfidenceColor = (confidence: number) => {
+    if (confidence > 0.7) return "bg-destructive";
+    if (confidence > 0.5) return "bg-orange-500";
+    return "bg-yellow-500";
+}
+
+const getConfidenceIcon = (confidence: number) => {
+    if (confidence > 0.7) return <AlertCircle className="h-4 w-4 text-destructive" />;
+    if (confidence > 0.5) return <Lightbulb className="h-4 w-4 text-orange-500" />;
+    return <Search className="h-4 w-4 text-yellow-500" />;
+}
 
 type AnalysisResultsProps = {
   weatherSummary: WeatherSummary | null;
+  diagnostics: any | null;
   onSelectEvent: (startDate: number, endDate: number) => void;
 };
 
@@ -78,7 +94,7 @@ const analysisFormSchema = z.object({
 type AnalysisFormValues = z.infer<typeof analysisFormSchema>;
 
 
-function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
+function EventAnalysisDetails({ event, diagnostics }: { event: AnalysisPeriod, diagnostics?: any[] }) {
   const { saveAnalysis, selectedAssetId, assets } = useAssets();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = React.useState(false);
@@ -207,7 +223,26 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
   if (!isEditing) {
     return (
         <div className="bg-muted/30 p-4 rounded-b-md space-y-4">
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             {diagnostics && diagnostics.length > 0 && (
+                <div className="space-y-3">
+                    <Label className="font-medium text-sm">Automated Diagnostics</Label>
+                     {diagnostics.map((diag, index) => (
+                         <div key={index} className="p-3 border rounded-lg bg-background/50">
+                            <div className="flex justify-between items-start gap-2">
+                                <div className="flex items-center gap-2">
+                                    {getConfidenceIcon(diag.confidence)}
+                                    <h4 className="font-semibold text-sm">{diag.title}</h4>
+                                </div>
+                                <Badge variant={diag.confidence > 0.7 ? "destructive" : diag.confidence > 0.5 ? "secondary" : "outline"} className="shrink-0">
+                                    {(diag.confidence * 100).toFixed(0)}% Confidence
+                                </Badge>
+                            </div>
+                            <Progress value={diag.confidence * 100} className={cn("h-1.5 mt-2", getConfidenceColor(diag.confidence))} />
+                        </div>
+                    ))}
+                </div>
+             )}
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
                 <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
                      <MetricCard 
                         title="Baseline Elevation"
@@ -282,6 +317,25 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSave)}>
         <div className="bg-muted/30 p-4 rounded-b-md">
+            {diagnostics && diagnostics.length > 0 && (
+                <div className="space-y-3 mb-6">
+                    <Label className="font-medium text-sm">Automated Diagnostics</Label>
+                     {diagnostics.map((diag, index) => (
+                         <div key={index} className="p-3 border rounded-lg bg-background/50">
+                            <div className="flex justify-between items-start gap-2">
+                                <div className="flex items-center gap-2">
+                                    {getConfidenceIcon(diag.confidence)}
+                                    <h4 className="font-semibold text-sm">{diag.title}</h4>
+                                </div>
+                                <Badge variant={diag.confidence > 0.7 ? "destructive" : diag.confidence > 0.5 ? "secondary" : "outline"} className="shrink-0">
+                                    {(diag.confidence * 100).toFixed(0)}% Confidence
+                                </Badge>
+                            </div>
+                            <Progress value={diag.confidence * 100} className={cn("h-1.5 mt-2", getConfidenceColor(diag.confidence))} />
+                        </div>
+                    ))}
+                </div>
+             )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
                     <MetricCard 
@@ -449,7 +503,7 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
 }
 
 
-export default function AnalysisResults({ weatherSummary, onSelectEvent }: AnalysisResultsProps) {
+export default function AnalysisResults({ weatherSummary, diagnostics, onSelectEvent }: AnalysisResultsProps) {
   if (!weatherSummary || !weatherSummary.events || weatherSummary.events.length === 0) {
     return (
       <Card className="col-span-1 lg:col-span-4 shadow-sm">
@@ -485,11 +539,14 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                     : undefined;
 
                 const returnedToBaseline = event.analysis?.postEventElevation !== undefined && event.analysis?.baselineElevation !== undefined 
-                    ? event.analysis.postEventElevation <= (event.analysis.baselineElevation + 0.02)
+                    ? event.analysis.postEventElevation <= (event.analysis.baselineElevation + 0.03)
                     : false;
 
                 const isReviewed = !!event.analysis?.analystInitials;
                 const isDisregarded = !!event.analysis?.disregarded;
+
+                const eventDiagnostics = diagnostics ? diagnostics[event.id] : [];
+                const topDiagnosis = eventDiagnostics?.sort((a:any, b:any) => b.confidence - a.confidence)[0];
                     
                 return (
                     <AccordionItem value={event.id} key={event.id} className={cn("border rounded-lg bg-background", isDisregarded && "bg-muted/50")}>
@@ -501,6 +558,7 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                                  <div className="font-medium flex items-center gap-2">
                                     {isDisregarded && <EyeOff className="h-4 w-4 text-muted-foreground" title="Disregarded"/>}
                                     {isReviewed && !isDisregarded && <CheckCircle className="h-4 w-4 text-green-500" title="Reviewed"/>}
+                                    {topDiagnosis && !isDisregarded && getConfidenceIcon(topDiagnosis.confidence)}
                                     {format(new Date(event.startDate), "Pp")}
                                  </div>
                                  <div>{formatDuration(event.startDate, event.endDate)}</div>
@@ -527,7 +585,7 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                                     <div className="flex flex-col items-start">
                                         <span>{event.analysis?.postEventElevation?.toFixed(2) ?? '-'} m</span>
                                         {event.analysis?.poolRecoveryDifference !== undefined && (
-                                            <span className={cn("text-xs font-mono", Math.abs(event.analysis.poolRecoveryDifference) > 0.02 ? "text-destructive/80" : "text-green-600/80")}>
+                                            <span className={cn("text-xs font-mono", Math.abs(event.analysis.poolRecoveryDifference) > 0.03 ? "text-destructive/80" : "text-green-600/80")}>
                                                {event.analysis.poolRecoveryDifference > 0 ? '+' : ''}{(event.analysis.poolRecoveryDifference * 100).toFixed(1)}cm
                                             </span>
                                         )}
@@ -537,7 +595,7 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                             <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-4" />
                         </AccordionTrigger>
                         <AccordionContent>
-                            <EventAnalysisDetails event={event} />
+                            <EventAnalysisDetails event={event} diagnostics={eventDiagnostics} />
                         </AccordionContent>
                     </AccordionItem>
                 )

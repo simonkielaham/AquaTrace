@@ -22,7 +22,6 @@ import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import AnalysisQaqc from "./analysis-qaqc";
 import FileLocationStatus from "./file-location-status";
-import DiagnosticsPanel from "./diagnostics-panel";
 
 
 export default function DashboardLayout() {
@@ -210,9 +209,9 @@ export default function DashboardLayout() {
               />
               <AnalysisResults 
                 weatherSummary={weatherSummary} 
+                diagnostics={diagnostics}
                 onSelectEvent={handleSelectEventTimeRange}
               />
-              <DiagnosticsPanel diagnostics={diagnostics} />
                <OverallAnalysis 
                   asset={selectedAsset} 
                   analysisData={overallAnalysis} 
