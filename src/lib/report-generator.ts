@@ -1,5 +1,4 @@
 
-
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import {
@@ -22,6 +21,24 @@ interface ReportData {
 }
 
 type ProgressCallback = (message: string) => void;
+
+// --- START: PDF Styling and Layout Constants ---
+
+const HamiltonColors = {
+  blue: '#005596',
+  green: '#008755',
+  darkGrey: '#414141',
+  lightGrey: '#EAEAEA',
+  white: '#FFFFFF',
+  background: '#F0F4F7'
+};
+
+const PAGE_MARGIN = 15;
+const FONT_BODY = "helvetica";
+const FONT_HEADLINE = "helvetica"; // jsPDF supports limited fonts, using helvetica for both
+
+// --- END: PDF Styling and Layout Constants ---
+
 
 // Helper function to format text for the PDF
 const formatText = (text?: string | null) => text || "N/A";
@@ -98,11 +115,12 @@ function drawChart(
   doc.setDrawColor(220, 220, 220);
   doc.setLineWidth(0.2);
   const yAxisTicks = 5;
+  doc.setFontSize(7);
+  doc.setTextColor(HamiltonColors.darkGrey);
   for (let i = 0; i <= yAxisTicks; i++) {
     const val = bounds.minY + (i / yAxisTicks) * (bounds.maxY - bounds.minY);
     const y = scaleY(val);
     doc.line(dims.x, y, dims.x + dims.width, y);
-    doc.setFontSize(7);
     doc.text(`${val.toFixed(2)}m`, dims.x - 2, y + 2, { align: 'right' });
   }
 
@@ -111,24 +129,21 @@ function drawChart(
     const val = bounds.minPrecip + (i/precipTicks) * bounds.maxPrecip;
     const y = dims.y + dims.height - scalePrecip(val);
      doc.setFontSize(7);
-     doc.setTextColor(100, 100, 255);
+     doc.setTextColor(HamiltonColors.blue);
      doc.text(`${val.toFixed(1)}mm`, dims.x + dims.width + 2, y + 2, { align: 'left' });
   }
-  doc.setTextColor(0,0,0);
+  doc.setTextColor(HamiltonColors.darkGrey);
   
   // Draw X-Axis Labels
   doc.setFontSize(7);
-  doc.setTextColor(100, 100, 100);
   const xAxisTicks = 4;
   for (let i = 0; i <= xAxisTicks; i++) {
       const timestamp = bounds.minX + (i / xAxisTicks) * (bounds.maxX - bounds.minX);
       const x = scaleX(timestamp);
       doc.text(format(new Date(timestamp), 'M/d HH:mm'), x, dims.y + dims.height + 5, { align: 'center'});
   }
-  doc.setTextColor(0,0,0);
 
-
-  // Draw Water Level Area
+  // Draw Water Level Area & Line
   const waterLevelPoints: [number, number][] = data
     .map(p => {
         if (typeof p.waterLevel === 'number') {
@@ -139,24 +154,22 @@ function drawChart(
     .filter((p): p is [number, number] => p !== null);
 
   if (waterLevelPoints.length > 1) {
-      const fillPath: [number, number][] = [...waterLevelPoints];
-      // Create a closed shape for filling
+      const fillPath = [...waterLevelPoints];
       fillPath.push([waterLevelPoints[waterLevelPoints.length - 1][0], dims.y + dims.height]); // Bottom-right
       fillPath.push([waterLevelPoints[0][0], dims.y + dims.height]); // Bottom-left
       fillPath.push(waterLevelPoints[0]); // Back to start
+
+      doc.setFillColor(HamiltonColors.green);
+      doc.path(fillPath).fill('F', {a: 0.1});
       
-      doc.setFillColor(120, 150, 180, 0.4);
-      doc.path(fillPath).fill();
-      
-      // Draw the line on top of the fill
-      doc.setDrawColor(100, 130, 160);
-      doc.setLineWidth(0.3);
+      doc.setDrawColor(HamiltonColors.green);
+      doc.setLineWidth(0.4);
       doc.path(waterLevelPoints).stroke();
   }
 
 
   // Draw Precipitation Bars
-  doc.setFillColor(100, 100, 255);
+  doc.setFillColor(HamiltonColors.blue);
   const barWidth = Math.max(1, dims.width / data.length * 0.8);
   data.forEach(p => {
     if (typeof p.precipitation === 'number' && p.precipitation > 0) {
@@ -171,22 +184,22 @@ function drawChart(
 
   // Draw Reference Lines
   const allDesignElevations = [
-      { name: 'Permanent Pool', elevation: asset.permanentPoolElevation, color: [6, 78, 59], dash: undefined },
-      ...asset.designElevations.map(de => ({ ...de, color: [199, 2, 2], dash: [2, 2] as [number, number] }))
+      { name: 'Permanent Pool', elevation: asset.permanentPoolElevation, color: HamiltonColors.blue, dash: undefined },
+      ...asset.designElevations.map(de => ({ ...de, color: '#C70202', dash: [2, 2] as [number, number] }))
   ];
 
   allDesignElevations.forEach(de => {
     if(typeof de.elevation !== 'number') return;
     const y = scaleY(de.elevation);
-    doc.setDrawColor(de.color[0], de.color[1], de.color[2]);
+    doc.setDrawColor(de.color);
     doc.setLineWidth(0.5);
     if(de.dash) doc.setLineDashPattern(de.dash, 0);
     doc.line(dims.x, y, dims.x + dims.width, y);
     doc.setLineDashPattern([], 0);
     doc.setFontSize(7);
-    doc.text(de.name, dims.x + dims.width + 16, y + 1.5, { align: 'left'});
+    doc.text(de.name, dims.x + dims.width + 17, y + 1.5, { align: 'left'});
   });
-  doc.setDrawColor(0,0,0);
+  doc.setDrawColor(HamiltonColors.darkGrey);
 }
 
 // --- END: PDF Chart Drawing Logic ---
@@ -199,67 +212,90 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   const doc = new jsPDF("p", "mm", "a4");
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 15;
-  let yPos = margin;
+  let yPos = PAGE_MARGIN;
   
   let toc: { title: string, page: number }[] = [];
 
+  const addPageHeaderAndFooter = (pageTitle: string) => {
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        // Header
+        doc.setFillColor(HamiltonColors.blue);
+        doc.rect(0, 0, pageWidth, 10, 'F');
+        doc.setFont(FONT_HEADLINE, 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(HamiltonColors.white);
+        doc.text(pageTitle, PAGE_MARGIN, 7);
+
+        // Footer
+        doc.setFont(FONT_BODY, 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(HamiltonColors.darkGrey);
+        const footerText = `Page ${i} of ${pageCount} | Generated: ${format(new Date(), "yyyy-MM-dd")}`;
+        doc.text(footerText, pageWidth / 2, pageHeight - 7, { align: 'center' });
+    }
+  };
+
   const checkPageBreak = (heightNeeded: number) => {
-    if (yPos + heightNeeded > pageHeight - margin) {
+    if (yPos + heightNeeded > pageHeight - (PAGE_MARGIN + 10)) { // Adjust for footer
       doc.addPage();
-      yPos = margin;
+      yPos = PAGE_MARGIN + 10; // Adjust for header
       return true;
     }
     return false;
   }
 
-  const addHeader = (title: string, addToc = false) => {
+  const addSectionHeader = (title: string, addToc = false) => {
     if (addToc) {
         toc.push({ title: title, page: doc.internal.getNumberOfPages() });
     }
     checkPageBreak(16);
-    doc.setFont("helvetica", "bold");
+    doc.setFont(FONT_HEADLINE, "bold");
     doc.setFontSize(16);
-    doc.text(title, margin, yPos);
+    doc.setTextColor(HamiltonColors.blue);
+    doc.text(title, PAGE_MARGIN, yPos);
     yPos += 8;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
+    doc.setDrawColor(HamiltonColors.lightGrey);
+    doc.setLineWidth(0.5);
+    doc.line(PAGE_MARGIN, yPos, pageWidth - PAGE_MARGIN, yPos);
     yPos += 8;
+    doc.setTextColor(HamiltonColors.darkGrey);
   };
 
   const addSubheader = (title: string) => {
     checkPageBreak(12);
-    doc.setFont("helvetica", "bold");
+    doc.setFont(FONT_HEADLINE, "bold");
     doc.setFontSize(12);
-    doc.text(title, margin, yPos);
-    yPos += 6;
+    doc.setTextColor(HamiltonColors.darkGrey);
+    doc.text(title, PAGE_MARGIN, yPos);
+    yPos += 7;
   }
   
   const addText = (text: string, indent = 0) => {
-    doc.setFont("helvetica", "normal");
+    doc.setFont(FONT_BODY, "normal");
     doc.setFontSize(10);
-    const splitText = doc.splitTextToSize(text, pageWidth - margin * 2 - indent);
+    const splitText = doc.splitTextToSize(text, pageWidth - PAGE_MARGIN * 2 - indent);
     const textHeight = doc.getTextDimensions(splitText).h;
     checkPageBreak(textHeight + 2);
-    doc.text(splitText, margin + indent, yPos);
+    doc.text(splitText, PAGE_MARGIN + indent, yPos);
     yPos += textHeight + 2;
   }
 
   const addField = (label: string, value: string, yOffset?: number) => {
       const y = yOffset || yPos;
       doc.setFontSize(10);
-      const labelWidth = doc.getTextDimensions(label, { font: doc.getFont('helvetica', 'bold') }).w;
-      const valueX = margin + labelWidth + 2;
-      const splitValue = doc.splitTextToSize(value, pageWidth - valueX - margin);
+      const labelWidth = doc.getTextDimensions(label, { font: doc.getFont(FONT_BODY, 'bold') }).w;
+      const valueX = PAGE_MARGIN + labelWidth + 3;
+      const splitValue = doc.splitTextToSize(value, pageWidth - valueX - PAGE_MARGIN);
       const fieldHeight = doc.getTextDimensions(splitValue).h;
 
       if (!yOffset) checkPageBreak(fieldHeight + 2);
       
-      doc.setFont("helvetica", "bold");
-      
-      doc.text(label, margin, y);
+      doc.setFont(FONT_BODY, "bold");
+      doc.text(label, PAGE_MARGIN, y);
 
-      doc.setFont("helvetica", "normal");
+      doc.setFont(FONT_BODY, "normal");
       doc.text(splitValue, valueX, y);
       
       if (!yOffset) yPos += fieldHeight + 2;
@@ -268,18 +304,26 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
 
   // --- 1. Title Page ---
   onProgress("Creating title page...");
-  doc.setFont("helvetica", "bold");
+  doc.setFillColor(HamiltonColors.background);
+  doc.rect(0, 0, pageWidth, pageHeight, 'F');
+  doc.setFillColor(HamiltonColors.blue);
+  doc.rect(0, pageHeight / 3 - 20, pageWidth, 50, 'F');
+
+  doc.setFont(FONT_HEADLINE, "bold");
   doc.setFontSize(24);
+  doc.setTextColor(HamiltonColors.white);
   doc.text(asset.name, pageWidth / 2, pageHeight / 3, { align: "center" });
 
   doc.setFontSize(18);
-  doc.text("Stormwater Management Facility Performance Report", pageWidth / 2, pageHeight / 3 + 15, { align: "center" });
-
-  doc.setFont("helvetica", "normal");
+  doc.setTextColor(HamiltonColors.white);
+  doc.text("Stormwater Management Facility Performance Report", pageWidth / 2, pageHeight / 3 + 10, { align: "center" });
+  
+  doc.setFont(FONT_BODY, "normal");
   doc.setFontSize(12);
-  doc.text(`Location: ${asset.location}`, pageWidth / 2, pageHeight / 2 + 10, { align: "center" });
-  doc.text(`Generated: ${format(new Date(), "PPP")}`, pageWidth / 2, pageHeight / 2 + 20, { align: "center" });
-  doc.text(`By: ${overallAnalysis.analystInitials}`, pageWidth / 2, pageHeight / 2 + 30, { align: "center" });
+  doc.setTextColor(HamiltonColors.darkGrey);
+  doc.text(`Location: ${asset.location}`, pageWidth / 2, pageHeight / 2 + 20, { align: "center" });
+  doc.text(`Report Date: ${format(new Date(), "PPP")}`, pageWidth / 2, pageHeight / 2 + 30, { align: "center" });
+  doc.text(`Analyst: ${overallAnalysis.analystInitials}`, pageWidth / 2, pageHeight / 2 + 40, { align: "center" });
   
   // TOC placeholder, will be filled later
   const tocPage = 2;
@@ -288,8 +332,8 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   // --- 3. Summary Statistics Page ---
   onProgress("Creating summary statistics page...");
   doc.addPage();
-  yPos = margin;
-  addHeader("Summary Statistics", true);
+  yPos = PAGE_MARGIN + 10;
+  addSectionHeader("Summary Statistics", true);
   
   // Analysis counts
   const statusCounts = reviewedEvents.reduce((acc, event) => {
@@ -331,13 +375,13 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   for (const [index, event] of reviewedEvents.entries()) {
     onProgress(`Processing event ${index + 1} of ${reviewedEvents.length}...`);
     doc.addPage();
-    yPos = margin;
-    addHeader(`Event: ${format(new Date(event.startDate), "Pp")}`, true);
+    yPos = PAGE_MARGIN + 10;
+    addSectionHeader(`Event: ${format(new Date(event.startDate), "Pp")}`, true);
     
     const chartDims: ChartDimensions = {
-        x: margin,
+        x: PAGE_MARGIN,
         y: yPos,
-        width: pageWidth - margin * 2 - 25,
+        width: pageWidth - PAGE_MARGIN * 2 - 25,
         height: 60
     };
     
@@ -371,7 +415,7 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
     if(eventDiagnostics && eventDiagnostics.length > 0) {
         addSubheader("Automated Diagnostics");
         eventDiagnostics.forEach(diag => {
-            addText(`- ${diag.title} (Confidence: ${(diag.confidence * 100).toFixed(0)}%)`);
+            addText(`- ${diag.title} (Confidence: ${(diag.confidence * 100).toFixed(0)}%)`, 5);
         });
         yPos += 5;
     }
@@ -387,28 +431,23 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   onProgress("Creating index page...");
   doc.insertPage(tocPage);
   doc.setPage(tocPage);
-  yPos = margin;
-  addHeader("Index");
+  yPos = PAGE_MARGIN + 10;
+  addSectionHeader("Index");
   
   toc.forEach(item => {
       doc.setFontSize(12);
       const titleWidth = doc.getTextDimensions(item.title).w;
-      const dots = ".".repeat(Math.max(0, Math.floor((pageWidth - margin * 2 - titleWidth - 10) / 1.1)));
+      const dots = ".".repeat(Math.max(0, Math.floor((pageWidth - PAGE_MARGIN * 2 - titleWidth - 10) / 1.1)));
       checkPageBreak(8);
-      doc.text(item.title, margin, yPos);
-      doc.text(dots, margin + titleWidth, yPos, { align: 'left'});
-      doc.text(String(item.page), pageWidth - margin, yPos, { align: 'right'});
+      doc.text(item.title, PAGE_MARGIN, yPos);
+      doc.text(dots, PAGE_MARGIN + titleWidth, yPos, { align: 'left'});
+      doc.text(String(item.page), pageWidth - PAGE_MARGIN, yPos, { align: 'right'});
       yPos += 8;
   });
 
-  // --- Add Page Numbers ---
-  onProgress("Adding page numbers...");
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    doc.setFontSize(10);
-    doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-  }
+  // --- Add Page Numbers & Headers ---
+  onProgress("Adding page numbers and headers...");
+  addPageHeaderAndFooter(`Performance Report: ${asset.name}`);
 
   onProgress("Finalizing PDF...");
   const filename = `${asset.name.replace(/\s+/g, '_')}_Performance_Report.pdf`;
