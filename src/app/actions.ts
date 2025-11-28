@@ -9,6 +9,7 @@ import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, Char
 import Papa from 'papaparse';
 import { format, formatDistance, startOfDay } from 'date-fns';
 import { getWeatherData } from '../../sourceexamples/weather-service';
+import { runDiagnostics } from '@/lib/diagnostics';
 
 
 // Define paths to data files
@@ -54,6 +55,7 @@ const deploymentFormSchema = z.object({
   sensorElevation: z.coerce.number(),
   stillwellTop: z.coerce.number().optional(),
   name: z.string().optional(),
+  designDrawdown: z.coerce.number().optional(),
 });
 
 
@@ -62,6 +64,7 @@ const editDeploymentSchema = z.object({
   sensorId: z.string().min(1),
   sensorElevation: z.coerce.number(),
   stillwellTop: z.coerce.number().optional(),
+  designDrawdown: z.coerce.number().optional(),
 });
 
 const surveyPointSchema = z.object({
@@ -135,7 +138,7 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
       if (['assets.json', 'deployments.json', 'activity-log.json', 'survey-points.json', 'operational-actions.json', 'events.json'].includes(baseName)) {
           return [] as T;
       }
-      if (['analysis-results.json', 'deployment-analysis.json', 'data.json'].includes(baseName)) {
+      if (['analysis-results.json', 'deployment-analysis.json', 'diagnostics.json', 'data.json'].includes(baseName)) {
           return {} as T;
       }
       if (filePath.endsWith('.json')) {
@@ -321,7 +324,7 @@ export async function createDeployment(assetId: string, data: any) {
     return response;
   }
   
-  const { sensorId, sensorElevation, stillwellTop, name } = validatedFields.data;
+  const { sensorId, sensorElevation, stillwellTop, name, designDrawdown } = validatedFields.data;
 
   try {
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
@@ -330,8 +333,9 @@ export async function createDeployment(assetId: string, data: any) {
       assetId,
       sensorId,
       sensorElevation,
-      stillwellTop: stillwellTop === undefined ? undefined : stillwellTop,
+      stillwellTop: stillwellTop,
       name: name || `Deployment - ${format(new Date(), 'PP')}`,
+      designDrawdown: designDrawdown,
       files: [],
     };
     
@@ -361,7 +365,7 @@ export async function updateDeployment(deploymentId: string, assetId: string, da
     return response;
   }
 
-  const { sensorId, sensorElevation, stillwellTop, name } = validatedFields.data;
+  const { sensorId, sensorElevation, stillwellTop, name, designDrawdown } = validatedFields.data;
   
   try {
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
@@ -375,8 +379,9 @@ export async function updateDeployment(deploymentId: string, assetId: string, da
       ...deployments[deploymentIndex],
       sensorId,
       sensorElevation,
-      stillwellTop: stillwellTop === undefined ? undefined : stillwellTop,
+      stillwellTop: stillwellTop,
       name,
+      designDrawdown: designDrawdown
     };
     deployments[deploymentIndex] = updatedDeployment;
     await writeJsonFile(deploymentsFilePath, deployments);
@@ -890,6 +895,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             await fs.mkdir(deploymentDataPath, { recursive: true });
             await writeJsonFile(path.join(deploymentDataPath, 'data.json'), []);
             await writeJsonFile(path.join(deploymentDataPath, 'events.json'), { totalPrecipitation: 0, events: [] });
+            await writeJsonFile(path.join(deploymentDataPath, 'diagnostics.json'), {});
             return;
         }
 
@@ -916,7 +922,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 continue; // Skip to next file
             }
             
-            const dataPoints = (parseResult.data as any[]);
+            const dataPoints = (parseResult.data as any[]).slice(file.columnMapping.startRow - 2);
 
             dataPoints.forEach((row: any) => {
                     const timestampStr = row[file.columnMapping.datetimeColumn];
@@ -960,6 +966,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             // Clear out old data if no new data
             await writeJsonFile(path.join(processedDir, deploymentId, 'data.json'), []);
             await writeJsonFile(path.join(processedDir, deploymentId, 'events.json'), { totalPrecipitation: 0, events: [] });
+            await writeJsonFile(path.join(processedDir, deploymentId, 'diagnostics.json'), {});
             return;
         }
 
@@ -1044,8 +1051,18 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
         for (const point of allData) {
             const hasRain = (point.precipitation || 0) > rainThreshold;
+            
+            if (currentEvent) {
+                // An event is active, check if it should be closed
+                 if (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000) {
+                    // It's been dry for long enough, close the event
+                    events.push(currentEvent);
+                    currentEvent = null;
+                }
+            }
 
             if (hasRain) {
+                lastRainTimestamp = point.timestamp;
                 if (!currentEvent) {
                     // Start of a new event
                     currentEvent = {
@@ -1058,22 +1075,14 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                         dataPoints: []
                     };
                 }
-                lastRainTimestamp = point.timestamp;
             }
             
             if (currentEvent) {
-                // If there's an active event, check if it should be closed
-                if (!hasRain && lastRainTimestamp > 0 && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
-                    // Close the event if the gap is exceeded
-                    events.push(currentEvent);
-                    currentEvent = null;
-                } else {
-                    // Otherwise, add the point to the event and update its end date
-                    currentEvent.dataPoints.push(point);
-                    currentEvent.endDate = point.timestamp;
-                     if (hasRain) {
-                        currentEvent.totalPrecipitation += point.precipitation || 0;
-                    }
+                // If there's an active event, add the point to it and update its properties
+                currentEvent.dataPoints.push(point);
+                currentEvent.endDate = point.timestamp;
+                 if (hasRain) {
+                    currentEvent.totalPrecipitation += point.precipitation || 0;
                 }
             }
         }
@@ -1092,9 +1101,12 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 ? validBaselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / validBaselinePoints.length
                 : undefined;
 
-            const peakPoint = event.dataPoints.filter(p => p.waterLevel !== undefined).reduce((max, p) => (p.waterLevel! > (max.waterLevel ?? -Infinity)) ? p : max, { waterLevel: -Infinity } as ChartablePoint);
+            const validEventPoints = event.dataPoints.filter(p => p.waterLevel !== undefined);
+            const peakPoint = validEventPoints.length > 0
+                ? validEventPoints.reduce((max, p) => (p.waterLevel! > (max.waterLevel ?? -Infinity)) ? p : max, { waterLevel: -Infinity } as ChartablePoint)
+                : { waterLevel: -Infinity };
             
-            const peakElevation = peakPoint.waterLevel !== undefined && isFinite(peakPoint.waterLevel) ? peakPoint.waterLevel : undefined;
+            const peakElevation = peakPoint.waterLevel !== -Infinity ? peakPoint.waterLevel : undefined;
             const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) ? peakElevation - baselineElevation : 0;
             
             const postEventTime = event.endDate + 48 * 60 * 60 * 1000;
@@ -1111,13 +1123,13 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                     timeToBaseline = formatDistance(new Date(peakPoint.timestamp || event.startDate), new Date(baselineReturnPoint.timestamp), { includeSeconds: true });
                     
                     const hoursToReturn = (baselineReturnPoint.timestamp - (peakPoint.timestamp || event.startDate)) / (1000 * 60 * 60);
-                    // Assuming a "Normal" drawdown is e.g. 24-72 hours. This is a placeholder.
-                    if (hoursToReturn < 24) drawdownAnalysis = "Fast";
-                    else if (hoursToReturn > 72) drawdownAnalysis = "Slow";
+                    const designDrawdown = deployment.designDrawdown || 48; // Default 48h
+                    if (hoursToReturn < designDrawdown * 0.5) drawdownAnalysis = "Fast";
+                    else if (hoursToReturn > designDrawdown * 1.5) drawdownAnalysis = "Slow";
                     else drawdownAnalysis = "Normal";
 
                 } else {
-                    timeToBaseline = "Did not return to baseline within event period";
+                    timeToBaseline = "Did not return to baseline";
                     drawdownAnalysis = "Incomplete";
                 }
             }
@@ -1147,11 +1159,19 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             events,
         };
 
+        const diagnostics = runDiagnostics({
+            allData,
+            events,
+            permanentPoolElevation: asset.permanentPoolElevation,
+            designDrawdown: deployment.designDrawdown || 48,
+        });
+
         // Write processed files
         const deploymentDataPath = path.join(processedDir, deploymentId);
         await fs.mkdir(deploymentDataPath, { recursive: true });
         await writeJsonFile(path.join(deploymentDataPath, 'data.json'), allData);
         await writeJsonFile(path.join(deploymentDataPath, 'events.json'), weatherSummary);
+        await writeJsonFile(path.join(deploymentDataPath, 'diagnostics.json'), diagnostics);
         
         await writeLog({
             action: 'processAndAnalyzeDeployment',
@@ -1265,6 +1285,17 @@ export async function getDeploymentAnalysis(deploymentId: string): Promise<Overa
         return Object.keys(analysisData).length > 0 ? analysisData : null;
     } catch (error) {
         console.error(`Failed to get overall analysis for deployment ${deploymentId}:`, error);
+        return null;
+    }
+}
+
+export async function getDeploymentDiagnostics(deploymentId: string): Promise<any> {
+    try {
+        const diagnosticsFilePath = path.join(processedDir, deploymentId, 'diagnostics.json');
+        const diagnosticsData = await readJsonFile<any>(diagnosticsFilePath);
+        return Object.keys(diagnosticsData).length > 0 ? diagnosticsData : null;
+    } catch (error) {
+        console.error(`Failed to get diagnostics for deployment ${deploymentId}:`, error);
         return null;
     }
 }

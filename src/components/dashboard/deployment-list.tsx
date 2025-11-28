@@ -80,6 +80,7 @@ const editDeploymentSchema = z.object({
   sensorId: z.string().min(1, "Sensor ID is required."),
   sensorElevation: z.coerce.number(),
   stillwellTop: z.coerce.number().optional(),
+  designDrawdown: z.coerce.number().optional(),
 });
 
 type EditDeploymentValues = z.infer<typeof editDeploymentSchema>;
@@ -89,6 +90,7 @@ const deploymentFormSchema = z.object({
   sensorElevation: z.coerce.number(),
   stillwellTop: z.coerce.number().optional(),
   name: z.string().optional(),
+  designDrawdown: z.coerce.number().optional(),
 });
 type DeploymentFormValues = z.infer<typeof deploymentFormSchema>;
 
@@ -139,6 +141,7 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
       sensorElevation: 0,
       stillwellTop: undefined,
       name: "",
+      designDrawdown: 48,
     }
   });
 
@@ -218,6 +221,18 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
                   )}
                 />
             </div>
+             <FormField
+                  control={form.control}
+                  name="designDrawdown"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Design Drawdown Time (hr)</FormLabel>
+                      <FormControl><Input type="number" step="1" {...field} /></FormControl>
+                      <FormDescription>e.g., 24, 48, or 72 hours</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
             <DialogFooter>
               <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
               <Button type="submit" disabled={isSubmitting}>
@@ -244,6 +259,7 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
       sensorId: deployment.sensorId,
       sensorElevation: deployment.sensorElevation,
       stillwellTop: deployment.stillwellTop === null || deployment.stillwellTop === undefined ? undefined : deployment.stillwellTop,
+      designDrawdown: deployment.designDrawdown || 48,
     },
   });
 
@@ -314,6 +330,18 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
               )}
             />
           </div>
+           <FormField
+              control={form.control}
+              name="designDrawdown"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Design Drawdown Time (hr)</FormLabel>
+                  <FormControl><Input type="number" step="1" {...field} /></FormControl>
+                  <FormDescription>e.g., 24, 48, or 72 hours</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           <Button type="submit" size="sm" disabled={isSubmitting}>
             <Save className="mr-2 h-4 w-4" />
             {isSubmitting ? "Saving..." : "Save Changes"}

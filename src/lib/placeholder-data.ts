@@ -63,6 +63,7 @@ export type OperationalAction = {
   assetId: string;
   timestamp: number;
   action: string;
+  deploymentId?: string;
 };
 
 export type Deployment = {
@@ -72,6 +73,7 @@ export type Deployment = {
   sensorElevation: number;
   stillwellTop?: number;
   name?: string;
+  designDrawdown?: number;
   files?: DataFile[];
 };
 
@@ -93,6 +95,7 @@ export type SavedAnalysisData = {
 
 export type OverallAnalysisData = {
     assetId: string;
+    deploymentId: string;
     permanentPoolPerformance?: 'sits_at_pool' | 'sits_above_pool' | 'sits_below_pool' | 'fluctuates';
     estimatedControlElevation?: number;
     rainResponse?: 'as_expected' | 'slow_response' | 'fast_response' | 'no_response';

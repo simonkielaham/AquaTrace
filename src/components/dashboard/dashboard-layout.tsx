@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -23,6 +22,7 @@ import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import AnalysisQaqc from "./analysis-qaqc";
 import FileLocationStatus from "./file-location-status";
+import DiagnosticsPanel from "./diagnostics-panel";
 
 
 export default function DashboardLayout() {
@@ -46,6 +46,7 @@ export default function DashboardLayout() {
   const overallAnalysis = currentAssetData?.overallAnalysis || null;
   const surveyPoints = currentAssetData?.surveyPoints || [];
   const operationalActions = currentAssetData?.operationalActions || [];
+  const diagnostics = currentAssetData?.diagnostics || null;
 
   
   // Handle case where selected asset is not found or none is selected
@@ -211,6 +212,7 @@ export default function DashboardLayout() {
                 weatherSummary={weatherSummary} 
                 onSelectEvent={handleSelectEventTimeRange}
               />
+              <DiagnosticsPanel diagnostics={diagnostics} />
                <OverallAnalysis 
                   asset={selectedAsset} 
                   analysisData={overallAnalysis} 

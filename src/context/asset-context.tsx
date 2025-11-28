@@ -42,6 +42,7 @@ import {
   getRawDeploymentAnalysisJson as getRawOverallAnalysisJsonAction,
   saveDeploymentAnalysis as saveOverallAnalysisAction,
   checkFileExists as checkFileExistsAction,
+  getDeploymentDiagnostics,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -53,6 +54,7 @@ interface AssetData {
   overallAnalysis: OverallAnalysisData | null;
   surveyPoints: SurveyPoint[];
   operationalActions: OperationalAction[];
+  diagnostics: any | null;
   loading?: boolean;
 }
 interface AssetContextType {
@@ -157,7 +159,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   const fetchAssetData = useCallback(async (assetId: string) => {
     if (!assetId) return;
 
-    const initialData = { data: [], weatherSummary: null, overallAnalysis: null, surveyPoints: [], operationalActions: [] };
+    const initialData: AssetData = { data: [], weatherSummary: null, overallAnalysis: null, surveyPoints: [], operationalActions: [], diagnostics: null, loading: true };
     setAssetData(prev => ({ ...prev, [assetId]: { ...(prev[assetId] || initialData), loading: true } }));
 
     try {
@@ -168,19 +170,22 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
                 processedDataResult, 
                 overallAnalysisResult,
                 surveyPointsResult,
-                operationalActionsResult
+                operationalActionsResult,
+                diagnosticsResult
             ] = await Promise.all([
               getProcessedData(deployment.id),
               getOverallAnalysisAction(deployment.id),
               getSurveyPointsAction(deployment.id),
               getOperationalActionsAction(deployment.id),
+              getDeploymentDiagnostics(deployment.id),
             ]);
             return {
                 deploymentId: deployment.id,
                 processedData: processedDataResult,
                 overallAnalysis: overallAnalysisResult,
                 surveyPoints: surveyPointsResult,
-                operationalActions: operationalActionsResult
+                operationalActions: operationalActionsResult,
+                diagnostics: diagnosticsResult,
             };
         });
         
@@ -218,6 +223,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
             overallAnalysis: primaryDeploymentData?.overallAnalysis || null,
             surveyPoints: combinedSurveyPoints,
             operationalActions: combinedOperationalActions,
+            diagnostics: primaryDeploymentData?.diagnostics || null,
             loading: false 
         } }));
 
