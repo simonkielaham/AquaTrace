@@ -164,7 +164,7 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
   const baselineAssessment = React.useMemo(() => {
     if(event.analysis?.postEventElevation && event.analysis?.baselineElevation) {
       const diff = event.analysis.postEventElevation - event.analysis.baselineElevation;
-      const margin = 0.02; // 2cm margin of error
+      const margin = 0.03; // 3cm margin of error
       if (diff > margin) {
         return { 
           text: `Did not return to baseline (+${diff.toFixed(2)}m).`,
@@ -190,7 +190,7 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
   const poolRecoveryAssessment = React.useMemo(() => {
     if (event.analysis?.poolRecoveryDifference !== undefined) {
       const diffCm = event.analysis.poolRecoveryDifference * 100; // convert to cm
-      const marginCm = 2;
+      const marginCm = 3;
       
       if (diffCm > marginCm) {
           return { text: `Ended ${diffCm.toFixed(1)}cm above permanent pool.`, icon: XCircle, color: "text-destructive" };
