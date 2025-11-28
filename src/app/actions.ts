@@ -1063,7 +1063,6 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
         for (const point of allData) {
             const hasRain = (point.precipitation || 0) > rainThreshold;
-            const isNewEventStarting = hasRain && !currentEvent;
             const isEventClosing = currentEvent && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000);
 
             if (isEventClosing) {
@@ -1071,6 +1070,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 currentEvent = null;
             }
             
+            const isNewEventStarting = hasRain && !currentEvent;
             if (isNewEventStarting) {
                 currentEvent = {
                     id: `event-${point.timestamp}`,
@@ -1112,13 +1112,13 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             const validEventPoints = event.dataPoints.filter(p => typeof p.waterLevel === 'number' && isFinite(p.waterLevel));
             
             const peakPoint = validEventPoints.length > 0 
-              ? validEventPoints.reduce((max, p) => (p.waterLevel! > max.waterLevel!) ? p : max, validEventPoints[0])
-              : undefined;
+              ? validEventPoints.reduce((max, p) => (p.waterLevel! > max.waterLevel!) ? p : max, { waterLevel: -Infinity, timestamp: 0 })
+              : { waterLevel: 0, timestamp: 0 };
             
-            const peakElevation = peakPoint?.waterLevel ?? 0;
+            const peakElevation = peakPoint?.waterLevel;
             const peakTimestamp = peakPoint?.timestamp;
             
-            const peakRise = peakElevation - baselineElevation;
+            const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) ? peakElevation - baselineElevation : 0;
             
             const postEventTime = event.endDate + 48 * 60 * 60 * 1000;
             const postEventPoints = allData.filter(p => p.timestamp >= postEventTime - 60*60*1000 && p.timestamp <= postEventTime && p.waterLevel !== undefined);
@@ -1151,8 +1151,8 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
             event.analysis = {
                 peakTimestamp,
-                baselineElevation,
                 peakElevation,
+                baselineElevation,
                 postEventElevation,
                 timeToBaseline,
                 drawdownAnalysis,
@@ -1369,6 +1369,8 @@ export async function saveDeploymentAnalysis(data: any) {
 
 
       
+
+    
 
     
 
