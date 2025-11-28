@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/accordion";
 import { useAssets } from "@/context/asset-context";
 import { Asset, Deployment } from "@/lib/placeholder-data";
-import { CheckCircle, XCircle, Loader2, FolderOpen } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, FolderOpen, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FileLocationStatusProps {
@@ -68,8 +68,7 @@ export default function FileLocationStatus({ asset, deployments }: FileLocationS
     addPath('data/assets.json', `Master asset list (contains '${asset.name}')`);
     addPath('data/deployments.json', 'Master deployment list');
     addPath('data/activity-log.json', 'Global application activity log');
-    addPath('data/analysis-results.json', 'Per-event analysis notes and status');
-
+    
     // Deployment-specific files
     deployments.forEach(dep => {
         const depDir = `data/processed/${dep.id}`;
@@ -78,6 +77,7 @@ export default function FileLocationStatus({ asset, deployments }: FileLocationS
         addPath(`${depDir}/deployment-analysis.json`, `Overall analysis for '${dep.name}'`);
         addPath(`${depDir}/survey-points.json`, `Survey points for '${dep.name}'`);
         addPath(`${depDir}/operational-actions.json`, `Operational logs for '${dep.name}'`);
+        addPath(`${depDir}/diagnostics.json`, `Automated diagnostics output for '${dep.name}'`);
     });
     
     return paths;
@@ -114,6 +114,7 @@ export default function FileLocationStatus({ asset, deployments }: FileLocationS
                 </CardDescription>
               </div>
             </div>
+             <ChevronDown className="h-5 w-5 shrink-0 transition-transform duration-200" />
           </AccordionTrigger>
           <AccordionContent>
             <CardContent>

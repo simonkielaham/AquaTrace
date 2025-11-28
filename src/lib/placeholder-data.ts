@@ -77,15 +77,6 @@ export type Deployment = {
   files?: DataFile[];
 };
 
-export type AnalysisResult = {
-  id: string;
-  assetId: string;
-  type: "Blocked Outlet" | "Potential Leak" | "Normal Drainage" | "High Inflow";
-  severity: "high" | "medium" | "low" | "info";
-  description: string;
-  timestamp: string;
-};
-
 export type SavedAnalysisData = {
     notes?: string;
     status?: "normal" | "not_normal" | "holding_water" | "leaking";
@@ -152,4 +143,3 @@ export type WeatherSummary = {
 
 // This file now only contains type definitions.
 // The actual data is loaded and managed in AssetProvider.
-export const analysisResults: AnalysisResult[] = [];

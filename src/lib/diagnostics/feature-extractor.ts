@@ -11,7 +11,6 @@ export interface HydrographFeatures {
     drawdownRate: number | undefined; // m/hr
     drawdownIsSteep: boolean;
     drawdownIsShallow: boolean;
-    hasTwoPhaseRecession: boolean;
     risingLimbRate: number | undefined; // m/hr
     rainToPeakRatio: number; // m / mm
     totalRainfall: number;
@@ -20,7 +19,6 @@ export interface HydrographFeatures {
     baselineTrend: 'rising' | 'falling' | 'stable';
     baselineBelowPool: boolean;
     baselineAbovePool: boolean;
-    baselineFluctuates: boolean;
 }
 
 // Simple linear regression to find slope
@@ -80,7 +78,6 @@ export function extractFeatures(
         drawdownRate: drawdownRate,
         drawdownIsSteep: drawdownRate !== undefined && drawdownDuration !== undefined && drawdownDuration < (designDrawdown * 0.75),
         drawdownIsShallow: drawdownRate !== undefined && drawdownDuration !== undefined && drawdownDuration > (designDrawdown * 1.25),
-        hasTwoPhaseRecession: false, // Placeholder - requires more complex analysis
         risingLimbRate: risingLimbRate,
         rainToPeakRatio: totalPrecipitation > 0 ? ((analysis?.peakElevation || 0) - (analysis?.baselineElevation || 0)) / totalPrecipitation : 0,
         totalRainfall: totalPrecipitation,
@@ -88,6 +85,5 @@ export function extractFeatures(
         baselineTrend: baselineTrend,
         baselineBelowPool: (analysis?.baselineElevation || permanentPoolElevation) < permanentPoolElevation - 0.05,
         baselineAbovePool: (analysis?.baselineElevation || permanentPoolElevation) > permanentPoolElevation + 0.05,
-        baselineFluctuates: false, // Placeholder
     };
 }
