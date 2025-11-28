@@ -1,4 +1,5 @@
 
+
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import {
@@ -52,9 +53,10 @@ function calculateBounds(
   const elevations = data
     .map((d) => d.waterLevel)
     .filter((v): v is number => typeof v === 'number');
+  
   const precipitations = data
     .map((d) => d.precipitation)
-    .filter((v): v is number => typeof v === 'number');
+    .filter((v): v is number => typeof v === 'number' && v > 0);
   
   const designElevations = asset.designElevations.map(de => de.elevation);
   
@@ -72,7 +74,7 @@ function calculateBounds(
     minY: minY,
     maxY: maxY,
     minPrecip: 0,
-    maxPrecip: Math.max(1, ...precipitations),
+    maxPrecip: precipitations.length > 0 ? Math.max(1, ...precipitations) : 1,
   };
 }
 
@@ -121,20 +123,23 @@ function drawChart(
       waterLevelPoints.push([scaleX(p.timestamp), scaleY(p.waterLevel)]);
     }
   });
-  if(waterLevelPoints.length > 1) {
-      const firstPoint = waterLevelPoints[0];
-      const lastPoint = waterLevelPoints[waterLevelPoints.length - 1];
-      const baselineY = dims.y + dims.height;
 
-      const fillPath: [number, number][] = [
-        ...waterLevelPoints,
-        [lastPoint[0], baselineY],
-        [firstPoint[0], baselineY],
-        [firstPoint[0], firstPoint[1]] // Close the path
-      ];
+  if (waterLevelPoints.length > 1) {
+    const fillPath: [number, number][] = [];
+    const baselineY = dims.y + dims.height;
+    
+    // Start from baseline at the first point's X
+    fillPath.push([waterLevelPoints[0][0], baselineY]);
+    
+    // Add all the water level points
+    fillPath.push(...waterLevelPoints);
+    
+    // End at baseline at the last point's X
+    fillPath.push([waterLevelPoints[waterLevelPoints.length - 1][0], baselineY]);
 
-      doc.path(fillPath).fill();
+    doc.path(fillPath).fill();
   }
+
 
   // Draw Precipitation Bars
   doc.setFillColor(100, 100, 255);
@@ -165,7 +170,7 @@ function drawChart(
     doc.line(dims.x, y, dims.x + dims.width, y);
     doc.setLineDashPattern([], 0);
     doc.setFontSize(7);
-    doc.text(de.name, dims.x + dims.width + 12, y + 1.5, { align: 'left'});
+    doc.text(de.name, dims.x + dims.width + 15, y + 1.5, { align: 'left'});
   });
   doc.setDrawColor(0,0,0);
 }
