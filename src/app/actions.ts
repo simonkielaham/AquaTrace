@@ -910,8 +910,14 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 dynamicTyping: true,
             });
 
-            (parseResult.data as any[]).slice(file.columnMapping.startRow - 1)
-                .forEach((row: any) => {
+            if (parseResult.errors.length > 0) {
+                console.warn(`CSV parsing error in file ${file.filename}:`, parseResult.errors);
+                continue; // Skip to next file
+            }
+
+            const dataPoints = parseResult.data as any[];
+
+            dataPoints.slice(file.columnMapping.startRow - 2).forEach((row: any) => {
                     const timestampStr = row[file.columnMapping.datetimeColumn];
                     if (!timestampStr) return;
                     
@@ -1228,5 +1234,3 @@ export async function saveDeploymentAnalysis(data: any) {
     return response;
   }
 }
-
-    
