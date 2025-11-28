@@ -145,29 +145,15 @@ function drawChart(
   }
 
   // Draw Water Level Line
-  const waterLevelPoints: [number, number][] = data
-    .map(p => {
-        if (typeof p.waterLevel === 'number') {
-            // No scaling here, return relative coordinates for the 'lines' function
-            return [p.timestamp, p.waterLevel];
-        }
-        return null;
-    })
+    const waterLevelPoints: [number, number][] = data
+    .map(p => (typeof p.waterLevel === 'number' ? [scaleX(p.timestamp), scaleY(p.waterLevel)] : null))
     .filter((p): p is [number, number] => p !== null);
 
+
   if (waterLevelPoints.length > 1) {
-    const firstPoint = waterLevelPoints[0];
-    const lineSegments = waterLevelPoints.slice(1).map(p => [p[0] - firstPoint[0], p[1] - firstPoint[1]]);
-    
     doc.setDrawColor(HamiltonColors.green);
     doc.setLineWidth(0.5);
-    doc.lines(
-        lineSegments, // The relative coordinates
-        scaleX(firstPoint[0]), // Starting X
-        scaleY(firstPoint[1]), // Starting Y
-        [ (bounds.maxX - bounds.minX) / dims.width, -(bounds.maxY - bounds.minY) / dims.height ], // Scale factors
-        'S' // Style (stroke)
-    );
+    doc.lines(waterLevelPoints, 0, 0, [1,1], 'S');
   }
 
 
@@ -250,6 +236,7 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   }
 
   const addSectionHeader = (title: string, addToc = false) => {
+    // This check MUST happen first.
     checkPageBreak(16);
     if (addToc) {
         toc.push({ title: title, page: doc.internal.getNumberOfPages() });
