@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData, OperationalAction } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData, OperationalAction, AssetStatus } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 import { format, formatDistance } from 'date-fns';
 import { getWeatherData } from '../../sourceexamples/weather-service';
@@ -132,7 +132,7 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       const baseName = path.basename(filePath);
-      if (['assets.json', 'deployments.json', 'activity-log.json', 'survey-points.json', 'operational-actions.json'].includes(baseName)) {
+      if (['assets.json', 'deployments.json', 'activity-log.json', 'survey-points.json', 'operational-actions.json', 'events.json'].includes(baseName)) {
           return [] as T;
       }
       if (['analysis-results.json', 'deployment-analysis.json', 'data.json'].includes(baseName)) {
@@ -859,22 +859,206 @@ export async function reassignDatafile(formData: FormData) {
 }
 
 async function processAndAnalyzeDeployment(deploymentId: string) {
-    // This is a placeholder for the full data processing and analysis pipeline
-    // In a real application, this would be a complex function involving:
-    // 1. Reading all datafiles for the deployment
-    // 2. Harmonizing time series data
-    // 3. Integrating weather data
-    // 4. Running diagnostic rules
-    // 5. Caching the results
-    
-    // For now, we'll just log that it was triggered
     await writeLog({
         action: 'processAndAnalyzeDeployment',
-        status: 'success',
-        deploymentId: deploymentId,
-        payload: { message: "Triggered reprocessing after data change." },
-        response: { message: "Processing kicked off." }
+        status: 'start',
+        deploymentId,
+        payload: { message: `Starting data processing for deployment ${deploymentId}` }
     });
+
+    try {
+        const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+        const deployment = deployments.find(d => d.id === deploymentId);
+        if (!deployment || !deployment.files || deployment.files.length === 0) {
+            await writeLog({ action: 'processAndAnalyzeDeployment', status: 'warning', deploymentId, payload: { message: "No deployment or files found. Aborting." }});
+            return;
+        }
+
+        const assets = await readJsonFile<Asset[]>(assetsFilePath);
+        const asset = assets.find(a => a.id === deployment.assetId);
+        if (!asset) {
+            await writeLog({ action: 'processAndAnalyzeDeployment', status: 'failure', deploymentId, payload: { message: "Asset not found for deployment." } });
+            return;
+        }
+        
+        let allData: ChartablePoint[] = [];
+
+        for (const file of deployment.files) {
+            const sourcePath = path.join(sourcefileDir, `${file.id}.csv`);
+            const fileContent = await fs.readFile(sourcePath, 'utf-8');
+            const parseResult = Papa.parse(fileContent, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true,
+            });
+
+            const filePoints = (parseResult.data as any[]).slice(file.columnMapping.startRow - 2)
+                .map((row: any): ChartablePoint | null => {
+                    const timestampStr = row[file.columnMapping.datetimeColumn];
+                    if (!timestampStr) return null;
+                    const timestamp = new Date(timestampStr).getTime();
+                    if (isNaN(timestamp)) return null;
+                    
+                    let point: ChartablePoint = { timestamp };
+
+                    if (file.columnMapping.dataType === 'water-level' && file.columnMapping.waterLevelColumn) {
+                       point.rawWaterLevel = row[file.columnMapping.waterLevelColumn];
+                       point.waterLevel = deployment.sensorElevation + point.rawWaterLevel;
+                    }
+                     if (file.columnMapping.dataType === 'sensor-suite') {
+                        if (file.columnMapping.sensorPressureColumn) {
+                            const pressure = row[file.columnMapping.sensorPressureColumn];
+                            // Assuming pressure is in kPa, convert to meters of water column (1 kPa ≈ 0.10197 m)
+                            point.rawWaterLevel = pressure * 0.10197;
+                            point.waterLevel = deployment.sensorElevation + point.rawWaterLevel;
+                        } else if(file.columnMapping.waterLevelColumn) {
+                            point.rawWaterLevel = row[file.columnMapping.waterLevelColumn];
+                            point.waterLevel = deployment.sensorElevation + point.rawWaterLevel;
+                        }
+                        if (file.columnMapping.temperatureColumn) point.temperature = row[file.columnMapping.temperatureColumn];
+                        if (file.columnMapping.barometerColumn) point.barometer = row[file.columnMapping.barometerColumn];
+                    }
+                    if (file.columnMapping.precipitationColumn) {
+                        point.precipitation = row[file.columnMapping.precipitationColumn];
+                    }
+                    
+                    return point;
+                }).filter((p): p is ChartablePoint => p !== null && p.timestamp !== null);
+            allData.push(...filePoints);
+        }
+        
+        allData.sort((a, b) => a.timestamp - b.timestamp);
+
+        if (allData.length === 0) {
+            await writeLog({ action: 'processAndAnalyzeDeployment', status: 'warning', deploymentId, payload: { message: "No processable data points found in files." }});
+            // Clear out old data if no new data
+            await writeJsonFile(path.join(processedDir, deploymentId, 'data.json'), []);
+            await writeJsonFile(path.join(processedDir, deploymentId, 'events.json'), { totalPrecipitation: 0, events: [] });
+            return;
+        }
+
+        // Fetch external weather data if necessary
+        const hasPrecipitation = allData.some(p => p.precipitation !== undefined);
+        const startDate = allData[0].timestamp;
+        const endDate = allData[allData.length - 1].timestamp;
+
+        if (!hasPrecipitation) {
+            const weatherDataCsv = await getWeatherData({
+                latitude: asset.latitude,
+                longitude: asset.longitude,
+                startDate: new Date(startDate).toISOString(),
+                endDate: new Date(endDate).toISOString(),
+            });
+            
+            const weatherParse = Papa.parse(weatherDataCsv, { header: true, dynamicTyping: true });
+            const weatherPoints = (weatherParse.data as any[]).map(row => ({
+                timestamp: new Date(row.date).getTime(),
+                precipitation: row.precipitation,
+                temperature: row.temperature,
+            }));
+
+            // Merge weather data into allData
+            allData = allData.map(p => {
+                const weatherPoint = weatherPoints.find(wp => wp.timestamp === p.timestamp);
+                return { ...p, ...weatherPoint };
+            });
+        }
+        
+        // Final combined and sorted data
+        allData.sort((a,b) => a.timestamp - b.timestamp);
+
+        // Run diagnostics and event segmentation
+        const totalPrecipitation = allData.reduce((acc, p) => acc + (p.precipitation || 0), 0);
+
+        const events: AnalysisPeriod[] = [];
+        let currentEvent: AnalysisPeriod | null = null;
+        const rainThreshold = 0.5; // mm
+        const eventGapHours = 6;
+
+        for (const point of allData) {
+            if ((point.precipitation || 0) > rainThreshold) {
+                if (!currentEvent) {
+                    // Start of a new event
+                    currentEvent = {
+                        id: `event-${point.timestamp}`,
+                        assetId: asset.id,
+                        deploymentId,
+                        startDate: point.timestamp,
+                        endDate: point.timestamp,
+                        totalPrecipitation: point.precipitation || 0,
+                        dataPoints: [point]
+                    };
+                } else {
+                    // Continuing an existing event
+                    currentEvent.endDate = point.timestamp;
+                    currentEvent.totalPrecipitation += point.precipitation || 0;
+                    currentEvent.dataPoints.push(point);
+                }
+            } else {
+                if (currentEvent && (point.timestamp - currentEvent.endDate > eventGapHours * 60 * 60 * 1000)) {
+                    // End of the current event
+                    events.push(currentEvent);
+                    currentEvent = null;
+                } else if (currentEvent) {
+                    // Still within the event gap, just add the point
+                    currentEvent.dataPoints.push(point);
+                    currentEvent.endDate = point.timestamp;
+                }
+            }
+        }
+        if (currentEvent) {
+            events.push(currentEvent); // Add the last event if it's still open
+        }
+
+        // Basic analysis for each event
+        for (const event of events) {
+            const baselineTime = event.startDate - 3 * 60 * 60 * 1000;
+            const baselinePoints = allData.filter(p => p.timestamp >= baselineTime && p.timestamp < event.startDate && p.waterLevel);
+            const baselineElevation = baselinePoints.length > 0 ? baselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / baselinePoints.length : undefined;
+
+            const peakPoint = event.dataPoints.filter(p => p.waterLevel).reduce((max, p) => p.waterLevel! > max.waterLevel! ? p : max, { waterLevel: -Infinity });
+            const peakElevation = peakPoint.waterLevel !== -Infinity ? peakPoint.waterLevel : undefined;
+
+            const postEventTime = event.endDate + 48 * 60 * 60 * 1000;
+            const postEventPoints = allData.filter(p => p.timestamp >= postEventTime - 60*60*1000 && p.timestamp <= postEventTime && p.waterLevel);
+            const postEventElevation = postEventPoints.length > 0 ? postEventPoints.reduce((sum, p) => sum + p.waterLevel!, 0) / postEventPoints.length : undefined;
+
+            event.analysis = {
+                baselineElevation,
+                peakElevation,
+                postEventElevation,
+                // More complex analysis would go here
+            };
+        }
+        
+        const weatherSummary: WeatherSummary = {
+            totalPrecipitation,
+            events,
+        };
+
+        // Write processed files
+        const deploymentDataPath = path.join(processedDir, deploymentId);
+        await fs.mkdir(deploymentDataPath, { recursive: true });
+        await writeJsonFile(path.join(deploymentDataPath, 'data.json'), allData);
+        await writeJsonFile(path.join(deploymentDataPath, 'events.json'), weatherSummary);
+        
+        await writeLog({
+            action: 'processAndAnalyzeDeployment',
+            status: 'success',
+            deploymentId,
+            payload: { message: `Successfully processed ${allData.length} data points and found ${events.length} events.` }
+        });
+
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "An unknown error occurred.";
+        console.error("Data processing failed:", error);
+        await writeLog({
+            action: 'processAndAnalyzeDeployment',
+            status: 'failure',
+            deploymentId,
+            response: { message: `Error: ${message}` }
+        });
+    }
 }
     
 
