@@ -990,41 +990,36 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 startDate: new Date(startDate).toISOString(),
                 endDate: new Date(endDate).toISOString(),
             });
-            
+
             const weatherParse = Papa.parse(weatherDataCsv, { header: true, dynamicTyping: true });
-            const weatherPoints = new Map<number, { precipitation?: number, temperature?: number }>();
+            
+            // Group our data by hour
+            const hourlyGroups = new Map<number, ChartablePoint[]>();
+            allData.forEach(p => {
+                const hourStart = new Date(p.timestamp);
+                hourStart.setMinutes(0, 0, 0);
+                const hourKey = hourStart.getTime();
+                if (!hourlyGroups.has(hourKey)) {
+                    hourlyGroups.set(hourKey, []);
+                }
+                hourlyGroups.get(hourKey)!.push(p);
+            });
+
+            // Distribute precipitation from weather API
             (weatherParse.data as any[]).forEach(row => {
                 const timestamp = new Date(row.date).getTime();
                 if (!isNaN(timestamp)) {
-                    weatherPoints.set(timestamp, {
-                        precipitation: row.precipitation,
-                        temperature: row.temperature,
-                    });
-                }
-            });
+                    const hourGroup = hourlyGroups.get(timestamp);
+                    if (hourGroup && hourGroup.length > 0) {
+                        const proratedPrecipitation = (row.precipitation || 0) / hourGroup.length;
+                        const proratedTemperature = row.temperature; // Temp doesn't need proration
 
-            // Merge weather data into allData
-            allData.forEach(p => {
-                // Find the closest weather point in time
-                let closestTimestamp = -1;
-                let minDiff = Infinity;
-                
-                for(const ts of weatherPoints.keys()) {
-                    const diff = Math.abs(p.timestamp - ts);
-                    if (diff < minDiff) {
-                        minDiff = diff;
-                        closestTimestamp = ts;
-                    }
-                }
-
-                // If closest point is within a reasonable range (e.g., 1 hour), merge it
-                if (closestTimestamp !== -1 && minDiff < 60 * 60 * 1000) {
-                    const weatherPoint = weatherPoints.get(closestTimestamp);
-                    if (weatherPoint) {
-                        p.precipitation = (p.precipitation || 0) + (weatherPoint.precipitation || 0);
-                        if (!p.temperature) {
-                            p.temperature = weatherPoint.temperature;
-                        }
+                        hourGroup.forEach(pointInHour => {
+                            pointInHour.precipitation = (pointInHour.precipitation || 0) + proratedPrecipitation;
+                            if (pointInHour.temperature === undefined) {
+                                pointInHour.temperature = proratedTemperature;
+                            }
+                        });
                     }
                 }
             });
@@ -1059,15 +1054,15 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
         for (const point of allData) {
             const hasRain = (point.precipitation || 0) > rainThreshold;
-            
-            // Check to close an active event
-            if (currentEvent && point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000) {
-                events.push(currentEvent);
+            const isNewEventStarting = hasRain && !currentEvent;
+            const isEventClosing = currentEvent && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000);
+
+            if (isEventClosing) {
+                events.push(currentEvent!);
                 currentEvent = null;
             }
-
-            // Start a new event if there's rain and no active event
-            if (hasRain && !currentEvent) {
+            
+            if (isNewEventStarting) {
                 currentEvent = {
                     id: `event-${point.timestamp}`,
                     assetId: asset.id,
@@ -1079,7 +1074,6 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 };
             }
 
-            // If an event is active, add point and update properties
             if (currentEvent) {
                 currentEvent.dataPoints.push(point);
                 currentEvent.endDate = point.timestamp;
@@ -1102,20 +1096,22 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             
             const validBaselinePoints = baselinePoints.filter(p => typeof p.waterLevel === 'number' && isFinite(p.waterLevel));
             
-            let baselineElevation: number;
+            let baselineElevation: number | undefined;
             if (validBaselinePoints.length > 0) {
                 baselineElevation = validBaselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / validBaselinePoints.length
             } else {
-                baselineElevation = allData.find(p => p.timestamp >= event.startDate && p.waterLevel !== undefined)?.waterLevel ?? 0;
+                baselineElevation = allData.find(p => p.timestamp >= event.startDate && p.waterLevel !== undefined)?.waterLevel;
             }
 
             const validEventPoints = event.dataPoints.filter(p => typeof p.waterLevel === 'number' && isFinite(p.waterLevel));
-            const peakPoint = validEventPoints.length > 0
-                ? validEventPoints.reduce((max, p) => (p.waterLevel! > max.waterLevel!) ? p : max, { waterLevel: -Infinity, timestamp: 0 })
-                : null;
-
-            const peakElevation = peakPoint && peakPoint.waterLevel !== -Infinity ? peakPoint.waterLevel : undefined;
-            const peakTimestamp = peakPoint && peakPoint.timestamp !== 0 ? peakPoint.timestamp : undefined;
+            
+            let peakPoint: ChartablePoint | undefined;
+            if (validEventPoints.length > 0) {
+              peakPoint = validEventPoints.reduce((max, p) => (p.waterLevel! > max.waterLevel!) ? p : max, validEventPoints[0]);
+            }
+            
+            const peakElevation = peakPoint?.waterLevel;
+            const peakTimestamp = peakPoint?.timestamp;
             
             const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) 
                 ? peakElevation - baselineElevation 
@@ -1130,7 +1126,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             let drawdownAnalysis: string | undefined;
             if (peakElevation !== undefined && baselineElevation !== undefined && peakTimestamp) {
                 const drawdownPoints = allData.filter(p => p.timestamp >= peakTimestamp && p.waterLevel !== undefined);
-                const baselineReturnPoint = drawdownPoints.find(p => p.waterLevel! <= baselineElevation);
+                const baselineReturnPoint = drawdownPoints.find(p => p.waterLevel! <= baselineElevation!);
                 if (baselineReturnPoint) {
                     timeToBaseline = formatDistance(new Date(peakTimestamp), new Date(baselineReturnPoint.timestamp), { includeSeconds: true });
                     
