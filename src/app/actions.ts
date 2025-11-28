@@ -138,7 +138,7 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
       if (['assets.json', 'deployments.json', 'activity-log.json', 'survey-points.json', 'operational-actions.json', 'events.json'].includes(baseName)) {
           return [] as T;
       }
-      if (['analysis-results.json', 'deployment-analysis.json', 'diagnostics.json', 'data.json'].includes(baseName)) {
+      if (['deployment-analysis.json', 'diagnostics.json', 'data.json'].includes(baseName)) {
           return {} as T;
       }
       if (filePath.endsWith('.json')) {
@@ -1051,15 +1051,6 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
         for (const point of allData) {
             const hasRain = (point.precipitation || 0) > rainThreshold;
-            
-            if (currentEvent) {
-                // An event is active, check if it should be closed
-                 if (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000) {
-                    // It's been dry for long enough, close the event
-                    events.push(currentEvent);
-                    currentEvent = null;
-                }
-            }
 
             if (hasRain) {
                 lastRainTimestamp = point.timestamp;
@@ -1070,19 +1061,25 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                         assetId: asset.id,
                         deploymentId,
                         startDate: point.timestamp,
-                        endDate: point.timestamp,
+                        endDate: point.timestamp, // Will be updated
                         totalPrecipitation: 0,
-                        dataPoints: []
+                        dataPoints: [],
                     };
                 }
             }
-            
+
             if (currentEvent) {
-                // If there's an active event, add the point to it and update its properties
-                currentEvent.dataPoints.push(point);
-                currentEvent.endDate = point.timestamp;
-                 if (hasRain) {
-                    currentEvent.totalPrecipitation += point.precipitation || 0;
+                 if (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000) {
+                    // It's been dry for long enough, close the event
+                    events.push(currentEvent);
+                    currentEvent = null;
+                } else {
+                    // If event is active, add point to it
+                    currentEvent.dataPoints.push(point);
+                    currentEvent.endDate = point.timestamp;
+                    if (hasRain) {
+                        currentEvent.totalPrecipitation += point.precipitation || 0;
+                    }
                 }
             }
         }
@@ -1223,27 +1220,20 @@ export async function saveAnalysis(data: any) {
   const { eventId, ...analysisData } = validatedFields.data;
 
   try {
-    // This is incorrect, analysis should be stored with the event in events.json for the deployment
-    // However, to minimize disruption, we will fix this later if requested.
-    // For now, let's find the correct events.json file to update.
-    
-    // Find which deployment this event belongs to
     const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
     let targetDeploymentId: string | null = null;
-    let targetEventIndex = -1;
 
     for (const deployment of deployments) {
       const eventsFilePath = path.join(processedDir, deployment.id, 'events.json');
       try {
         const weatherSummary = await readJsonFile<WeatherSummary>(eventsFilePath);
         const eventIndex = weatherSummary.events.findIndex(e => e.id === eventId);
+        
         if (eventIndex !== -1) {
           targetDeploymentId = deployment.id;
-          targetEventIndex = eventIndex;
           
-          // Update the event in memory
-          const eventToUpdate = weatherSummary.events[targetEventIndex];
-          weatherSummary.events[targetEventIndex] = {
+          const eventToUpdate = weatherSummary.events[eventIndex];
+          weatherSummary.events[eventIndex] = {
             ...eventToUpdate,
             analysis: {
               ...(eventToUpdate.analysis || {}),
@@ -1251,12 +1241,13 @@ export async function saveAnalysis(data: any) {
             }
           };
 
-          // Write back the updated summary
           await writeJsonFile(eventsFilePath, weatherSummary);
-          break; // Found and updated, so exit loop
+          await writeLog({ action: 'saveAnalysis', status: 'success', deploymentId: targetDeploymentId, payload: logPayload });
+          revalidatePath('/');
+          return { message: 'Analysis saved successfully.', savedData: { eventId, ...analysisData } };
         }
       } catch (e) {
-        // File might not exist, continue searching
+        // File might not exist for this deployment, or is empty. Continue.
       }
     }
 
@@ -1264,12 +1255,6 @@ export async function saveAnalysis(data: any) {
       throw new Error(`Could not find event with ID ${eventId} in any deployment.`);
     }
 
-    revalidatePath('/');
-
-    const response = { message: 'Analysis saved successfully.', savedData: { eventId, ...analysisData } };
-    await writeLog({ action: 'saveAnalysis', status: 'success', deploymentId: targetDeploymentId, payload: logPayload, response });
-    return response;
-    
   } catch (error) {
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
@@ -1364,3 +1349,6 @@ export async function saveDeploymentAnalysis(data: any) {
     return response;
   }
 }
+
+
+      
