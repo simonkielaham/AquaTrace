@@ -1067,6 +1067,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                     currentEvent = null;
                 } else if (currentEvent) {
                     // This is a dry point but the event is not over yet. Add it to capture drawdown.
+                    currentEvent.endDate = point.timestamp; // Extend the event period to include drawdown
                     currentEvent.dataPoints.push(point);
                 }
             }
@@ -1079,10 +1080,10 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
         // Basic analysis for each event
         for (const event of events) {
             const baselineTime = event.startDate - 3 * 60 * 60 * 1000;
-            const baselinePoints = allData.filter(p => p.timestamp >= baselineTime && p.timestamp < event.startDate && p.waterLevel);
+            const baselinePoints = allData.filter(p => p.timestamp >= baselineTime && p.timestamp < event.startDate && p.waterLevel !== undefined);
             const baselineElevation = baselinePoints.length > 0 ? baselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / baselinePoints.length : undefined;
 
-            const peakPoint = event.dataPoints.filter(p => p.waterLevel).reduce((max, p) => p.waterLevel! > max.waterLevel! ? p : max, { waterLevel: -Infinity });
+            const peakPoint = event.dataPoints.filter(p => p.waterLevel !== undefined).reduce((max, p) => p.waterLevel! > max.waterLevel! ? p : max, { waterLevel: -Infinity });
             const peakElevation = peakPoint.waterLevel !== -Infinity ? peakPoint.waterLevel : undefined;
             const peakRise = (peakElevation && baselineElevation) ? peakElevation - baselineElevation : 0;
 
@@ -1094,7 +1095,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             let timeToBaseline: string | undefined;
             let drawdownAnalysis: string | undefined;
             if (peakElevation && baselineElevation) {
-                const drawdownPoints = event.dataPoints.filter(p => p.timestamp >= (peakPoint.timestamp || event.startDate) && p.waterLevel);
+                const drawdownPoints = event.dataPoints.filter(p => p.timestamp >= (peakPoint.timestamp || event.startDate) && p.waterLevel !== undefined);
                 const baselineReturnPoint = drawdownPoints.find(p => p.waterLevel! <= baselineElevation);
                 if (baselineReturnPoint) {
                     timeToBaseline = formatDistance(new Date(peakPoint.timestamp || event.startDate), new Date(baselineReturnPoint.timestamp), { includeSeconds: true });
