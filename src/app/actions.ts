@@ -1056,21 +1056,22 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                         dataPoints: []
                     };
                 }
-                currentEvent.endDate = point.timestamp;
                 lastRainTimestamp = point.timestamp;
             }
 
             if (currentEvent) {
-                // Add point to the current event if it's open
-                currentEvent.dataPoints.push(point);
-                if (hasRain) {
-                    currentEvent.totalPrecipitation += point.precipitation || 0;
-                }
-
-                // Check if the event should be closed
+                // If there's an active event, check if it should be closed
                 if (!hasRain && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
+                    // Close the event if the gap is exceeded
                     events.push(currentEvent);
                     currentEvent = null;
+                } else {
+                    // Otherwise, add the point to the event and update its end date
+                    currentEvent.dataPoints.push(point);
+                    currentEvent.endDate = point.timestamp;
+                     if (hasRain) {
+                        currentEvent.totalPrecipitation += point.precipitation || 0;
+                    }
                 }
             }
         }
@@ -1085,7 +1086,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             const baselinePoints = allData.filter(p => p.timestamp >= baselineTime && p.timestamp < event.startDate && p.waterLevel !== undefined);
             const baselineElevation = baselinePoints.length > 0 ? baselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / baselinePoints.length : undefined;
 
-            const peakPoint = event.dataPoints.filter(p => p.waterLevel !== undefined).reduce((max, p) => p.waterLevel! > max.waterLevel! ? p : max, { waterLevel: -Infinity } as ChartablePoint);
+            const peakPoint = event.dataPoints.filter(p => p.waterLevel !== undefined).reduce((max, p) => (p.waterLevel! > (max.waterLevel ?? -Infinity)) ? p : max, { waterLevel: -Infinity } as ChartablePoint);
             const peakElevation = peakPoint.waterLevel !== -Infinity ? peakPoint.waterLevel : undefined;
             const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) ? peakElevation - baselineElevation : 0;
             
@@ -1128,7 +1129,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             };
 
             // Automated disregard logic
-            if (event.totalPrecipitation < 5 && peakRise < 0.02) { // 5mm precip, 2cm rise
+            if (event.totalPrecipitation < 1 && peakRise < 0.002) { // 1mm precip, 2mm rise
                 event.analysis.disregarded = true;
                 event.analysis.notes = "Automatically disregarded due to minor precipitation and water level change.";
             }
