@@ -1,4 +1,5 @@
 
+
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import {
@@ -143,32 +144,21 @@ function drawChart(
       doc.text(format(new Date(timestamp), 'M/d HH:mm'), x, dims.y + dims.height + 5, { align: 'center'});
   }
 
-  // Draw Water Level Area & Line
-    const waterLevelPoints: [number, number][] = data
-        .map(p => {
-            if (typeof p.waterLevel === 'number') {
-                return [scaleX(p.timestamp), scaleY(p.waterLevel)];
-            }
-            return null;
-        })
-        .filter((p): p is [number, number] => p !== null);
+  // Draw Water Level Line
+  const waterLevelPoints: [number, number][] = data
+      .map(p => {
+          if (typeof p.waterLevel === 'number') {
+              return [scaleX(p.timestamp), scaleY(p.waterLevel)];
+          }
+          return null;
+      })
+      .filter((p): p is [number, number] => p !== null);
 
-    if (waterLevelPoints.length > 1) {
-        // Create a new path for the filled area
-        const fillPath = [...waterLevelPoints];
-        fillPath.push([waterLevelPoints[waterLevelPoints.length - 1][0], dims.y + dims.height]); // Bottom-right
-        fillPath.push([waterLevelPoints[0][0], dims.y + dims.height]); // Bottom-left
-        fillPath.push(waterLevelPoints[0]); // Close path
-
-        // Fill the area
-        doc.setFillColor(HamiltonColors.green);
-        doc.path(fillPath).fill('F', {a:0.1});
-        
-        // Stroke the top line
-        doc.setDrawColor(HamiltonColors.green);
-        doc.setLineWidth(0.4);
-        doc.path(waterLevelPoints).stroke();
-    }
+  if (waterLevelPoints.length > 1) {
+      doc.setDrawColor(HamiltonColors.green);
+      doc.setLineWidth(0.5);
+      doc.path(waterLevelPoints).stroke();
+  }
 
 
   // Draw Precipitation Bars
