@@ -1,9 +1,9 @@
-
 "use client";
 
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAssets } from "@/context/asset-context";
+import { useAuth } from "@/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { generateReport } from "@/lib/report-generator";
 import * as React from "react";
@@ -12,6 +12,7 @@ import * as React from "react";
 export default function PageHeader() {
   const { toast } = useToast();
   const { selectedAssetId, assets, deployments, getOverallAnalysis, assetData } = useAssets();
+  const { logout } = useAuth();
   const currentAssetData = selectedAssetId ? assetData[selectedAssetId] : null;
   const [isGenerating, setIsGenerating] = React.useState(false);
 
@@ -33,11 +34,25 @@ export default function PageHeader() {
 
     setIsGenerating(true);
 
-    const overallAnalysis = await getOverallAnalysis(selectedAssetId);
-    const events = currentAssetData.weatherSummary?.events || [];
+    // This needs to fetch the analysis for the *first* deployment of the asset.
     const asset = assets.find(a => a.id === selectedAssetId);
+    if (!asset) {
+        toast({ variant: "destructive", title: "Error", description: "Selected asset not found." });
+        setIsGenerating(false);
+        return;
+    }
+    const firstDeployment = deployments.find(d => d.assetId === asset.id);
+    if (!firstDeployment) {
+        toast({ variant: "destructive", title: "Error", description: "No deployments found for this asset to source analysis from." });
+        setIsGenerating(false);
+        return;
+    }
+    const overallAnalysis = await getOverallAnalysis(firstDeployment.id);
+    
+    const events = currentAssetData.weatherSummary?.events || [];
     const assetDeployments = deployments.filter(d => d.assetId === selectedAssetId);
     const diagnostics = currentAssetData.diagnostics;
+
 
     if (!asset) {
          toast({
@@ -146,6 +161,15 @@ export default function PageHeader() {
           <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
             {isGenerating ? "Generating..." : "Generate Report"}
           </span>
+        </Button>
+        <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => logout()}
+            title="Log Out"
+        >
+            <LogOut className="h-4 w-4" />
+            <span className="sr-only">Log Out</span>
         </Button>
       </div>
     </header>
