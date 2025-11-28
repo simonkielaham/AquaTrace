@@ -1059,37 +1059,33 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
         for (const point of allData) {
             const hasRain = (point.precipitation || 0) > rainThreshold;
-
-            if (currentEvent) {
-                // Check if the current event should be closed
-                if (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000) {
-                    events.push(currentEvent);
-                    currentEvent = null;
-                }
+            
+            // Check to close an active event
+            if (currentEvent && point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000) {
+                events.push(currentEvent);
+                currentEvent = null;
             }
 
-            if (hasRain) {
-                if (!currentEvent) {
-                    // Start of a new event
-                    currentEvent = {
-                        id: `event-${point.timestamp}`,
-                        assetId: asset.id,
-                        deploymentId,
-                        startDate: point.timestamp,
-                        endDate: point.timestamp,
-                        totalPrecipitation: 0,
-                        dataPoints: [],
-                    };
-                }
-                lastRainTimestamp = point.timestamp;
+            // Start a new event if there's rain and no active event
+            if (hasRain && !currentEvent) {
+                currentEvent = {
+                    id: `event-${point.timestamp}`,
+                    assetId: asset.id,
+                    deploymentId,
+                    startDate: point.timestamp,
+                    endDate: point.timestamp,
+                    totalPrecipitation: 0,
+                    dataPoints: [],
+                };
             }
 
+            // If an event is active, add point and update properties
             if (currentEvent) {
-                // If an event is active, add the current point to it
                 currentEvent.dataPoints.push(point);
                 currentEvent.endDate = point.timestamp;
                 if (hasRain) {
                     currentEvent.totalPrecipitation += point.precipitation || 0;
+                    lastRainTimestamp = point.timestamp;
                 }
             }
         }
@@ -1105,16 +1101,21 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             const baselinePoints = allData.filter(p => p.timestamp >= baselineTime && p.timestamp < event.startDate && p.waterLevel !== undefined);
             
             const validBaselinePoints = baselinePoints.filter(p => typeof p.waterLevel === 'number' && isFinite(p.waterLevel));
-            const baselineElevation = validBaselinePoints.length > 0
-                ? validBaselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / validBaselinePoints.length
-                : undefined;
-
-            const validEventPoints = event.dataPoints.filter(p => p.waterLevel !== undefined && isFinite(p.waterLevel));
-            const peakPoint = validEventPoints.length > 0
-                ? validEventPoints.reduce((max, p) => (p.waterLevel! > (max.waterLevel ?? -Infinity)) ? p : max, { waterLevel: -Infinity } as ChartablePoint)
-                : undefined;
             
-            const peakElevation = peakPoint?.waterLevel !== -Infinity ? peakPoint?.waterLevel : undefined;
+            let baselineElevation: number;
+            if (validBaselinePoints.length > 0) {
+                baselineElevation = validBaselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / validBaselinePoints.length
+            } else {
+                baselineElevation = allData.find(p => p.timestamp >= event.startDate && p.waterLevel !== undefined)?.waterLevel ?? 0;
+            }
+
+            const validEventPoints = event.dataPoints.filter(p => typeof p.waterLevel === 'number' && isFinite(p.waterLevel));
+            const peakPoint = validEventPoints.length > 0
+                ? validEventPoints.reduce((max, p) => (p.waterLevel! > max.waterLevel!) ? p : max, { waterLevel: -Infinity, timestamp: 0 })
+                : null;
+
+            const peakElevation = peakPoint && peakPoint.waterLevel !== -Infinity ? peakPoint.waterLevel : undefined;
+            const peakTimestamp = peakPoint && peakPoint.timestamp !== 0 ? peakPoint.timestamp : undefined;
             
             const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) 
                 ? peakElevation - baselineElevation 
@@ -1127,13 +1128,13 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             // Drawdown analysis
             let timeToBaseline: string | undefined;
             let drawdownAnalysis: string | undefined;
-            if (peakElevation !== undefined && baselineElevation !== undefined && peakPoint?.timestamp) {
-                const drawdownPoints = allData.filter(p => p.timestamp >= peakPoint!.timestamp! && p.waterLevel !== undefined);
+            if (peakElevation !== undefined && baselineElevation !== undefined && peakTimestamp) {
+                const drawdownPoints = allData.filter(p => p.timestamp >= peakTimestamp && p.waterLevel !== undefined);
                 const baselineReturnPoint = drawdownPoints.find(p => p.waterLevel! <= baselineElevation);
                 if (baselineReturnPoint) {
-                    timeToBaseline = formatDistance(new Date(peakPoint!.timestamp), new Date(baselineReturnPoint.timestamp), { includeSeconds: true });
+                    timeToBaseline = formatDistance(new Date(peakTimestamp), new Date(baselineReturnPoint.timestamp), { includeSeconds: true });
                     
-                    const hoursToReturn = (baselineReturnPoint.timestamp - peakPoint!.timestamp) / (1000 * 60 * 60);
+                    const hoursToReturn = (baselineReturnPoint.timestamp - peakTimestamp) / (1000 * 60 * 60);
                     const designDrawdown = deployment.designDrawdown || 48; // Default 48h
                     if (hoursToReturn < designDrawdown * 0.5) drawdownAnalysis = "Fast";
                     else if (hoursToReturn > designDrawdown * 1.5) drawdownAnalysis = "Slow";
@@ -1150,7 +1151,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 : undefined;
 
             event.analysis = {
-                peakTimestamp: peakPoint?.timestamp,
+                peakTimestamp: peakTimestamp,
                 baselineElevation,
                 peakElevation,
                 postEventElevation,
@@ -1369,5 +1370,7 @@ export async function saveDeploymentAnalysis(data: any) {
 
 
       
+
+    
 
     
