@@ -1060,6 +1060,14 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
         for (const point of allData) {
             const hasRain = (point.precipitation || 0) > rainThreshold;
 
+            if (currentEvent) {
+                // Check if the current event should be closed
+                if (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000) {
+                    events.push(currentEvent);
+                    currentEvent = null;
+                }
+            }
+
             if (hasRain) {
                 if (!currentEvent) {
                     // Start of a new event
@@ -1068,32 +1076,27 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                         assetId: asset.id,
                         deploymentId,
                         startDate: point.timestamp,
-                        endDate: point.timestamp, // Will be updated
+                        endDate: point.timestamp,
                         totalPrecipitation: 0,
                         dataPoints: [],
                     };
                 }
-                 lastRainTimestamp = point.timestamp;
+                lastRainTimestamp = point.timestamp;
             }
 
             if (currentEvent) {
-                 if (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000) {
-                    // It's been dry for long enough, close the event
-                    events.push(currentEvent);
-                    currentEvent = null;
-                } else {
-                    // If event is active, add point to it
-                    currentEvent.dataPoints.push(point);
-                    currentEvent.endDate = point.timestamp;
-                    if (hasRain) {
-                        currentEvent.totalPrecipitation += point.precipitation || 0;
-                    }
+                // If an event is active, add the current point to it
+                currentEvent.dataPoints.push(point);
+                currentEvent.endDate = point.timestamp;
+                if (hasRain) {
+                    currentEvent.totalPrecipitation += point.precipitation || 0;
                 }
             }
         }
-
+        
+        // Add the last event if it's still open
         if (currentEvent) {
-            events.push(currentEvent); // Add the last event if it's still open
+            events.push(currentEvent); 
         }
 
         // Basic analysis for each event
@@ -1112,7 +1115,10 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 : undefined;
             
             const peakElevation = peakPoint?.waterLevel !== -Infinity ? peakPoint?.waterLevel : undefined;
-            const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) ? peakElevation - baselineElevation : 0;
+            
+            const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) 
+                ? peakElevation - baselineElevation 
+                : 0;
             
             const postEventTime = event.endDate + 48 * 60 * 60 * 1000;
             const postEventPoints = allData.filter(p => p.timestamp >= postEventTime - 60*60*1000 && p.timestamp <= postEventTime && p.waterLevel !== undefined);
@@ -1122,12 +1128,12 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             let timeToBaseline: string | undefined;
             let drawdownAnalysis: string | undefined;
             if (peakElevation !== undefined && baselineElevation !== undefined && peakPoint?.timestamp) {
-                const drawdownPoints = event.dataPoints.filter(p => p.timestamp >= peakPoint.timestamp! && p.waterLevel !== undefined);
+                const drawdownPoints = allData.filter(p => p.timestamp >= peakPoint!.timestamp! && p.waterLevel !== undefined);
                 const baselineReturnPoint = drawdownPoints.find(p => p.waterLevel! <= baselineElevation);
                 if (baselineReturnPoint) {
-                    timeToBaseline = formatDistance(new Date(peakPoint.timestamp), new Date(baselineReturnPoint.timestamp), { includeSeconds: true });
+                    timeToBaseline = formatDistance(new Date(peakPoint!.timestamp), new Date(baselineReturnPoint.timestamp), { includeSeconds: true });
                     
-                    const hoursToReturn = (baselineReturnPoint.timestamp - peakPoint.timestamp) / (1000 * 60 * 60);
+                    const hoursToReturn = (baselineReturnPoint.timestamp - peakPoint!.timestamp) / (1000 * 60 * 60);
                     const designDrawdown = deployment.designDrawdown || 48; // Default 48h
                     if (hoursToReturn < designDrawdown * 0.5) drawdownAnalysis = "Fast";
                     else if (hoursToReturn > designDrawdown * 1.5) drawdownAnalysis = "Slow";
