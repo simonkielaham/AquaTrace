@@ -218,9 +218,26 @@ export default function DashboardLayout() {
                 />
               <AnalysisQaqc asset={selectedAsset} />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
-              <SurveyPointManager asset={selectedAsset} data={chartData} surveyPoints={surveyPoints} loading={isChartLoading}/>
-              <TapeDownManager asset={selectedAsset} deployments={assetDeployments} data={chartData} surveyPoints={surveyPoints} loading={isChartLoading} />
-              <OperationalActionManager asset={selectedAsset} operationalActions={operationalActions} loading={isChartLoading} />
+              <SurveyPointManager 
+                asset={selectedAsset} 
+                deployments={assetDeployments} 
+                data={chartData} 
+                surveyPoints={surveyPoints} 
+                loading={isChartLoading}
+              />
+              <TapeDownManager 
+                asset={selectedAsset} 
+                deployments={assetDeployments} 
+                data={chartData} 
+                surveyPoints={surveyPoints} 
+                loading={isChartLoading} 
+              />
+              <OperationalActionManager 
+                asset={selectedAsset} 
+                deployments={assetDeployments} 
+                operationalActions={operationalActions} 
+                loading={isChartLoading} 
+              />
             </div>
           </main>
         </div>
