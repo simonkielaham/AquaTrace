@@ -457,6 +457,7 @@ export default function PerformanceChart({
               connectNulls
               isAnimationActive={false}
               dot={false}
+              stackId="a"
             />
              <Bar
               yAxisId="right"
@@ -467,6 +468,7 @@ export default function PerformanceChart({
               strokeWidth={1}
               name="Precipitation"
               isAnimationActive={false}
+              stackId="b"
             />
             <Scatter 
               yAxisId="left"
@@ -611,3 +613,5 @@ export default function PerformanceChart({
     </Card>
   );
 }
+
+    
