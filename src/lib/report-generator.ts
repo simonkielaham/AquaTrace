@@ -439,9 +439,35 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
 
     yPos += 5;
     addSubheader("Performance Analysis");
-    addField("Baseline Elevation:", `${formatNumber(event.analysis?.baselineElevation)} m`);
-    addField("Peak Elevation:", `${formatNumber(event.analysis?.peakElevation)} m`);
-    addField("Post-Event Elevation:", `${formatNumber(event.analysis?.postEventElevation)} m`);
+
+    // Enhanced Elevation Metrics
+    const baseline = event.analysis?.baselineElevation;
+    const peak = event.analysis?.peakElevation;
+    const postEvent = event.analysis?.postEventElevation;
+    const permPool = asset.permanentPoolElevation;
+
+    let baselineText = `${formatNumber(baseline)} m`;
+    if (typeof baseline === 'number' && typeof permPool === 'number') {
+        const diff = (baseline - permPool) * 100;
+        baselineText += ` (${diff >= 0 ? '+' : ''}${diff.toFixed(1)} cm from pool)`;
+    }
+    addField("Baseline Elevation:", baselineText);
+
+    let peakText = `${formatNumber(peak)} m`;
+    if (typeof peak === 'number' && typeof baseline === 'number') {
+        const rise = (peak - baseline) * 100;
+        peakText += ` (+${rise.toFixed(1)} cm rise)`;
+    }
+    addField("Peak Elevation:", peakText);
+    
+    let postEventText = `${formatNumber(postEvent)} m`;
+    if (typeof postEvent === 'number' && typeof permPool === 'number' && typeof baseline === 'number') {
+        const diffFromBaseline = (postEvent - baseline) * 100;
+        const diffFromPool = (postEvent - permPool) * 100;
+        postEventText += ` (${diffFromBaseline >= 0 ? '+' : ''}${diffFromBaseline.toFixed(1)} cm from baseline; ${diffFromPool >= 0 ? '+' : ''}${diffFromPool.toFixed(1)} cm from pool)`;
+    }
+    addField("Post-Event Elevation:", postEventText);
+
     addField("Drawdown Analysis:", formatText(event.analysis?.drawdownAnalysis));
     
     yPos += 5;
@@ -488,4 +514,3 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
   const filename = `${asset.name.replace(/\s+/g, '_')}_Performance_Report.pdf`;
   doc.save(filename);
 };
-
