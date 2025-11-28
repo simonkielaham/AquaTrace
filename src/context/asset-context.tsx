@@ -197,6 +197,20 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
         
         // For now, we take the weather and overall analysis from the first deployment if it exists
         const primaryDeploymentData = allDeploymentData[0];
+        
+        // Merge survey points and operational actions into the main chart data
+        const surveyPointsMap = new Map(combinedSurveyPoints.map(p => [p.timestamp, p]));
+        const operationalActionsMap = new Map(combinedOperationalActions.map(a => [a.timestamp, a]));
+
+        combinedData.forEach(point => {
+            if (surveyPointsMap.has(point.timestamp)) {
+                point.elevation = surveyPointsMap.get(point.timestamp)!.elevation;
+            }
+            if (operationalActionsMap.has(point.timestamp)) {
+                point.operationalAction = operationalActionsMap.get(point.timestamp)!.action;
+            }
+        });
+
 
         setAssetData(prev => ({ ...prev, [assetId]: { 
             data: combinedData, 
@@ -439,7 +453,11 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
 
   const getRawOverallAnalysisJson = useCallback(async (deploymentId: string) => {
     try {
-        return await getRawOverallAnalysisJsonAction(deploymentId);
+        const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+        const deployment = deployments.find(d => d.id === deploymentId);
+        if (!deployment) return JSON.stringify({ error: `Deployment with ID ${deploymentId} not found.` }, null, 2);
+
+        return await getRawOverallAnalysisJsonAction(deployment.id);
     } catch (error) {
         console.error(error);
         return '{"error": "Failed to fetch raw analysis JSON."}';

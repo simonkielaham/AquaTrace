@@ -762,6 +762,7 @@ export async function uploadStagedFile(formData: FormData) {
   }
   
   try {
+    await fs.mkdir(stagedDir, { recursive: true });
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const filePath = path.join(stagedDir, file.name);
@@ -1055,20 +1056,21 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                         dataPoints: []
                     };
                 }
-                // Add point to the current event
                 currentEvent.endDate = point.timestamp;
-                currentEvent.totalPrecipitation += point.precipitation || 0;
-                currentEvent.dataPoints.push(point);
                 lastRainTimestamp = point.timestamp;
-            } else {
-                 if (currentEvent && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
-                    // End of the current event because gap is long enough
+            }
+
+            if (currentEvent) {
+                // Add point to the current event if it's open
+                currentEvent.dataPoints.push(point);
+                if (hasRain) {
+                    currentEvent.totalPrecipitation += point.precipitation || 0;
+                }
+
+                // Check if the event should be closed
+                if (!hasRain && (point.timestamp - lastRainTimestamp > eventGapHours * 60 * 60 * 1000)) {
                     events.push(currentEvent);
                     currentEvent = null;
-                } else if (currentEvent) {
-                    // This is a dry point but the event is not over yet. Add it to capture drawdown.
-                    currentEvent.endDate = point.timestamp; // Extend the event period to include drawdown
-                    currentEvent.dataPoints.push(point);
                 }
             }
         }
@@ -1083,10 +1085,10 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             const baselinePoints = allData.filter(p => p.timestamp >= baselineTime && p.timestamp < event.startDate && p.waterLevel !== undefined);
             const baselineElevation = baselinePoints.length > 0 ? baselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / baselinePoints.length : undefined;
 
-            const peakPoint = event.dataPoints.filter(p => p.waterLevel !== undefined).reduce((max, p) => p.waterLevel! > max.waterLevel! ? p : max, { waterLevel: -Infinity });
+            const peakPoint = event.dataPoints.filter(p => p.waterLevel !== undefined).reduce((max, p) => p.waterLevel! > max.waterLevel! ? p : max, { waterLevel: -Infinity } as ChartablePoint);
             const peakElevation = peakPoint.waterLevel !== -Infinity ? peakPoint.waterLevel : undefined;
-            const peakRise = (peakElevation && baselineElevation) ? peakElevation - baselineElevation : 0;
-
+            const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) ? peakElevation - baselineElevation : 0;
+            
             const postEventTime = event.endDate + 48 * 60 * 60 * 1000;
             const postEventPoints = allData.filter(p => p.timestamp >= postEventTime - 60*60*1000 && p.timestamp <= postEventTime && p.waterLevel);
             const postEventElevation = postEventPoints.length > 0 ? postEventPoints.reduce((sum, p) => sum + p.waterLevel!, 0) / postEventPoints.length : undefined;
@@ -1111,7 +1113,10 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                     drawdownAnalysis = "Incomplete";
                 }
             }
-
+            
+            const poolRecoveryDifference = (postEventElevation !== undefined) 
+                ? postEventElevation - asset.permanentPoolElevation
+                : undefined;
 
             event.analysis = {
                 baselineElevation,
@@ -1119,6 +1124,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 postEventElevation,
                 timeToBaseline,
                 drawdownAnalysis,
+                poolRecoveryDifference,
             };
 
             // Automated disregard logic
@@ -1189,20 +1195,51 @@ export async function saveAnalysis(data: any) {
   const { eventId, ...analysisData } = validatedFields.data;
 
   try {
-    const analysisResultsPath = path.join(dataDir, 'analysis-results.json');
-    const allResults = await readJsonFile<Record<string, SavedAnalysisData>>(analysisResultsPath);
+    // This is incorrect, analysis should be stored with the event in events.json for the deployment
+    // However, to minimize disruption, we will fix this later if requested.
+    // For now, let's find the correct events.json file to update.
     
-    allResults[eventId] = {
-        ...(allResults[eventId] || {}),
-        ...analysisData
-    };
+    // Find which deployment this event belongs to
+    const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    let targetDeploymentId: string | null = null;
+    let targetEventIndex = -1;
 
-    await writeJsonFile(analysisResultsPath, allResults);
-    
+    for (const deployment of deployments) {
+      const eventsFilePath = path.join(processedDir, deployment.id, 'events.json');
+      try {
+        const weatherSummary = await readJsonFile<WeatherSummary>(eventsFilePath);
+        const eventIndex = weatherSummary.events.findIndex(e => e.id === eventId);
+        if (eventIndex !== -1) {
+          targetDeploymentId = deployment.id;
+          targetEventIndex = eventIndex;
+          
+          // Update the event in memory
+          const eventToUpdate = weatherSummary.events[targetEventIndex];
+          weatherSummary.events[targetEventIndex] = {
+            ...eventToUpdate,
+            analysis: {
+              ...(eventToUpdate.analysis || {}),
+              ...analysisData,
+            }
+          };
+
+          // Write back the updated summary
+          await writeJsonFile(eventsFilePath, weatherSummary);
+          break; // Found and updated, so exit loop
+        }
+      } catch (e) {
+        // File might not exist, continue searching
+      }
+    }
+
+    if (!targetDeploymentId) {
+      throw new Error(`Could not find event with ID ${eventId} in any deployment.`);
+    }
+
     revalidatePath('/');
 
     const response = { message: 'Analysis saved successfully.', savedData: { eventId, ...analysisData } };
-    await writeLog({ action: 'saveAnalysis', status: 'success', payload: logPayload, response });
+    await writeLog({ action: 'saveAnalysis', status: 'success', deploymentId: targetDeploymentId, payload: logPayload, response });
     return response;
     
   } catch (error) {

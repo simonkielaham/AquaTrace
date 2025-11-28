@@ -33,7 +33,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
-import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit, EyeOff, Pencil, X, Clock, AreaChart } from "lucide-react";
+import { Droplets, TrendingUp, TrendingDown, ArrowRight, ChevronDown, CheckCircle, XCircle, AlertCircle, Save, Loader2, Edit, EyeOff, Pencil, X, Clock, AreaChart, Waves } from "lucide-react";
 import { format, formatDistance } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAssets } from "@/context/asset-context";
@@ -79,11 +79,13 @@ type AnalysisFormValues = z.infer<typeof analysisFormSchema>;
 
 
 function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
-  const { saveAnalysis } = useAssets();
+  const { saveAnalysis, selectedAssetId, assets } = useAssets();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   
+  const asset = assets.find(a => a.id === selectedAssetId);
+
   const form = useForm<AnalysisFormValues>({
       resolver: zodResolver(analysisFormSchema),
       defaultValues: {
@@ -158,41 +160,49 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
     }
     return undefined;
   }, [event.analysis]);
-
-  const postEventDiff = React.useMemo(() => {
-    if (event.analysis?.postEventElevation && event.analysis?.baselineElevation) {
-      return event.analysis.postEventElevation - event.analysis.baselineElevation;
-    }
-    return undefined;
-  }, [event.analysis]);
   
-  const overallAssessment = React.useMemo(() => {
+  const baselineAssessment = React.useMemo(() => {
     if(event.analysis?.postEventElevation && event.analysis?.baselineElevation) {
       const diff = event.analysis.postEventElevation - event.analysis.baselineElevation;
       const margin = 0.02; // 2cm margin of error
       if (diff > margin) {
         return { 
-          text: `Asset did not return to baseline (+${diff.toFixed(2)}m).`,
+          text: `Did not return to baseline (+${diff.toFixed(2)}m).`,
           icon: XCircle,
           color: "text-destructive"
         };
       }
        if (Math.abs(diff) <= margin) {
         return {
-            text: "Asset returned to baseline within margin of error.",
+            text: "Returned to baseline within margin of error.",
             icon: CheckCircle,
             color: "text-green-600"
         }
       }
     }
     return {
-      text: "Asset returned to pre-event baseline.",
+      text: "Returned to pre-event baseline.",
       icon: CheckCircle,
       color: "text-green-600"
     };
-
   }, [event.analysis]);
   
+  const poolRecoveryAssessment = React.useMemo(() => {
+    if (event.analysis?.poolRecoveryDifference !== undefined) {
+      const diffCm = event.analysis.poolRecoveryDifference * 100; // convert to cm
+      const marginCm = 2;
+      
+      if (diffCm > marginCm) {
+          return { text: `Ended ${diffCm.toFixed(1)}cm above permanent pool.`, icon: XCircle, color: "text-destructive" };
+      }
+      if (diffCm < -marginCm) {
+          return { text: `Ended ${Math.abs(diffCm).toFixed(1)}cm below permanent pool.`, icon: XCircle, color: "text-amber-600" };
+      }
+       return { text: `Returned to permanent pool level.`, icon: CheckCircle, color: "text-green-600" };
+    }
+    return { text: "Pool recovery could not be determined.", icon: AlertCircle, color: "text-muted-foreground" };
+  }, [event.analysis?.poolRecoveryDifference]);
+
 
   if (!isEditing) {
     return (
@@ -232,10 +242,17 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                 </div>
                  <div className="space-y-4">
                     <div className="p-3 border bg-background rounded-lg">
-                        <p className="font-medium text-sm">Overall Assessment</p>
-                        <div className={cn("flex items-center gap-2 text-sm mt-1", overallAssessment.color)}>
-                            <overallAssessment.icon className="h-4 w-4 shrink-0" />
-                            <p>{overallAssessment.text}</p>
+                        <p className="font-medium text-sm">Baseline Recovery</p>
+                        <div className={cn("flex items-center gap-2 text-sm mt-1", baselineAssessment.color)}>
+                            <baselineAssessment.icon className="h-4 w-4 shrink-0" />
+                            <p>{baselineAssessment.text}</p>
+                        </div>
+                    </div>
+                     <div className="p-3 border bg-background rounded-lg">
+                        <p className="font-medium text-sm">Permanent Pool Recovery</p>
+                        <div className={cn("flex items-center gap-2 text-sm mt-1", poolRecoveryAssessment.color)}>
+                            <poolRecoveryAssessment.icon className="h-4 w-4 shrink-0" />
+                            <p>{poolRecoveryAssessment.text}</p>
                         </div>
                     </div>
                      <div className="p-3 border bg-background rounded-lg">
@@ -319,12 +336,21 @@ function EventAnalysisDetails({ event }: { event: AnalysisPeriod }) {
                         <p className="text-xs text-muted-foreground font-mono mt-1 break-all">{event.id}</p>
                     </div>
                     <div className="p-4 border bg-background rounded-lg">
-                        <p className="font-medium text-sm mb-2">Overall Assessment</p>
-                        <div className={cn("flex items-center gap-2 text-sm", overallAssessment.color)}>
-                            <overallAssessment.icon className="h-4 w-4 shrink-0" />
-                            <p>{overallAssessment.text}</p>
+                        <p className="font-medium text-sm mb-2">Baseline Recovery</p>
+                        <div className={cn("flex items-center gap-2 text-sm", baselineAssessment.color)}>
+                            <baselineAssessment.icon className="h-4 w-4 shrink-0" />
+                            <p>{baselineAssessment.text}</p>
                         </div>
                     </div>
+                    <div className="p-4 border bg-background rounded-lg">
+                        <p className="font-medium text-sm mb-2">Permanent Pool Recovery</p>
+                        <div className={cn("flex items-center gap-2 text-sm", poolRecoveryAssessment.color)}>
+                            <poolRecoveryAssessment.icon className="h-4 w-4 shrink-0" />
+                            <p>{poolRecoveryAssessment.text}</p>
+                        </div>
+                         {asset && <p className="text-xs text-muted-foreground mt-1">Design Pool: {asset.permanentPoolElevation.toFixed(2)}m</p>}
+                    </div>
+
                     <div className="p-4 border bg-background rounded-lg">
                         <FormField
                         control={form.control}
@@ -458,11 +484,9 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                     ? event.analysis.peakElevation - event.analysis.baselineElevation
                     : undefined;
 
-                const postEventDiff = event.analysis?.postEventElevation && event.analysis?.baselineElevation
-                    ? event.analysis.postEventElevation - event.analysis.baselineElevation
-                    : undefined;
-                
-                const returnedToBaseline = postEventDiff !== undefined && postEventDiff <= 0.02; // 2cm margin
+                const returnedToBaseline = event.analysis?.postEventElevation !== undefined && event.analysis?.baselineElevation !== undefined 
+                    ? event.analysis.postEventElevation <= (event.analysis.baselineElevation + 0.02)
+                    : false;
 
                 const isReviewed = !!event.analysis?.analystInitials;
                 const isDisregarded = !!event.analysis?.disregarded;
@@ -499,12 +523,12 @@ export default function AnalysisResults({ weatherSummary, onSelectEvent }: Analy
                                     "hidden md:flex items-center gap-2",
                                     !returnedToBaseline ? "text-destructive" : "text-green-600"
                                 )}>
-                                    <TrendingDown className="h-4 w-4" />
+                                    <Waves className="h-4 w-4" />
                                     <div className="flex flex-col items-start">
                                         <span>{event.analysis?.postEventElevation?.toFixed(2) ?? '-'} m</span>
-                                        {postEventDiff !== undefined && (
-                                            <span className={cn("text-xs font-mono", !returnedToBaseline ? "text-destructive/80" : "text-green-600/80")}>
-                                               {postEventDiff > 0 ? '+' : ''}{postEventDiff.toFixed(2)}m
+                                        {event.analysis?.poolRecoveryDifference !== undefined && (
+                                            <span className={cn("text-xs font-mono", Math.abs(event.analysis.poolRecoveryDifference) > 0.02 ? "text-destructive/80" : "text-green-600/80")}>
+                                               {event.analysis.poolRecoveryDifference > 0 ? '+' : ''}{(event.analysis.poolRecoveryDifference * 100).toFixed(1)}cm
                                             </span>
                                         )}
                                     </div>

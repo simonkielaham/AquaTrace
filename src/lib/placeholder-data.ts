@@ -118,6 +118,7 @@ export type AnalysisPeriod = {
         postEventElevation?: number;
         timeToBaseline?: string;
         drawdownAnalysis?: string;
+        poolRecoveryDifference?: number; // Difference between post-event elevation and permanent pool
         estimatedTrueBaseline?: number;
         marginOfError?: number;
         notes?: string;
@@ -149,5 +150,3 @@ export type WeatherSummary = {
 // This file now only contains type definitions.
 // The actual data is loaded and managed in AssetProvider.
 export const analysisResults: AnalysisResult[] = [];
-
-    
