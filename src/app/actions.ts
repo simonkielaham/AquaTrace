@@ -1109,27 +1109,55 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             const postEventPoints = allData.filter(p => p.timestamp >= postEventTime - 60*60*1000 && p.timestamp <= postEventTime && p.waterLevel !== undefined);
             const postEventElevation = postEventPoints.length > 0 ? postEventPoints.reduce((sum, p) => sum + p.waterLevel!, 0) / postEventPoints.length : undefined;
 
-            // Drawdown analysis
-            let timeToBaseline: string | undefined;
+            // Advanced Drawdown Analysis
+            let primaryDrawdownDuration: string | undefined;
+            let primaryDrawdownElevationChange: number | undefined;
             let drawdownAnalysis: string | undefined;
-            if (peakTimestamp) {
-                const drawdownPoints = allData.filter(p => p.timestamp >= peakTimestamp && p.waterLevel !== undefined);
-                const baselineReturnPoint = drawdownPoints.find(p => p.waterLevel! <= baselineElevation!);
-                if (baselineReturnPoint) {
-                    timeToBaseline = formatDistance(new Date(peakTimestamp), new Date(baselineReturnPoint.timestamp), { includeSeconds: true });
-                    
-                    const hoursToReturn = (baselineReturnPoint.timestamp - peakTimestamp) / (1000 * 60 * 60);
-                    const designDrawdown = deployment.designDrawdown || 48; // Default 48h
-                    if (hoursToReturn < designDrawdown * 0.5) drawdownAnalysis = "Fast";
-                    else if (hoursToReturn > designDrawdown * 1.5) drawdownAnalysis = "Slow";
-                    else drawdownAnalysis = "Normal";
 
+            if (peakTimestamp) {
+                const drawdownPoints = allData
+                    .filter(p => p.timestamp >= peakTimestamp && typeof p.waterLevel === 'number')
+                    .map(p => ({ t: p.timestamp, wl: p.waterLevel! }));
+
+                if (drawdownPoints.length > 10) { // Need enough points
+                    let bestSplit = -1;
+                    let maxSlopeDiff = -1;
+                    const minSegmentLength = 5;
+
+                    // Find best split point
+                    for (let i = minSegmentLength; i < drawdownPoints.length - minSegmentLength; i++) {
+                        const segment1 = drawdownPoints.slice(0, i);
+                        const segment2 = drawdownPoints.slice(i);
+                        
+                        const slope1 = (segment1[i-1].wl - segment1[0].wl) / (segment1[i-1].t - segment1[0].t);
+                        const slope2 = (segment2[segment2.length-1].wl - segment2[0].wl) / (segment2[segment2.length-1].t - segment2[0].t);
+                        
+                        const slopeDiff = Math.abs(slope1 - slope2);
+                        if (slopeDiff > maxSlopeDiff) {
+                            maxSlopeDiff = slopeDiff;
+                            bestSplit = i;
+                        }
+                    }
+
+                    if (bestSplit !== -1) {
+                        const splitPoint = drawdownPoints[bestSplit];
+                        primaryDrawdownDuration = formatDistance(new Date(peakTimestamp), new Date(splitPoint.t), { includeSeconds: true });
+                        primaryDrawdownElevationChange = peakElevation - splitPoint.wl;
+                        
+                        const hoursToLevelOut = (splitPoint.t - peakTimestamp) / (1000 * 60 * 60);
+                        const designDrawdown = deployment.designDrawdown || 48; // Default 48h
+                        if (hoursToLevelOut < designDrawdown * 0.75) drawdownAnalysis = "Fast";
+                        else if (hoursToLevelOut > designDrawdown * 1.25) drawdownAnalysis = "Slow";
+                        else drawdownAnalysis = "Normal";
+
+                    } else {
+                         drawdownAnalysis = "Incomplete";
+                    }
                 } else {
-                    timeToBaseline = "Did not return to baseline";
                     drawdownAnalysis = "Incomplete";
                 }
             }
-            
+
             const poolRecoveryDifference = (postEventElevation !== undefined) 
                 ? postEventElevation - asset.permanentPoolElevation
                 : undefined;
@@ -1139,7 +1167,8 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 peakElevation,
                 baselineElevation,
                 postEventElevation,
-                timeToBaseline,
+                primaryDrawdownDuration,
+                primaryDrawdownElevationChange,
                 drawdownAnalysis,
                 poolRecoveryDifference,
             };
@@ -1351,14 +1380,3 @@ export async function saveDeploymentAnalysis(data: any) {
     return response;
   }
 }
-
-
-      
-
-    
-
-    
-
-    
-
-    

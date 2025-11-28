@@ -186,13 +186,15 @@ function drawChart(
   });
 
   // Draw Permanent Pool Line
-  const y = scaleY(asset.permanentPoolElevation);
-  doc.setDrawColor(HamiltonColors.blue);
-  doc.setLineWidth(0.5);
-  doc.line(dims.x, y, dims.x + dims.width, y);
-  doc.setFontSize(7);
-  doc.text('Permanent Pool', dims.x + dims.width + 17, y + 1.5, { align: 'left'});
-  doc.setDrawColor(HamiltonColors.darkGrey);
+  if (!isEventChart) {
+    const y = scaleY(asset.permanentPoolElevation);
+    doc.setDrawColor(HamiltonColors.blue);
+    doc.setLineWidth(0.5);
+    doc.line(dims.x, y, dims.x + dims.width, y);
+    doc.setFontSize(7);
+    doc.text('Permanent Pool', dims.x + dims.width + 17, y + 1.5, { align: 'left'});
+    doc.setDrawColor(HamiltonColors.darkGrey);
+  }
 
   // Draw Event Annotations
   if (eventsToAnnotate) {
@@ -437,7 +439,6 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
     }
     
     addSubheader("Event Summary");
-    addField("Event Duration:", formatText(event.analysis?.timeToBaseline));
     addField("Total Precipitation:", `${formatNumber(event.totalPrecipitation)} mm`);
 
     yPos += 5;
@@ -471,6 +472,8 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
     }
     addField("Post-Event Elevation:", postEventText);
 
+    addField("Primary Drawdown Time:", formatText(event.analysis?.primaryDrawdownDuration));
+    addField("Primary Drawdown Change:", `${formatNumber(event.analysis?.primaryDrawdownElevationChange)} m`);
     addField("Drawdown Analysis:", formatText(event.analysis?.drawdownAnalysis));
     
     yPos += 5;

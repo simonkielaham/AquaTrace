@@ -110,7 +110,8 @@ export type AnalysisPeriod = {
         peakElevation?: number;
         baselineElevation?: number;
         postEventElevation?: number;
-        timeToBaseline?: string;
+        primaryDrawdownDuration?: string;
+        primaryDrawdownElevationChange?: number;
         drawdownAnalysis?: string;
         poolRecoveryDifference?: number; // Difference between post-event elevation and permanent pool
         estimatedTrueBaseline?: number;
