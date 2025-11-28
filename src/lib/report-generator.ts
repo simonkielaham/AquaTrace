@@ -1,3 +1,4 @@
+
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import {
@@ -59,11 +60,17 @@ function calculateBounds(
   
   const allElevations = [...elevations, asset.permanentPoolElevation, ...designElevations];
 
+  const validElevations = allElevations.filter(e => typeof e === 'number');
+  
+  const minY = validElevations.length > 0 ? Math.min(...validElevations) - 0.2 : 0;
+  const maxY = validElevations.length > 0 ? Math.max(...validElevations) + 0.2 : 1;
+
+
   return {
     minX: data[0]?.timestamp,
     maxX: data[data.length - 1]?.timestamp,
-    minY: Math.min(...allElevations) - 0.2, // 20cm padding
-    maxY: Math.max(...allElevations) + 0.2,
+    minY: minY,
+    maxY: maxY,
     minPrecip: 0,
     maxPrecip: Math.max(1, ...precipitations),
   };
@@ -92,7 +99,7 @@ function drawChart(
     const y = scaleY(val);
     doc.line(dims.x, y, dims.x + dims.width, y);
     doc.setFontSize(7);
-    doc.text(`${val.toFixed(1)}m`, dims.x - 2, y + 2, { align: 'right' });
+    doc.text(`${val.toFixed(2)}m`, dims.x - 2, y + 2, { align: 'right' });
   }
   const precipTicks = 3;
   for (let i = 0; i <= precipTicks; i++) {
@@ -106,26 +113,32 @@ function drawChart(
 
   // Draw Water Level Area
   doc.setFillColor(120, 150, 180);
+  doc.setDrawColor(120, 150, 180);
+  doc.setLineWidth(0.3);
   const waterLevelPoints: [number, number][] = [];
   data.forEach(p => {
     if (typeof p.waterLevel === 'number') {
       waterLevelPoints.push([scaleX(p.timestamp), scaleY(p.waterLevel)]);
     }
   });
-  if(waterLevelPoints.length > 0) {
+  if(waterLevelPoints.length > 1) {
       const firstPoint = waterLevelPoints[0];
       const lastPoint = waterLevelPoints[waterLevelPoints.length - 1];
       const baselineY = dims.y + dims.height;
-      doc.path([
-          ...waterLevelPoints,
-          [lastPoint[0], baselineY],
-          [firstPoint[0], baselineY],
-      ]).fill();
+
+      const fillPath: [number, number][] = [
+        ...waterLevelPoints,
+        [lastPoint[0], baselineY],
+        [firstPoint[0], baselineY],
+        [firstPoint[0], firstPoint[1]] // Close the path
+      ];
+
+      doc.path(fillPath).fill();
   }
 
   // Draw Precipitation Bars
   doc.setFillColor(100, 100, 255);
-  const barWidth = dims.width / data.length * 0.8;
+  const barWidth = Math.max(1, dims.width / data.length * 0.8);
   data.forEach(p => {
     if (typeof p.precipitation === 'number' && p.precipitation > 0) {
       const precipHeight = scalePrecip(p.precipitation);
@@ -144,6 +157,7 @@ function drawChart(
   ];
 
   allDesignElevations.forEach(de => {
+    if(typeof de.elevation !== 'number') return;
     const y = scaleY(de.elevation);
     doc.setDrawColor(de.color[0], de.color[1], de.color[2]);
     doc.setLineWidth(0.5);
@@ -151,7 +165,7 @@ function drawChart(
     doc.line(dims.x, y, dims.x + dims.width, y);
     doc.setLineDashPattern([], 0);
     doc.setFontSize(7);
-    doc.text(de.name, dims.x + dims.width + 2, y - 1, { align: 'left'});
+    doc.text(de.name, dims.x + dims.width + 12, y + 1.5, { align: 'left'});
   });
   doc.setDrawColor(0,0,0);
 }
@@ -275,7 +289,7 @@ export const generateReport = async (data: ReportData, onProgress: ProgressCallb
     const chartDims: ChartDimensions = {
         x: margin,
         y: yPos,
-        width: pageWidth - margin * 2 - 20, // leave space for labels
+        width: pageWidth - margin * 2 - 25, // leave space for labels
         height: 60
     };
     
