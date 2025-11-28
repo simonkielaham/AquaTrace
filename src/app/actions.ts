@@ -87,7 +87,7 @@ const saveAnalysisSchema = z.object({
   disregarded: z.boolean().optional(),
 });
 
-const saveOverallAnalysisSchema = z.object({
+const saveDeploymentAnalysisSchema = z.object({
     deploymentId: z.string(),
     permanentPoolPerformance: z.enum(['sits_at_pool', 'sits_above_pool', 'sits_below_pool', 'fluctuates']).optional(),
     estimatedControlElevation: z.coerce.number().optional(),
@@ -131,10 +131,15 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
     return JSON.parse(fileContent);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      const baseName = path.basename(filePath);
       // For files that are expected to be arrays or objects, return an empty version instead of erroring
-      if (filePath.endsWith('s.json') || filePath.endsWith('log.json') || path.basename(filePath) === 'events.json' || path.basename(filePath) === 'diagnostics.json') return [] as T;
+      if (['assets.json', 'deployments.json', 'activity-log.json', 'events.json', 'survey-points.json', 'operational-actions.json'].includes(baseName)) {
+          return [] as T;
+      }
       
-      if (filePath.endsWith('results.json') || filePath.endsWith('analysis.json') || path.basename(filePath) === 'data.json') return {} as T;
+      if (['analysis-results.json', 'data.json', 'deployment-analysis.json'].includes(baseName)) {
+          return {} as T;
+      }
 
       return {} as T; // Default empty object for other missing files
     }
@@ -171,21 +176,230 @@ async function writeLog(logEntry: Omit<ActivityLog, 'id' | 'timestamp'>) {
   }
 }
 
+// == Asset Actions ==
+
+export async function createAsset(data: any) {
+  const logPayload = { ...data, imageId: data.imageId ? '...<base64>...' : undefined };
+  const validatedFields = assetFormSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    const response = { errors: validatedFields.error.flatten().fieldErrors, message: "Validation failed." };
+    await writeLog({ action: 'createAsset', status: 'failure', payload: logPayload, response });
+    return response;
+  }
+  const { name, location, latitude, longitude, permanentPoolElevation, designElevations, imageId } = validatedFields.data;
+  
+  try {
+    const assets = await readJsonFile<Asset[]>(assetsFilePath);
+    const newAsset: Asset = {
+      id: `asset-${Date.now()}`,
+      name,
+      location,
+      latitude,
+      longitude,
+      permanentPoolElevation,
+      designElevations,
+      imageId: imageId || '',
+      status: "unknown"
+    };
+
+    assets.push(newAsset);
+    await writeJsonFile(assetsFilePath, assets);
+
+    revalidatePath('/asset-management');
+    revalidatePath('/');
+    
+    const response = { message: 'Asset created successfully', newAsset };
+    await writeLog({ action: 'createAsset', status: 'success', assetId: newAsset.id, payload: logPayload, response });
+    return response;
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'createAsset', status: 'failure', payload: logPayload, response });
+    return response;
+  }
+}
+
+export async function updateAsset(assetId: string, data: any) {
+  const logPayload = { ...data, imageId: data.imageId ? '...<base64>...' : undefined };
+  const validatedFields = editAssetFormSchema.safeParse(data);
+
+  if (!validatedFields.success) {
+    const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+    await writeLog({ action: 'updateAsset', status: 'failure', assetId, payload: logPayload, response });
+    return response;
+  }
+
+  const { name, location, latitude, longitude, permanentPoolElevation, designElevations, imageId } = validatedFields.data;
+
+  try {
+    let assets = await readJsonFile<Asset[]>(assetsFilePath);
+    const assetIndex = assets.findIndex(a => a.id === assetId);
+
+    if (assetIndex === -1) throw new Error("Asset not found.");
+
+    const updatedAsset = {
+      ...assets[assetIndex],
+      name,
+      location,
+      latitude,
+      longitude,
+      permanentPoolElevation,
+      designElevations,
+      imageId: imageId || '',
+    };
+    assets[assetIndex] = updatedAsset;
+    await writeJsonFile(assetsFilePath, assets);
+    
+    revalidatePath('/');
+    revalidatePath('/asset-management');
+    
+    const response = { message: 'Asset updated successfully', updatedAsset };
+    await writeLog({ action: 'updateAsset', status: 'success', assetId, payload: logPayload, response });
+    return response;
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'updateAsset', status: 'failure', assetId, payload: logPayload, response });
+    return response;
+  }
+}
+
+export async function deleteAsset(assetId: string) {
+  const logPayload = { assetId };
+  try {
+    const assets = await readJsonFile<Asset[]>(assetsFilePath);
+    const updatedAssets = assets.filter(a => a.id !== assetId);
+    await writeJsonFile(assetsFilePath, updatedAssets);
+
+    const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const updatedDeployments = deployments.filter(d => d.assetId !== assetId);
+    await writeJsonFile(deploymentsFilePath, updatedDeployments);
+
+    revalidatePath('/');
+    revalidatePath('/asset-management');
+
+    const response = { message: `Asset ${assetId} deleted.` };
+    await writeLog({ action: 'deleteAsset', status: 'success', assetId, payload: logPayload, response });
+    return response;
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'deleteAsset', status: 'failure', assetId, payload: logPayload, response });
+    return response;
+  }
+}
+
+// == Deployment Actions ==
+
+export async function createDeployment(assetId: string, data: any) {
+  const logPayload = { assetId, ...data };
+  const validatedFields = deploymentFormSchema.safeParse(data);
+  if (!validatedFields.success) {
+    const response = { errors: validatedFields.error.flatten().fieldErrors, message: "Validation failed." };
+    await writeLog({ action: 'createDeployment', status: 'failure', assetId, payload: logPayload, response });
+    return response;
+  }
+  
+  const { sensorId, sensorElevation, stillwellTop, name } = validatedFields.data;
+
+  try {
+    const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const newDeployment: Deployment = {
+      id: `dep-${Date.now()}`,
+      assetId,
+      sensorId,
+      sensorElevation,
+      stillwellTop: stillwellTop === undefined ? undefined : stillwellTop,
+      name: name || `Deployment - ${format(new Date(), 'PP')}`,
+      files: [],
+    };
+    
+    deployments.push(newDeployment);
+    await writeJsonFile(deploymentsFilePath, deployments);
+
+    revalidatePath('/');
+    const response = { message: 'Deployment created successfully', newDeployment };
+    await writeLog({ action: 'createDeployment', status: 'success', assetId, deploymentId: newDeployment.id, payload: logPayload, response });
+    return response;
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'createDeployment', status: 'failure', assetId, payload: logPayload, response });
+    return response;
+  }
+}
+
+
+export async function updateDeployment(deploymentId: string, assetId: string, data: any) {
+  const logPayload = { deploymentId, assetId, ...data };
+  const validatedFields = editDeploymentSchema.safeParse(data);
+  if (!validatedFields.success) {
+    const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
+    await writeLog({ action: 'updateDeployment', status: 'failure', assetId, deploymentId, payload: logPayload, response });
+    return response;
+  }
+
+  const { sensorId, sensorElevation, stillwellTop, name } = validatedFields.data;
+  
+  try {
+    const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
+
+    if (deploymentIndex === -1) {
+      throw new Error("Deployment not found");
+    }
+
+    const updatedDeployment = {
+      ...deployments[deploymentIndex],
+      sensorId,
+      sensorElevation,
+      stillwellTop: stillwellTop === undefined ? undefined : stillwellTop,
+      name,
+    };
+    deployments[deploymentIndex] = updatedDeployment;
+    await writeJsonFile(deploymentsFilePath, deployments);
+
+    // After updating a deployment, we need to reprocess its data
+    await processAndAnalyzeDeployment(deploymentId);
+
+    revalidatePath('/');
+    const response = { message: 'Deployment updated successfully', updatedDeployment };
+    await writeLog({ action: 'updateDeployment', status: 'success', assetId, deploymentId, payload: logPayload, response });
+    return response;
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'updateDeployment', status: 'failure', assetId, deploymentId, payload: logPayload, response });
+    return response;
+  }
+}
+
 
 // == Manual Survey Point Actions ==
 
-export async function addSurveyPoint(assetId: string, data: any) {
-  const logPayload = { assetId, data };
+export async function addSurveyPoint(data: any) {
+  const logPayload = { data };
   const validatedFields = surveyPointSchema.safeParse(data);
 
   if (!validatedFields.success) {
     const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
-    await writeLog({ action: 'addSurveyPoint', status: 'failure', assetId, payload: logPayload, response });
+    await writeLog({ action: 'addSurveyPoint', status: 'failure', payload: logPayload, response });
     return response;
   }
   const { timestamp, elevation, source, tapeDownMeasurement, stillwellTopElevation, deploymentId } = validatedFields.data;
 
   try {
+    const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const deployment = deployments.find(d => d.id === deploymentId);
+    if (!deployment) throw new Error("Deployment not found");
+    const assetId = deployment.assetId;
+
     const surveyPointsFilePath = path.join(processedDir, deploymentId, 'survey-points.json');
     const surveyPoints = await readJsonFile<SurveyPoint[]>(surveyPointsFilePath);
     
@@ -214,7 +428,7 @@ export async function addSurveyPoint(assetId: string, data: any) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
-    await writeLog({ action: 'addSurveyPoint', status: 'failure', assetId, payload: logPayload, response });
+    await writeLog({ action: 'addSurveyPoint', status: 'failure', payload: logPayload, response });
     return response;
   }
 }
@@ -262,18 +476,23 @@ export async function deleteSurveyPoint(deploymentId: string, pointId: string) {
 
 // == Operational Action Actions ==
 
-export async function addOperationalAction(assetId: string, data: any) {
-  const logPayload = { assetId, data };
+export async function addOperationalAction(data: any) {
+  const logPayload = { data };
   const validatedFields = operationalActionSchema.safeParse(data);
 
   if (!validatedFields.success) {
     const response = { errors: validatedFields.error.flatten().fieldErrors, message: 'Validation failed.' };
-    await writeLog({ action: 'addOperationalAction', status: 'failure', assetId, payload: logPayload, response });
+    await writeLog({ action: 'addOperationalAction', status: 'failure', payload: logPayload, response });
     return response;
   }
   const { timestamp, action, deploymentId } = validatedFields.data;
 
   try {
+    const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const deployment = deployments.find(d => d.id === deploymentId);
+    if (!deployment) throw new Error("Deployment not found");
+    const assetId = deployment.assetId;
+
     const operationalActionsFilePath = path.join(processedDir, deploymentId, 'operational-actions.json');
     const actions = await readJsonFile<OperationalAction[]>(operationalActionsFilePath);
     
@@ -299,7 +518,7 @@ export async function addOperationalAction(assetId: string, data: any) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "An unknown error occurred.";
     const response = { message: `Error: ${message}` };
-    await writeLog({ action: 'addOperationalAction', status: 'failure', assetId, payload: logPayload, response });
+    await writeLog({ action: 'addOperationalAction', status: 'failure', payload: logPayload, response });
     return response;
   }
 }
@@ -314,3 +533,226 @@ export async function getOperationalActions(deploymentId: string): Promise<Opera
     return [];
   }
 }
+
+export async function deleteOperationalAction(deploymentId: string, actionId: string) {
+    const logPayload = { deploymentId, actionId };
+    try {
+        const operationalActionsFilePath = path.join(processedDir, deploymentId, 'operational-actions.json');
+        let actions = await readJsonFile<OperationalAction[]>(operationalActionsFilePath);
+        const actionToDelete = actions.find(a => a.id === actionId);
+
+        if (!actionToDelete) {
+             const response = { message: `Error: Action with ID ${actionId} not found.` };
+             await writeLog({ action: 'deleteOperationalAction', status: 'failure', payload: logPayload, response });
+             return response;
+        }
+
+        const updatedActions = actions.filter(a => a.id !== actionId);
+        await writeJsonFile(operationalActionsFilePath, updatedActions);
+
+        revalidatePath('/');
+        const response = { message: 'Operational action deleted successfully.' };
+        await writeLog({ action: 'deleteOperationalAction', status: 'success', deploymentId, payload: logPayload, response });
+        return response;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "An unknown error occurred.";
+        const response = { message: `Error: ${message}` };
+        await writeLog({ action: 'deleteOperationalAction', status: 'failure', payload: logPayload, response });
+        return response;
+    }
+}
+    
+export async function assignDatafile(formData: FormData) {
+  const rawData = Object.fromEntries(formData);
+  const logPayload = { ...rawData };
+  delete logPayload.file;
+
+  const validatedFields = assignDatafileSchema.safeParse(rawData);
+  if (!validatedFields.success) {
+    const response = { errors: validatedFields.error.flatten().fieldErrors, message: "Validation failed." };
+    await writeLog({ action: 'assignDatafile', status: 'failure', payload: logPayload, response });
+    return response;
+  }
+  
+  const { deploymentId, assetId, filename, ...columnMapping } = validatedFields.data;
+
+  try {
+    // 1. Move file from staged to sourcefiles
+    const stagedPath = path.join(stagedDir, filename);
+    const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const deployment = deployments.find(d => d.id === deploymentId);
+    if (!deployment) throw new Error("Deployment not found.");
+
+    const newFileId = `file-${Date.now()}`;
+    const sourcePath = path.join(sourcefileDir, `${newFileId}.csv`);
+    await fs.rename(stagedPath, sourcePath);
+
+    // 2. Read file content for processing
+    const fileContent = await fs.readFile(sourcePath, 'utf-8');
+
+    // 3. Process the file
+    const parseResult = Papa.parse(fileContent, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: true,
+    });
+    
+    if (parseResult.errors.length > 0) {
+      throw new Error(`CSV parsing error: ${parseResult.errors.map(e => e.message).join(', ')}`);
+    }
+
+    const dataPoints = parseResult.data.slice(columnMapping.startRow - 2); // PapaParse header is row 0
+
+    if (dataPoints.length === 0) {
+      throw new Error("No data points found in the file after the specified start row.");
+    }
+    
+    // Create new DataFile object
+    const fileStartDate = (dataPoints[0] as any)[columnMapping.datetimeColumn];
+    const fileEndDate = (dataPoints[dataPoints.length - 1] as any)[columnMapping.datetimeColumn];
+    
+    const newFile: DataFile = {
+      id: newFileId,
+      filename: filename,
+      dataType: columnMapping.dataType,
+      uploadDate: new Date().toISOString(),
+      startDate: new Date(fileStartDate).toISOString(),
+      endDate: new Date(fileEndDate).toISOString(),
+      rowCount: dataPoints.length,
+      columnMapping: columnMapping,
+    };
+    
+    // 4. Update deployments.json
+    const updatedDeployments = deployments.map(d => {
+      if (d.id === deploymentId) {
+        const files = d.files || [];
+        files.push(newFile);
+        return { ...d, files };
+      }
+      return d;
+    });
+    await writeJsonFile(deploymentsFilePath, updatedDeployments);
+
+    // 5. Trigger full data re-processing for the deployment
+    await processAndAnalyzeDeployment(deploymentId);
+
+    revalidatePath('/');
+    const response = { message: 'Datafile assigned and processed successfully.', newFile };
+    await writeLog({ action: 'assignDatafile', status: 'success', assetId, deploymentId, payload: logPayload, response });
+    return response;
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'assignDatafile', status: 'failure', assetId, deploymentId, payload: logPayload, response });
+    return response;
+  }
+}
+
+export async function downloadLogs(assetId: string) {
+  try {
+    const allLogs = await readJsonFile<ActivityLog[]>(activityLogFilePath);
+    const assetLogs = allLogs.filter(log => log.assetId === assetId);
+    
+    const logString = assetLogs.map(log => {
+      let entry = `[${new Date(log.timestamp).toLocaleString()}] [${log.action}] [${log.status.toUpperCase()}]`;
+      if (log.assetId) entry += ` | Asset: ${log.assetId}`;
+      if (log.deploymentId) entry += ` | Deployment: ${log.deploymentId}`;
+      if (log.payload) entry += ` | Payload: ${JSON.stringify(log.payload)}`;
+      if (log.response) entry += ` | Response: ${JSON.stringify(log.response)}`;
+      return entry;
+    }).join('\n');
+
+    return { logs: logString };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    return { message: `Error: ${message}` };
+  }
+}
+
+export async function unassignDatafile(deploymentId: string, fileId: string) {
+  let logPayload = { deploymentId, fileId };
+  try {
+    let deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
+    if (deploymentIndex === -1) throw new Error("Deployment not found");
+
+    const fileToUnassign = deployments[deploymentIndex].files?.find(f => f.id === fileId);
+    if (!fileToUnassign) throw new Error("File not found in deployment");
+
+    // Move file back to staged
+    const sourcePath = path.join(sourcefileDir, `${fileId}.csv`);
+    const stagedPath = path.join(stagedDir, fileToUnassign.filename);
+    await fs.rename(sourcePath, stagedPath);
+
+    // Remove file from deployment
+    deployments[deploymentIndex].files = deployments[deploymentIndex].files?.filter(f => f.id !== fileId);
+    await writeJsonFile(deploymentsFilePath, deployments);
+
+    // Reprocess data
+    await processAndAnalyzeDeployment(deploymentId);
+
+    revalidatePath('/');
+    const response = { message: 'File unassigned successfully and moved back to staging.' };
+    await writeLog({ action: 'unassignDatafile', status: 'success', deploymentId, payload: logPayload, response });
+    return response;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'unassignDatafile', status: 'failure', deploymentId, payload: logPayload, response });
+    return response;
+  }
+}
+
+export async function deleteDatafile(deploymentId: string, fileId: string) {
+  let logPayload = { deploymentId, fileId };
+  try {
+    let deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
+    const deploymentIndex = deployments.findIndex(d => d.id === deploymentId);
+    if (deploymentIndex === -1) throw new Error("Deployment not found");
+
+    const fileToDelete = deployments[deploymentIndex].files?.find(f => f.id === fileId);
+    if (!fileToDelete) throw new Error("File not found in deployment");
+
+    // Delete the source file
+    const sourcePath = path.join(sourcefileDir, `${fileId}.csv`);
+    await fs.unlink(sourcePath);
+
+    // Remove file from deployment
+    deployments[deploymentIndex].files = deployments[deploymentIndex].files?.filter(f => f.id !== fileId);
+    await writeJsonFile(deploymentsFilePath, deployments);
+
+    // Reprocess data
+    await processAndAnalyzeDeployment(deploymentId);
+    
+    revalidatePath('/');
+    const response = { message: 'File permanently deleted.' };
+    await writeLog({ action: 'deleteDatafile', status: 'success', deploymentId, payload: logPayload, response });
+    return response;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "An unknown error occurred.";
+    const response = { message: `Error: ${message}` };
+    await writeLog({ action: 'deleteDatafile', status: 'failure', deploymentId, payload: logPayload, response });
+    return response;
+  }
+}
+
+async function processAndAnalyzeDeployment(deploymentId: string) {
+    // This is a placeholder for the full data processing and analysis pipeline
+    // In a real application, this would be a complex function involving:
+    // 1. Reading all datafiles for the deployment
+    // 2. Harmonizing time series data
+    // 3. Integrating weather data
+    // 4. Running diagnostic rules
+    // 5. Caching the results
+    
+    // For now, we'll just log that it was triggered
+    await writeLog({
+        action: 'processAndAnalyzeDeployment',
+        status: 'success',
+        deploymentId: deploymentId,
+        payload: { message: "Triggered reprocessing after data change." },
+        response: { message: "Processing kicked off." }
+    });
+}
+    

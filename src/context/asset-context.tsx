@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
@@ -81,10 +80,10 @@ interface AssetContextType {
   deleteStagedFile: (filename: string) => Promise<any>;
   getStagedFileContent: (filename: string) => Promise<string | null>;
   getSourceFileContent: (filename: string) => Promise<string | null>;
-  addSurveyPoint: (assetId: string, deploymentId: string, data: any) => Promise<any>;
+  addSurveyPoint: (data: any) => Promise<any>;
   deleteSurveyPoint: (deploymentId: string, pointId: string) => Promise<any>;
   getSurveyPoints: (deploymentId: string) => Promise<SurveyPoint[]>;
-  addOperationalAction: (assetId: string, deploymentId: string, data: any) => Promise<any>;
+  addOperationalAction: (data: any) => Promise<any>;
   deleteOperationalAction: (deploymentId: string, actionId: string) => Promise<any>;
   getOperationalActions: (deploymentId: string) => Promise<OperationalAction[]>;
   dataVersion: number;
@@ -162,34 +161,50 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
         const currentDeployments = deployments.filter(d => d.assetId === assetId);
         
-        // For now, we will only fetch data for the first deployment of an asset.
-        // This can be expanded later to support multiple deployments.
-        const deploymentId = currentDeployments.length > 0 ? currentDeployments[0].id : null;
-
-        if (deploymentId) {
+        const deploymentDataPromises = currentDeployments.map(async (deployment) => {
             const [
                 processedDataResult, 
                 overallAnalysisResult,
                 surveyPointsResult,
                 operationalActionsResult
             ] = await Promise.all([
-              getProcessedData(deploymentId),
-              getOverallAnalysisAction(deploymentId),
-              getSurveyPointsAction(deploymentId),
-              getOperationalActionsAction(deploymentId),
+              getProcessedData(deployment.id),
+              getOverallAnalysisAction(deployment.id),
+              getSurveyPointsAction(deployment.id),
+              getOperationalActionsAction(deployment.id),
             ]);
-
-            setAssetData(prev => ({ ...prev, [assetId]: { 
-                data: processedDataResult.data, 
-                weatherSummary: processedDataResult.weatherSummary, 
+            return {
+                deploymentId: deployment.id,
+                processedData: processedDataResult,
                 overallAnalysis: overallAnalysisResult,
                 surveyPoints: surveyPointsResult,
-                operationalActions: operationalActionsResult,
-                loading: false 
-            } }));
-        } else {
-             setAssetData(prev => ({ ...prev, [assetId]: { ...initialData, loading: false } }));
-        }
+                operationalActions: operationalActionsResult
+            };
+        });
+        
+        const allDeploymentData = await Promise.all(deploymentDataPromises);
+        
+        // This merges data from all deployments. For simplicity, we'll take the first one's analysis
+        // and combine chart data. This logic may need refinement based on UX choices.
+        const combinedData: ChartablePoint[] = allDeploymentData.flatMap(d => d.processedData.data);
+        const combinedSurveyPoints: SurveyPoint[] = allDeploymentData.flatMap(d => d.surveyPoints);
+        const combinedOperationalActions: OperationalAction[] = allDeploymentData.flatMap(d => d.operationalActions);
+        
+        // Sorting all chartable points by timestamp
+        combinedData.sort((a,b) => a.timestamp - b.timestamp);
+        
+        // For now, we take the weather and overall analysis from the first deployment if it exists
+        const primaryDeploymentData = allDeploymentData[0];
+
+        setAssetData(prev => ({ ...prev, [assetId]: { 
+            data: combinedData, 
+            weatherSummary: primaryDeploymentData?.processedData.weatherSummary || null, 
+            overallAnalysis: primaryDeploymentData?.overallAnalysis || null,
+            surveyPoints: combinedSurveyPoints,
+            operationalActions: combinedOperationalActions,
+            loading: false 
+        } }));
+
     } catch (error) {
         console.error(`Failed to fetch data for asset ${assetId}:`, error);
         setAssetData(prev => ({ ...prev, [assetId]: { ...initialData, loading: false } }));
@@ -433,9 +448,11 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
       const result = await saveOverallAnalysisAction(data);
       if (result && !result.errors && result.savedData) {
-        const assetId = result.savedData.assetId;
-        
-        setAssets(prev => prev.map(a => a.id === assetId ? { ...a, status: result.savedData.status } : a));
+        const deploymentId = result.savedData.deploymentId;
+        const deployment = deployments.find(d => d.id === deploymentId);
+        if (deployment) {
+            setAssets(prev => prev.map(a => a.id === deployment.assetId ? { ...a, status: result.savedData.status } : a));
+        }
         incrementDataVersion();
       }
       return result;
@@ -443,7 +460,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, [incrementDataVersion]);
+  }, [deployments, incrementDataVersion]);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
@@ -454,8 +471,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       }
       return result;
     } catch (error) {
-      const message = await getErrorMessage(error);
-      return { message: `Error: ${message}` };
+        const message = await getErrorMessage(error);
+        return { message: `Error: ${message}` };
     }
   }, [fetchStagedFiles]);
 
@@ -491,9 +508,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const addSurveyPoint = useCallback(async (assetId: string, deploymentId: string, data: any) => {
+  const addSurveyPoint = useCallback(async (data: any) => {
     try {
-      const result = await addSurveyPointAction(assetId, deploymentId, data);
+      const result = await addSurveyPointAction(data);
       if (result && !result.errors) {
         incrementDataVersion();
       }
@@ -521,9 +538,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     return await getSurveyPointsAction(deploymentId);
   }, []);
   
-  const addOperationalAction = useCallback(async (assetId: string, deploymentId: string, data: any) => {
+  const addOperationalAction = useCallback(async (data: any) => {
     try {
-      const result = await addOperationalActionAction(assetId, deploymentId, data);
+      const result = await addOperationalActionAction(data);
       if (result && !result.errors) {
         incrementDataVersion();
       }
