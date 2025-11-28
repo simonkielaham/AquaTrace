@@ -993,7 +993,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
 
             const weatherParse = Papa.parse(weatherDataCsv, { header: true, dynamicTyping: true });
             
-            // Group our data by hour
+            // Prorate hourly weather data across higher frequency water level data
             const hourlyGroups = new Map<number, ChartablePoint[]>();
             allData.forEach(p => {
                 const hourStart = new Date(p.timestamp);
@@ -1005,22 +1005,31 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 hourlyGroups.get(hourKey)!.push(p);
             });
 
-            // Distribute precipitation from weather API
+            const proratedPrecipMap = new Map<number, number>();
+            const proratedTempMap = new Map<number, number>();
+
             (weatherParse.data as any[]).forEach(row => {
                 const timestamp = new Date(row.date).getTime();
                 if (!isNaN(timestamp)) {
                     const hourGroup = hourlyGroups.get(timestamp);
                     if (hourGroup && hourGroup.length > 0) {
                         const proratedPrecipitation = (row.precipitation || 0) / hourGroup.length;
-                        const proratedTemperature = row.temperature; // Temp doesn't need proration
-
-                        hourGroup.forEach(pointInHour => {
-                            pointInHour.precipitation = (pointInHour.precipitation || 0) + proratedPrecipitation;
-                            if (pointInHour.temperature === undefined) {
-                                pointInHour.temperature = proratedTemperature;
-                            }
-                        });
+                        proratedPrecipMap.set(timestamp, proratedPrecipitation);
+                        proratedTempMap.set(timestamp, row.temperature);
                     }
+                }
+            });
+
+            allData.forEach(p => {
+                const hourStart = new Date(p.timestamp);
+                hourStart.setMinutes(0, 0, 0);
+                const hourKey = hourStart.getTime();
+
+                if (proratedPrecipMap.has(hourKey)) {
+                    p.precipitation = (p.precipitation || 0) + proratedPrecipMap.get(hourKey)!;
+                }
+                if (p.temperature === undefined && proratedTempMap.has(hourKey)) {
+                    p.temperature = proratedTempMap.get(hourKey);
                 }
             });
         }
@@ -1096,26 +1105,20 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             
             const validBaselinePoints = baselinePoints.filter(p => typeof p.waterLevel === 'number' && isFinite(p.waterLevel));
             
-            let baselineElevation: number | undefined;
-            if (validBaselinePoints.length > 0) {
-                baselineElevation = validBaselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / validBaselinePoints.length
-            } else {
-                baselineElevation = allData.find(p => p.timestamp >= event.startDate && p.waterLevel !== undefined)?.waterLevel;
-            }
+            const baselineElevation = validBaselinePoints.length > 0 
+                ? validBaselinePoints.reduce((sum, p) => sum + p.waterLevel!, 0) / validBaselinePoints.length
+                : allData.find(p => p.timestamp >= event.startDate && p.waterLevel !== undefined)?.waterLevel ?? 0;
 
             const validEventPoints = event.dataPoints.filter(p => typeof p.waterLevel === 'number' && isFinite(p.waterLevel));
             
-            let peakPoint: ChartablePoint | undefined;
-            if (validEventPoints.length > 0) {
-              peakPoint = validEventPoints.reduce((max, p) => (p.waterLevel! > max.waterLevel!) ? p : max, validEventPoints[0]);
-            }
+            const peakPoint = validEventPoints.length > 0 
+              ? validEventPoints.reduce((max, p) => (p.waterLevel! > max.waterLevel!) ? p : max, validEventPoints[0])
+              : undefined;
             
-            const peakElevation = peakPoint?.waterLevel;
+            const peakElevation = peakPoint?.waterLevel ?? 0;
             const peakTimestamp = peakPoint?.timestamp;
             
-            const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) 
-                ? peakElevation - baselineElevation 
-                : 0;
+            const peakRise = peakElevation - baselineElevation;
             
             const postEventTime = event.endDate + 48 * 60 * 60 * 1000;
             const postEventPoints = allData.filter(p => p.timestamp >= postEventTime - 60*60*1000 && p.timestamp <= postEventTime && p.waterLevel !== undefined);
@@ -1124,7 +1127,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             // Drawdown analysis
             let timeToBaseline: string | undefined;
             let drawdownAnalysis: string | undefined;
-            if (peakElevation !== undefined && baselineElevation !== undefined && peakTimestamp) {
+            if (peakTimestamp) {
                 const drawdownPoints = allData.filter(p => p.timestamp >= peakTimestamp && p.waterLevel !== undefined);
                 const baselineReturnPoint = drawdownPoints.find(p => p.waterLevel! <= baselineElevation!);
                 if (baselineReturnPoint) {
@@ -1147,7 +1150,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 : undefined;
 
             event.analysis = {
-                peakTimestamp: peakTimestamp,
+                peakTimestamp,
                 baselineElevation,
                 peakElevation,
                 postEventElevation,
