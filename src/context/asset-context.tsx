@@ -22,7 +22,7 @@ import {
   createDeployment as createDeploymentAction, 
   downloadLogs as downloadLogsAction,
   deleteAsset as deleteAssetAction,
-  assignDatafileToDeployment as assignDatafileToDeploymentAction,
+  assignDatafile as assignDatafileAction,
   reassignDatafile as reassignDatafileAction,
   uploadStagedFile as uploadStagedFileAction,
   getStagedFiles as getStagedFilesAction,
@@ -39,9 +39,9 @@ import {
   deleteDatafile as deleteDatafileAction,
   saveAnalysis as saveAnalysisAction,
   getProcessedData,
-  getOverallAnalysis as getOverallAnalysisAction,
-  getRawOverallAnalysisJson as getRawOverallAnalysisJsonAction,
-  saveOverallAnalysis as saveOverallAnalysisAction,
+  getDeploymentAnalysis as getOverallAnalysisAction,
+  getRawDeploymentAnalysisJson as getRawOverallAnalysisJsonAction,
+  saveDeploymentAnalysis as saveOverallAnalysisAction,
 } from '@/app/actions';
 
 import initialAssets from '@/../data/assets.json';
@@ -66,13 +66,13 @@ interface AssetContextType {
   deleteAsset: (assetId: string) => Promise<any>;
   createDeployment: (assetId: string, data: any) => Promise<any>;
   downloadLogs: (assetId: string) => Promise<any>;
-  assignDatafileToDeployment: (formData: FormData) => Promise<any>;
+  assignDatafile: (formData: FormData) => Promise<any>;
   reassignDatafile: (formData: FormData) => Promise<any>;
   unassignDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   deleteDatafile: (deploymentId: string, fileId: string) => Promise<any>;
   saveAnalysis: (data: SavedAnalysisData & { eventId: string }) => Promise<any>;
-  getOverallAnalysis: (assetId: string) => Promise<OverallAnalysisData | null>;
-  getRawOverallAnalysisJson: (assetId: string) => Promise<string>;
+  getOverallAnalysis: (deploymentId: string) => Promise<OverallAnalysisData | null>;
+  getRawOverallAnalysisJson: (deploymentId: string) => Promise<string>;
   saveOverallAnalysis: (data: any) => Promise<any>;
   loading: boolean;
   stagedFiles: StagedFile[];
@@ -81,12 +81,12 @@ interface AssetContextType {
   deleteStagedFile: (filename: string) => Promise<any>;
   getStagedFileContent: (filename: string) => Promise<string | null>;
   getSourceFileContent: (filename: string) => Promise<string | null>;
-  addSurveyPoint: (assetId: string, data: any) => Promise<any>;
-  deleteSurveyPoint: (pointId: string) => Promise<any>;
-  getSurveyPoints: (assetId: string) => Promise<SurveyPoint[]>;
-  addOperationalAction: (assetId: string, data: any) => Promise<any>;
-  deleteOperationalAction: (actionId: string) => Promise<any>;
-  getOperationalActions: (assetId: string) => Promise<OperationalAction[]>;
+  addSurveyPoint: (assetId: string, deploymentId: string, data: any) => Promise<any>;
+  deleteSurveyPoint: (deploymentId: string, pointId: string) => Promise<any>;
+  getSurveyPoints: (deploymentId: string) => Promise<SurveyPoint[]>;
+  addOperationalAction: (assetId: string, deploymentId: string, data: any) => Promise<any>;
+  deleteOperationalAction: (deploymentId: string, actionId: string) => Promise<any>;
+  getOperationalActions: (deploymentId: string) => Promise<OperationalAction[]>;
   dataVersion: number;
   assetData: { [assetId: string]: AssetData };
   fetchAssetData: (assetId: string) => Promise<void>;
@@ -155,34 +155,46 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
   
   const fetchAssetData = useCallback(async (assetId: string) => {
     if (!assetId) return;
+
     const initialData = { data: [], weatherSummary: null, overallAnalysis: null, surveyPoints: [], operationalActions: [] };
     setAssetData(prev => ({ ...prev, [assetId]: { ...(prev[assetId] || initialData), loading: true } }));
-    try {
-        const [
-            processedDataResult, 
-            overallAnalysisResult,
-            surveyPointsResult,
-            operationalActionsResult
-        ] = await Promise.all([
-          getProcessedData(assetId),
-          getOverallAnalysisAction(assetId),
-          getSurveyPointsAction(assetId),
-          getOperationalActionsAction(assetId),
-        ]);
 
-        setAssetData(prev => ({ ...prev, [assetId]: { 
-            data: processedDataResult.data, 
-            weatherSummary: processedDataResult.weatherSummary, 
-            overallAnalysis: overallAnalysisResult,
-            surveyPoints: surveyPointsResult,
-            operationalActions: operationalActionsResult,
-            loading: false 
-        } }));
+    try {
+        const currentDeployments = deployments.filter(d => d.assetId === assetId);
+        
+        // For now, we will only fetch data for the first deployment of an asset.
+        // This can be expanded later to support multiple deployments.
+        const deploymentId = currentDeployments.length > 0 ? currentDeployments[0].id : null;
+
+        if (deploymentId) {
+            const [
+                processedDataResult, 
+                overallAnalysisResult,
+                surveyPointsResult,
+                operationalActionsResult
+            ] = await Promise.all([
+              getProcessedData(deploymentId),
+              getOverallAnalysisAction(deploymentId),
+              getSurveyPointsAction(deploymentId),
+              getOperationalActionsAction(deploymentId),
+            ]);
+
+            setAssetData(prev => ({ ...prev, [assetId]: { 
+                data: processedDataResult.data, 
+                weatherSummary: processedDataResult.weatherSummary, 
+                overallAnalysis: overallAnalysisResult,
+                surveyPoints: surveyPointsResult,
+                operationalActions: operationalActionsResult,
+                loading: false 
+            } }));
+        } else {
+             setAssetData(prev => ({ ...prev, [assetId]: { ...initialData, loading: false } }));
+        }
     } catch (error) {
         console.error(`Failed to fetch data for asset ${assetId}:`, error);
         setAssetData(prev => ({ ...prev, [assetId]: { ...initialData, loading: false } }));
     }
-  }, []);
+  }, [deployments]);
 
 
   useEffect(() => {
@@ -198,6 +210,13 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
     setLoading(false);
   }, [fetchStagedFiles]);
+
+  // When deployments change (e.g. after create), re-fetch data for the current asset.
+  useEffect(() => {
+    if (selectedAssetId && deployments.length > 0) {
+        fetchAssetData(selectedAssetId);
+    }
+  }, [deployments, selectedAssetId, fetchAssetData]);
 
 
   const handleSetSelectedAssetId = (id: string) => {
@@ -224,42 +243,39 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       const result = await createDeploymentAction(assetId, data);
       if (result && !result.errors && result.newDeployment) {
         setDeployments(prev => [...prev, result.newDeployment]);
-        incrementDataVersion();
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, [incrementDataVersion]);
+  }, []);
 
   const updateAsset = useCallback(async (assetId: string, data: any) => {
     try {
       const result = await updateAssetAction(assetId, data);
       if (result && !result.errors && result.updatedAsset) {
         setAssets(prev => prev.map(a => a.id === assetId ? result.updatedAsset : a));
-        incrementDataVersion();
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, [incrementDataVersion]);
+  }, []);
 
   const updateDeployment = useCallback(async (deploymentId: string, assetId: string, data: any) => {
     try {
       const result = await updateDeploymentAction(deploymentId, assetId, data);
       if (result && !result.errors && result.updatedDeployment) {
         setDeployments(prev => prev.map(d => d.id === deploymentId ? result.updatedDeployment : d));
-        incrementDataVersion();
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, [incrementDataVersion]);
+  }, []);
 
   const deleteAsset = useCallback(async (assetId: string) => {
     try {
@@ -279,14 +295,13 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
           handleSetSelectedAssetId('');
         }
       }
-      incrementDataVersion();
       return { message: 'Asset deleted successfully.' };
 
     } catch (error) {
       const message = await getErrorMessage(error);
       return { message: `Error: ${message}` };
     }
-  }, [assets, selectedAssetId, incrementDataVersion]);
+  }, [assets, selectedAssetId]);
 
   const downloadLogs = useCallback(async (assetId: string) => {
     try {
@@ -297,9 +312,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const assignDatafileToDeployment = useCallback(async (formData: FormData) => {
+  const assignDatafile = useCallback(async (formData: FormData) => {
     try {
-      const result = await assignDatafileToDeploymentAction(formData);
+      const result = await assignDatafileAction(formData);
       if (result.newFile) {
         const deploymentId = formData.get('deploymentId') as string;
         setDeployments(prev => prev.map(d => {
@@ -387,57 +402,27 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     try {
       const result = await saveAnalysisAction(data);
       if (result && !result.errors) {
-        setAssetData(prev => {
-            const currentAsset = prev[selectedAssetId];
-            if (!currentAsset || !currentAsset.weatherSummary) return prev;
-
-            const updatedEvents = currentAsset.weatherSummary.events.map(event => {
-                if (event.id === data.eventId) {
-                    return {
-                        ...event,
-                        analysis: {
-                            ...event.analysis,
-                            notes: data.notes,
-                            status: data.status,
-                            analystInitials: data.analystInitials,
-                            disregarded: data.disregarded,
-                        }
-                    };
-                }
-                return event;
-            });
-
-            return {
-                ...prev,
-                [selectedAssetId]: {
-                    ...currentAsset,
-                    weatherSummary: {
-                        ...currentAsset.weatherSummary,
-                        events: updatedEvents,
-                    }
-                }
-            };
-        });
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
       const message = await getErrorMessage(error);
       return { message: `Error: ${message}` };
     }
-  }, [selectedAssetId]);
+  }, [incrementDataVersion]);
 
-  const getOverallAnalysis = useCallback(async (assetId: string) => {
+  const getOverallAnalysis = useCallback(async (deploymentId: string) => {
       try {
-          return await getOverallAnalysisAction(assetId);
+          return await getOverallAnalysisAction(deploymentId);
       } catch (error) {
           console.error(error);
           return null;
       }
   }, []);
 
-  const getRawOverallAnalysisJson = useCallback(async (assetId: string) => {
+  const getRawOverallAnalysisJson = useCallback(async (deploymentId: string) => {
     try {
-        return await getRawOverallAnalysisJsonAction(assetId);
+        return await getRawOverallAnalysisJsonAction(deploymentId);
     } catch (error) {
         console.error(error);
         return '{"error": "Failed to fetch raw analysis JSON."}';
@@ -450,26 +435,15 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
       if (result && !result.errors && result.savedData) {
         const assetId = result.savedData.assetId;
         
-        // This is the optimistic update. It makes the UI show the data instantly.
-        setAssetData(prev => {
-          const currentAsset = prev[assetId] || { data: [], weatherSummary: null, surveyPoints: [], operationalActions: [] };
-          return {
-            ...prev,
-            [assetId]: {
-              ...currentAsset,
-              overallAnalysis: result.savedData,
-            },
-          };
-        });
-        
         setAssets(prev => prev.map(a => a.id === assetId ? { ...a, status: result.savedData.status } : a));
+        incrementDataVersion();
       }
       return result;
     } catch (error) {
        const message = await getErrorMessage(error);
        return { message: `Error: ${message}` };
     }
-  }, []);
+  }, [incrementDataVersion]);
 
 
   const uploadStagedFile = useCallback(async (formData: FormData) => {
@@ -517,9 +491,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const addSurveyPoint = useCallback(async (assetId: string, data: any) => {
+  const addSurveyPoint = useCallback(async (assetId: string, deploymentId: string, data: any) => {
     try {
-      const result = await addSurveyPointAction(assetId, data);
+      const result = await addSurveyPointAction(assetId, deploymentId, data);
       if (result && !result.errors) {
         incrementDataVersion();
       }
@@ -530,9 +504,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [incrementDataVersion]);
 
-  const deleteSurveyPoint = useCallback(async (pointId: string) => {
+  const deleteSurveyPoint = useCallback(async (deploymentId: string, pointId: string) => {
      try {
-      const result = await deleteSurveyPointAction(pointId);
+      const result = await deleteSurveyPointAction(deploymentId, pointId);
       if (result && !result.message.startsWith('Error:')) {
         incrementDataVersion();
       }
@@ -543,13 +517,13 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [incrementDataVersion]);
 
-  const getSurveyPoints = useCallback(async (assetId: string) => {
-    return await getSurveyPointsAction(assetId);
+  const getSurveyPoints = useCallback(async (deploymentId: string) => {
+    return await getSurveyPointsAction(deploymentId);
   }, []);
   
-  const addOperationalAction = useCallback(async (assetId: string, data: any) => {
+  const addOperationalAction = useCallback(async (assetId: string, deploymentId: string, data: any) => {
     try {
-      const result = await addOperationalActionAction(assetId, data);
+      const result = await addOperationalActionAction(assetId, deploymentId, data);
       if (result && !result.errors) {
         incrementDataVersion();
       }
@@ -560,9 +534,9 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [incrementDataVersion]);
 
-  const deleteOperationalAction = useCallback(async (actionId: string) => {
+  const deleteOperationalAction = useCallback(async (deploymentId: string, actionId: string) => {
      try {
-      const result = await deleteOperationalActionAction(actionId);
+      const result = await deleteOperationalActionAction(deploymentId, actionId);
       if (result && !result.message.startsWith('Error:')) {
         incrementDataVersion();
       }
@@ -573,8 +547,8 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [incrementDataVersion]);
 
-  const getOperationalActions = useCallback(async (assetId: string) => {
-    return await getOperationalActionsAction(assetId);
+  const getOperationalActions = useCallback(async (deploymentId: string) => {
+    return await getOperationalActionsAction(deploymentId);
   }, []);
 
 
@@ -589,7 +563,7 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     createDeployment,
     updateDeployment,
     downloadLogs,
-    assignDatafileToDeployment,
+    assignDatafile,
     reassignDatafile,
     unassignDatafile,
     deleteDatafile,
