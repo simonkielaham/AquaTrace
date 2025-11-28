@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -21,6 +22,9 @@ import { getProcessedData as getProcessedDataAction } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import AnalysisQaqc from "./analysis-qaqc";
 import FileLocationStatus from "./file-location-status";
+import Link from "next/link";
+import { Button } from "../ui/button";
+import { PlusCircle } from "lucide-react";
 
 
 export default function DashboardLayout() {
@@ -126,12 +130,20 @@ export default function DashboardLayout() {
 
   if (assets.length === 0) {
     return (
-       <div className="flex h-screen w-full items-center justify-center">
-         <div className="text-center">
-          <h2 className="text-2xl font-semibold mb-2">No Assets Found</h2>
-          <p className="text-muted-foreground">
-            Get started by creating a new asset in the Asset Management section.
+       <div className="flex h-screen w-full items-center justify-center bg-background">
+         <div className="text-center space-y-4">
+          <h2 className="text-2xl font-semibold">No Assets Found</h2>
+          <p className="text-muted-foreground max-w-md">
+            Get started by creating a new stormwater management asset. All deployments, datafiles, and analyses are organized by asset.
             </p>
+            <div>
+              <Button asChild>
+                <Link href="/asset-management">
+                  <PlusCircle />
+                  Create Your First Asset
+                </Link>
+              </Button>
+            </div>
          </div>
        </div>
     )
