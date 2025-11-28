@@ -135,18 +135,26 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       const baseName = path.basename(filePath);
-      if (['assets.json', 'deployments.json', 'activity-log.json', 'survey-points.json', 'operational-actions.json', 'events.json'].includes(baseName)) {
+      if (['assets.json', 'deployments.json', 'activity-log.json'].includes(baseName)) {
           return [] as T;
       }
-      if (['deployment-analysis.json', 'diagnostics.json', 'data.json'].includes(baseName)) {
+      if (['deployment-analysis.json', 'diagnostics.json', 'data.json', 'events.json', 'survey-points.json', 'operational-actions.json'].includes(baseName)) {
+          const emptyState: Record<string, any> = {
+            'deployment-analysis.json': {},
+            'diagnostics.json': {},
+            'data.json': [],
+            'events.json': { totalPrecipitation: 0, events: [] },
+            'survey-points.json': [],
+            'operational-actions.json': [],
+          }
+          if(emptyState[baseName]) return emptyState[baseName] as T;
+
+          // Fallback for other JSON files.
+          const arrayFiles = ['assets.json', 'deployments.json', 'activity-log.json'];
+          if (arrayFiles.includes(path.basename(filePath))) {
+              return [] as T;
+          }
           return {} as T;
-      }
-      if (filePath.endsWith('.json')) {
-         const arrayFiles = ['assets.json', 'deployments.json', 'activity-log.json', 'events.json', 'survey-points.json', 'operational-actions.json'];
-         if (arrayFiles.includes(path.basename(filePath))) {
-            return [] as T;
-         }
-         return {} as T; // Default for other JSON files like deployment-analysis.json
       }
       return {} as T;
     }
@@ -922,7 +930,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 continue; // Skip to next file
             }
             
-            const dataPoints = (parseResult.data as any[]).slice(file.columnMapping.startRow - 2);
+            const dataPoints = (parseResult.data as any[]);
 
             dataPoints.forEach((row: any) => {
                     const timestampStr = row[file.columnMapping.datetimeColumn];
@@ -1053,7 +1061,6 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             const hasRain = (point.precipitation || 0) > rainThreshold;
 
             if (hasRain) {
-                lastRainTimestamp = point.timestamp;
                 if (!currentEvent) {
                     // Start of a new event
                     currentEvent = {
@@ -1066,6 +1073,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                         dataPoints: [],
                     };
                 }
+                 lastRainTimestamp = point.timestamp;
             }
 
             if (currentEvent) {
@@ -1101,9 +1109,9 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             const validEventPoints = event.dataPoints.filter(p => p.waterLevel !== undefined && isFinite(p.waterLevel));
             const peakPoint = validEventPoints.length > 0
                 ? validEventPoints.reduce((max, p) => (p.waterLevel! > (max.waterLevel ?? -Infinity)) ? p : max, { waterLevel: -Infinity } as ChartablePoint)
-                : { waterLevel: -Infinity };
+                : undefined;
             
-            const peakElevation = peakPoint.waterLevel !== -Infinity ? peakPoint.waterLevel : undefined;
+            const peakElevation = peakPoint?.waterLevel !== -Infinity ? peakPoint?.waterLevel : undefined;
             const peakRise = (peakElevation !== undefined && baselineElevation !== undefined) ? peakElevation - baselineElevation : 0;
             
             const postEventTime = event.endDate + 48 * 60 * 60 * 1000;
@@ -1113,13 +1121,13 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
             // Drawdown analysis
             let timeToBaseline: string | undefined;
             let drawdownAnalysis: string | undefined;
-            if (peakElevation !== undefined && baselineElevation !== undefined) {
-                const drawdownPoints = event.dataPoints.filter(p => p.timestamp >= (peakPoint.timestamp || event.startDate) && p.waterLevel !== undefined);
+            if (peakElevation !== undefined && baselineElevation !== undefined && peakPoint?.timestamp) {
+                const drawdownPoints = event.dataPoints.filter(p => p.timestamp >= peakPoint.timestamp! && p.waterLevel !== undefined);
                 const baselineReturnPoint = drawdownPoints.find(p => p.waterLevel! <= baselineElevation);
                 if (baselineReturnPoint) {
-                    timeToBaseline = formatDistance(new Date(peakPoint.timestamp || event.startDate), new Date(baselineReturnPoint.timestamp), { includeSeconds: true });
+                    timeToBaseline = formatDistance(new Date(peakPoint.timestamp), new Date(baselineReturnPoint.timestamp), { includeSeconds: true });
                     
-                    const hoursToReturn = (baselineReturnPoint.timestamp - (peakPoint.timestamp || event.startDate)) / (1000 * 60 * 60);
+                    const hoursToReturn = (baselineReturnPoint.timestamp - peakPoint.timestamp) / (1000 * 60 * 60);
                     const designDrawdown = deployment.designDrawdown || 48; // Default 48h
                     if (hoursToReturn < designDrawdown * 0.5) drawdownAnalysis = "Fast";
                     else if (hoursToReturn > designDrawdown * 1.5) drawdownAnalysis = "Slow";
@@ -1136,6 +1144,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 : undefined;
 
             event.analysis = {
+                peakTimestamp: peakPoint?.timestamp,
                 baselineElevation,
                 peakElevation,
                 postEventElevation,
@@ -1227,6 +1236,8 @@ export async function saveAnalysis(data: any) {
       const eventsFilePath = path.join(processedDir, deployment.id, 'events.json');
       try {
         const weatherSummary = await readJsonFile<WeatherSummary>(eventsFilePath);
+        if (!weatherSummary || !weatherSummary.events) continue;
+
         const eventIndex = weatherSummary.events.findIndex(e => e.id === eventId);
         
         if (eventIndex !== -1) {
