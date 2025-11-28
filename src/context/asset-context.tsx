@@ -450,32 +450,51 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
 
   const getOverallAnalysis = useCallback(async (deploymentId: string) => {
       try {
-          return await getOverallAnalysisAction(deploymentId);
+          // Find the first deployment for the asset to get its analysis.
+          // This might need refinement if multiple deployments per asset have separate analyses.
+          const asset = assets.find(a => a.id === selectedAssetId);
+          if (asset) {
+            const assetDeployments = deployments.filter(d => d.assetId === asset.id);
+            if(assetDeployments.length > 0) {
+              return await getOverallAnalysisAction(assetDeployments[0].id);
+            }
+          }
+          return null;
       } catch (error) {
           console.error(error);
           return null;
       }
-  }, []);
+  }, [assets, deployments, selectedAssetId]);
 
-  const getRawOverallAnalysisJson = useCallback(async (deploymentId: string) => {
+  const getRawOverallAnalysisJson = useCallback(async (assetId: string) => {
     try {
-        const deployments = await readJsonFile<Deployment[]>(deploymentsFilePath);
-        const deployment = deployments.find(d => d.id === deploymentId);
-        if (!deployment) return JSON.stringify({ error: `Deployment with ID ${deploymentId} not found.` }, null, 2);
+        const asset = assets.find(a => a.id === assetId);
+        if (!asset) return JSON.stringify({ error: `Asset with ID ${assetId} not found.` }, null, 2);
+        
+        // Find first deployment for this asset, assuming analysis is stored per-deployment
+        const deployment = deployments.find(d => d.assetId === assetId);
+        if (!deployment) return JSON.stringify({ message: "No analysis data found for this deployment on the server." }, null, 2);
 
         return await getRawOverallAnalysisJsonAction(deployment.id);
     } catch (error) {
         console.error(error);
         return '{"error": "Failed to fetch raw analysis JSON."}';
     }
-  }, []);
+  }, [assets, deployments]);
   
   const saveOverallAnalysis = useCallback(async (data: any) => {
     try {
-      const result = await saveOverallAnalysisAction(data);
+      const assetId = data.assetId;
+      const deployment = deployments.find(d => d.assetId === assetId);
+      if (!deployment) {
+        return { message: `Error: No deployment found for asset ${assetId}. Cannot save analysis.` };
+      }
+      
+      const payload = { ...data, deploymentId: deployment.id };
+      delete payload.assetId;
+      
+      const result = await saveOverallAnalysisAction(payload);
       if (result && !result.errors && result.savedData) {
-        const deploymentId = result.savedData.deploymentId;
-        const deployment = deployments.find(d => d.id === deploymentId);
         if (deployment) {
             setAssets(prev => prev.map(a => a.id === deployment.assetId ? { ...a, status: result.savedData.status } : a));
         }
