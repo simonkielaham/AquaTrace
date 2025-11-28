@@ -143,7 +143,7 @@ const getIntelligentMapping = (headers: string[]): Partial<z.infer<typeof baseDa
         return undefined;
     };
 
-    mapping.datetimeColumn = findMatch(['date', 'time', 'timestamp']);
+    mapping.datetimeColumn = findMatch(['date', 'time', 'timestamp', 'date-time']);
     mapping.waterLevelColumn = findMatch(['waterlevel', 'water level', 'level', 'wl']);
     mapping.precipitationColumn = findMatch(['precipitation', 'rain', 'precip']);
     mapping.sensorPressureColumn = findMatch(['sensor pressure', 'absolute pressure', 'abs pressure', 'pressure']);
@@ -503,7 +503,8 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
                             <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                            {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                                <SelectItem value="">None</SelectItem>
+                                {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
                             </SelectContent>
                         </Select>
                         <FormMessage />
@@ -522,8 +523,9 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
                             <FormControl>
                             <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                             </FormControl>
-                            <SelectContent>
-                            {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                             <SelectContent>
+                                <SelectItem value="">None</SelectItem>
+                                {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
                             </SelectContent>
                         </Select>
                         <FormMessage />
@@ -545,7 +547,8 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
                                 <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                                    <SelectItem value="">None</SelectItem>
+                                    {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                             </FormItem>
@@ -562,7 +565,8 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
                                 <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                                    <SelectItem value="">None</SelectItem>
+                                    {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                             </FormItem>
@@ -579,7 +583,8 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
                                 <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
+                                    <SelectItem value="">None</SelectItem>
+                                    {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                             </FormItem>
@@ -1240,3 +1245,4 @@ export default function DeploymentList({ deployments, asset }: { deployments: De
     </Card>
   );
 }
+
