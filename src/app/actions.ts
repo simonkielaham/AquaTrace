@@ -6,7 +6,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData, OperationalAction, AssetStatus } from '@/lib/placeholder-data';
+import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData, AssetStatus } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 import { format, formatDistance, startOfDay } from 'date-fns';
 import { getWeatherData } from '../../sourceexamples/weather-service';
@@ -139,24 +139,22 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
       if (['assets.json', 'deployments.json', 'activity-log.json'].includes(baseName)) {
           return [] as T;
       }
-      if (['deployment-analysis.json', 'diagnostics.json', 'data.json', 'events.json', 'survey-points.json', 'operational-actions.json'].includes(baseName)) {
-          const emptyState: Record<string, any> = {
-            'deployment-analysis.json': {},
-            'diagnostics.json': {},
-            'data.json': [],
-            'events.json': { totalPrecipitation: 0, events: [] },
-            'survey-points.json': [],
-            'operational-actions.json': [],
-          }
-          if(emptyState[baseName]) return emptyState[baseName] as T;
+      
+      const emptyState: { [key: string]: any } = {
+        'deployment-analysis.json': {} as OverallAnalysisData,
+        'diagnostics.json': {},
+        'data.json': [] as ChartablePoint[],
+        'events.json': { totalPrecipitation: 0, events: [] } as WeatherSummary,
+        'survey-points.json': [] as SurveyPoint[],
+        'operational-actions.json': [] as OperationalAction[],
+      };
 
-          // Fallback for other JSON files.
-          const arrayFiles = ['assets.json', 'deployments.json', 'activity-log.json'];
-          if (arrayFiles.includes(path.basename(filePath))) {
-              return [] as T;
-          }
-          return {} as T;
+      if (baseName in emptyState) {
+        return emptyState[baseName] as T;
       }
+      
+      // Fallback for other JSON files, assuming they are objects.
+      // This is less safe, but covers unforeseen cases.
       return {} as T;
     }
     console.error(`Error reading ${filePath}:`, error);
@@ -958,7 +956,13 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 let point = dataMap.get(timestamp) || { timestamp };
                 const { dataType, waterLevelColumn, precipitationColumn, temperatureColumn, barometerColumn } = file.columnMapping;
 
-                if (waterLevelColumn) {
+                if (dataType === 'water-level' && waterLevelColumn) {
+                    const rawLevel = row[waterLevelColumn];
+                    if (typeof rawLevel === 'number') {
+                        point.rawWaterLevel = rawLevel;
+                        point.waterLevel = deployment.sensorElevation + rawLevel;
+                    }
+                } else if (dataType === 'sensor-suite' && waterLevelColumn) {
                     const rawLevel = row[waterLevelColumn];
                     if (typeof rawLevel === 'number') {
                         point.rawWaterLevel = rawLevel;
