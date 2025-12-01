@@ -1000,38 +1000,45 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
         const endDate = allData[allData.length - 1].timestamp;
 
         if (!hasPrecipitation) {
-            const weatherDataCsv = await getWeatherData({
-                latitude: asset.latitude,
-                longitude: asset.longitude,
-                startDate: new Date(startDate).toISOString(),
-                endDate: new Date(endDate).toISOString(),
-            });
+            try {
+                const weatherDataCsv = await getWeatherData({
+                    latitude: asset.latitude,
+                    longitude: asset.longitude,
+                    startDate: new Date(startDate).toISOString(),
+                    endDate: new Date(endDate).toISOString(),
+                });
 
-            const weatherParse = Papa.parse(weatherDataCsv, { header: true, dynamicTyping: true });
-            
-            (weatherParse.data as any[]).forEach(row => {
-                if (!row.date || row.precipitation === undefined) return;
-
-                const timestamp = new Date(row.date).getTime();
-                if (!isNaN(timestamp)) {
-                    // Find or create a point at the exact hourly timestamp
-                    let point = dataMap.get(timestamp);
-                    if (!point) {
-                        point = { timestamp };
-                        dataMap.set(timestamp, point);
-                    }
-
-                    // Assign precipitation value. Use '+' in case there was already data from another file.
-                    point.precipitation = (point.precipitation || 0) + (row.precipitation || 0);
+                if (weatherDataCsv) {
+                    const weatherParse = Papa.parse(weatherDataCsv, { header: true, dynamicTyping: true });
                     
-                    if (point.temperature === undefined && row.temperature !== undefined) {
-                        point.temperature = row.temperature;
-                    }
-                }
-            });
+                    const weatherMap = new Map<number, { precipitation?: number, temperature?: number }>();
+                    (weatherParse.data as any[]).forEach(row => {
+                        if (!row.date || row.precipitation === undefined) return;
+                        const timestamp = new Date(row.date).getTime();
+                        if (!isNaN(timestamp)) {
+                            weatherMap.set(timestamp, { precipitation: row.precipitation, temperature: row.temperature });
+                        }
+                    });
 
-            // Re-create and re-sort allData array after adding new weather points
-            allData = Array.from(dataMap.values()).sort((a,b) => a.timestamp - b.timestamp);
+                    allData.forEach(point => {
+                        const weatherPoint = weatherMap.get(point.timestamp);
+                        if (weatherPoint) {
+                            point.precipitation = (point.precipitation || 0) + (weatherPoint.precipitation || 0);
+                            if (point.temperature === undefined && weatherPoint.temperature !== undefined) {
+                                point.temperature = weatherPoint.temperature;
+                            }
+                        }
+                    });
+                }
+            } catch (weatherError) {
+                console.error("Could not fetch or merge weather data:", weatherError);
+                await writeLog({
+                    action: 'processAndAnalyzeDeployment',
+                    status: 'warning',
+                    deploymentId,
+                    payload: { message: `Failed to get external weather data. Analysis will proceed without it. Error: ${weatherError instanceof Error ? weatherError.message : 'Unknown'}` }
+                });
+            }
         }
         
         // Final combined and sorted data
