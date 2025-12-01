@@ -956,36 +956,23 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 if (isNaN(timestamp)) return;
 
                 let point = dataMap.get(timestamp) || { timestamp };
-                const dataType = file.columnMapping.dataType;
+                const { dataType, waterLevelColumn, precipitationColumn, temperatureColumn, barometerColumn } = file.columnMapping;
 
-                if (dataType === 'water-level' && file.columnMapping.waterLevelColumn) {
-                    const rawLevel = row[file.columnMapping.waterLevelColumn];
+                if (waterLevelColumn) {
+                    const rawLevel = row[waterLevelColumn];
                     if (typeof rawLevel === 'number') {
                         point.rawWaterLevel = rawLevel;
                         point.waterLevel = deployment.sensorElevation + rawLevel;
                     }
-                } else if (dataType === 'sensor-suite') {
-                    if (file.columnMapping.waterLevelColumn) {
-                         const rawLevel = row[file.columnMapping.waterLevelColumn];
-                         if (typeof rawLevel === 'number') {
-                            point.rawWaterLevel = rawLevel;
-                            point.waterLevel = deployment.sensorElevation + rawLevel;
-                         }
-                    } else if (file.columnMapping.sensorPressureColumn) {
-                        const pressure = row[file.columnMapping.sensorPressureColumn];
-                        if (typeof pressure === 'number') {
-                            // Convert kPa to meters water column and round to 4 decimal places
-                            const calculatedLevel = Math.round((pressure * 0.10197) * 10000) / 10000;
-                            point.rawWaterLevel = calculatedLevel;
-                            point.waterLevel = deployment.sensorElevation + calculatedLevel;
-                        }
-                    }
-                     if (file.columnMapping.temperatureColumn) point.temperature = row[file.columnMapping.temperatureColumn];
-                     if (file.columnMapping.barometerColumn) point.barometer = row[file.columnMapping.barometerColumn];
                 }
                 
-                if (dataType === 'precipitation' && file.columnMapping.precipitationColumn) {
-                     point.precipitation = (point.precipitation || 0) + (row[file.columnMapping.precipitationColumn] || 0);
+                if (precipitationColumn) {
+                     point.precipitation = (point.precipitation || 0) + (row[precipitationColumn] || 0);
+                }
+
+                if (dataType === 'sensor-suite') {
+                    if (temperatureColumn) point.temperature = row[temperatureColumn];
+                    if (barometerColumn) point.barometer = row[barometerColumn];
                 }
                 
                 dataMap.set(timestamp, point);
