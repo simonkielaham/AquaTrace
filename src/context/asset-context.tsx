@@ -470,19 +470,11 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
   
-  const saveOverallAnalysis = useCallback(async (data: any) => {
+  const saveOverallAnalysis = useCallback(async (payload: any) => {
     try {
-      const assetId = data.assetId;
-      const deployment = deployments.find(d => d.assetId === assetId);
-      if (!deployment) {
-        return { message: `Error: No deployment found for asset ${assetId}. Cannot save analysis.` };
-      }
-      
-      const payload = { ...data, deploymentId: deployment.id };
-      delete payload.assetId;
-      
       const result = await saveOverallAnalysisAction(payload);
       if (result && !result.errors && result.savedData) {
+        const deployment = deployments.find(d => d.id === payload.deploymentId);
         if (deployment) {
             setAssets(prev => prev.map(a => a.id === deployment.assetId ? { ...a, status: result.savedData.status } : a));
         }

@@ -150,19 +150,19 @@ export default function OverallAnalysis({ asset, analysisData, loading, isEditin
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
     setIsSubmitting(true);
     
-    // Find the first deployment associated with the current asset.
     const assetDeployments = deployments.filter(d => d.assetId === asset.id);
-    const firstDeployment = assetDeployments[0];
-
-    if (!firstDeployment) {
+    if (assetDeployments.length === 0) {
         toast({ variant: "destructive", title: "Error", description: `No deployment found for asset ${asset.name}. Cannot save analysis.` });
         setIsSubmitting(false);
         return;
     }
+    // The business logic requires analysis to be associated with a deployment.
+    // For overall analysis, we'll associate it with the first deployment of the asset.
+    const firstDeploymentId = assetDeployments[0].id;
 
     const serverPayload = {
       ...data,
-      deploymentId: firstDeployment.id,
+      deploymentId: firstDeploymentId,
     };
     
     const result = await saveOverallAnalysis(serverPayload);
