@@ -45,11 +45,9 @@ import {
   saveDeploymentAnalysis as saveOverallAnalysisAction,
   checkFileExists as checkFileExistsAction,
   getDeploymentDiagnostics,
+  readJsonFile, // Import the server action for reading files
 } from '@/app/actions';
 import { assetFormSchema, AssetFormValues } from '@/components/asset-management/asset-form';
-
-import initialAssets from '@/../data/assets.json';
-import initialDeployments from '@/../data/deployments.json';
 
 interface AssetData {
   data: ChartablePoint[];
@@ -239,17 +237,34 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
 
 
   useEffect(() => {
-    setAssets(initialAssets);
-    setDeployments(initialDeployments);
-    fetchStagedFiles();
-    
-    if (initialAssets.length > 0) {
-      const storedAssetId = localStorage.getItem('selectedAssetId');
-      const assetExists = initialAssets.some(a => a.id === storedAssetId);
-      const targetAssetId = storedAssetId && assetExists ? storedAssetId : initialAssets[0].id;
-      setSelectedAssetId(targetAssetId);
+    async function loadInitialData() {
+        setLoading(true);
+        try {
+            const [initialAssets, initialDeployments] = await Promise.all([
+                readJsonFile<Asset[]>('data/assets.json'),
+                readJsonFile<Deployment[]>('data/deployments.json')
+            ]);
+            
+            setAssets(initialAssets);
+            setDeployments(initialDeployments);
+            fetchStagedFiles();
+            
+            if (initialAssets.length > 0) {
+              const storedAssetId = localStorage.getItem('selectedAssetId');
+              const assetExists = initialAssets.some(a => a.id === storedAssetId);
+              const targetAssetId = storedAssetId && assetExists ? storedAssetId : initialAssets[0].id;
+              setSelectedAssetId(targetAssetId);
+            }
+        } catch (error) {
+            console.error("Failed to load initial data:", error);
+            // Set to empty arrays to prevent crashes
+            setAssets([]);
+            setDeployments([]);
+        } finally {
+            setLoading(false);
+        }
     }
-    setLoading(false);
+    loadInitialData();
   }, [fetchStagedFiles]);
 
   // When deployments change (e.g. after create), re-fetch data for the current asset.

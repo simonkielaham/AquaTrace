@@ -128,10 +128,11 @@ const reassignDatafileSchema = baseDatafileSchema.extend({
 
 
 // Helper function to read and parse a JSON file
-async function readJsonFile<T>(filePath: string): Promise<T> {
+export async function readJsonFile<T>(filePath: string): Promise<T> {
+  const fullPath = path.join(process.cwd(), filePath);
   try {
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    const fileContent = await fs.readFile(filePath, 'utf-8');
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    const fileContent = await fs.readFile(fullPath, 'utf-8');
     return JSON.parse(fileContent);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -146,7 +147,7 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
         'data.json': [] as ChartablePoint[],
         'events.json': { totalPrecipitation: 0, events: [] } as WeatherSummary,
         'survey-points.json': [] as SurveyPoint[],
-        'operational-actions.json': [] as OperationalAction[],
+        'operational-actions.json': [],
       };
 
       if (baseName in emptyState) {
@@ -157,7 +158,7 @@ async function readJsonFile<T>(filePath: string): Promise<T> {
       // This is less safe, but covers unforeseen cases.
       return {} as T;
     }
-    console.error(`Error reading ${filePath}:`, error);
+    console.error(`Error reading ${fullPath}:`, error);
     throw new Error(`Could not read data file: ${path.basename(filePath)}`);
   }
 }
