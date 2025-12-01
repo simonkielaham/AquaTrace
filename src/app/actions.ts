@@ -639,7 +639,7 @@ export async function assignDatafile(formData: FormData) {
       throw new Error(`CSV parsing error: ${parseResult.errors.map(e => e.message).join(', ')}`);
     }
 
-    const dataPoints = (parseResult.data as any[]).slice(columnMapping.startRow - 2);
+    const dataPoints = (parseResult.data as any[]).slice(columnMapping.startRow - 1);
 
     if (dataPoints.length === 0) {
       throw new Error("No data points found in the file after the specified start row.");
@@ -946,7 +946,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                 continue; // Skip to next file
             }
             
-            const dataPoints = (parseResult.data as any[]);
+            const dataPoints = (parseResult.data as any[]).slice(file.columnMapping.startRow - 1);
 
             dataPoints.forEach((row: any) => {
                     const timestampStr = row[file.columnMapping.datetimeColumn];
@@ -965,7 +965,7 @@ async function processAndAnalyzeDeployment(deploymentId: string) {
                        }
                     }
                      if (file.columnMapping.dataType === 'sensor-suite') {
-                        if (file.columnMapping.sensorPressureColumn) {
+                        if (file.columnMapping.sensorPressureColumn && !point.waterLevel) {
                             const pressure = row[file.columnMapping.sensorPressureColumn];
                             if(typeof pressure === 'number') {
                                 point.rawWaterLevel = pressure * 0.10197; // kPa to meters water column
