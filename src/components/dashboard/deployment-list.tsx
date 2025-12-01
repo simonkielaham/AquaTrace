@@ -79,7 +79,7 @@ const editDeploymentSchema = z.object({
   name: z.string().optional(),
   sensorId: z.string().min(1, "Sensor ID is required."),
   sensorElevation: z.coerce.number(),
-  stillwellTop: z.coerce.number().optional(),
+  stillwellTop: z.coerce.number().optional().nullable(),
   designDrawdown: z.coerce.number().optional(),
 });
 
@@ -88,7 +88,7 @@ type EditDeploymentValues = z.infer<typeof editDeploymentSchema>;
 const deploymentFormSchema = z.object({
   sensorId: z.string().min(1, "Sensor ID is required."),
   sensorElevation: z.coerce.number(),
-  stillwellTop: z.coerce.number().optional(),
+  stillwellTop: z.coerce.number().optional().nullable(),
   name: z.string().optional(),
   designDrawdown: z.coerce.number().optional(),
 });
@@ -164,7 +164,7 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
     defaultValues: {
       sensorId: "",
       sensorElevation: 0,
-      stillwellTop: undefined,
+      stillwellTop: null,
       name: "",
       designDrawdown: 48,
     }
@@ -206,7 +206,7 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Deployment Name (Optional)</FormLabel>
-                  <FormControl><Input placeholder="e.g., Initial Deployment" {...field} /></FormControl>
+                  <FormControl><Input placeholder="e.g., Initial Deployment" {...field} value={field.value ?? ''} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -240,7 +240,7 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Stillwell Top (m)</FormLabel>
-                      <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                      <FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -252,7 +252,7 @@ function NewDeploymentDialog({ asset }: { asset: Asset }) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Design Drawdown Time (hr)</FormLabel>
-                      <FormControl><Input type="number" step="1" {...field} /></FormControl>
+                      <FormControl><Input type="number" step="1" {...field} value={field.value ?? ''} /></FormControl>
                       <FormDescription>e.g., 24, 48, or 72 hours</FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -283,7 +283,7 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
       name: deployment.name || "",
       sensorId: deployment.sensorId,
       sensorElevation: deployment.sensorElevation,
-      stillwellTop: deployment.stillwellTop === null || deployment.stillwellTop === undefined ? undefined : deployment.stillwellTop,
+      stillwellTop: deployment.stillwellTop === null || deployment.stillwellTop === undefined ? null : deployment.stillwellTop,
       designDrawdown: deployment.designDrawdown || 48,
     },
   });
@@ -316,7 +316,7 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Deployment Name</FormLabel>
-                    <FormControl><Input {...field} placeholder="e.g., Initial Deployment" /></FormControl>
+                    <FormControl><Input {...field} placeholder="e.g., Initial Deployment" value={field.value ?? ''} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -349,7 +349,7 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Stillwell Top (m)</FormLabel>
-                  <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                  <FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -361,7 +361,7 @@ function EditDeploymentForm({ deployment, asset }: { deployment: Deployment, ass
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Design Drawdown Time (hr)</FormLabel>
-                  <FormControl><Input type="number" step="1" {...field} /></FormControl>
+                  <FormControl><Input type="number" step="1" {...field} value={field.value ?? ''} /></FormControl>
                   <FormDescription>e.g., 24, 48, or 72 hours</FormDescription>
                   <FormMessage />
                 </FormItem>

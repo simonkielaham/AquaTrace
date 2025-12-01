@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { Asset, OverallAnalysisData } from "@/lib/placeholder-data";
@@ -125,7 +126,7 @@ interface OverallAnalysisProps {
 
 export default function OverallAnalysis({ asset, analysisData, loading, isEditing, onEditChange }: OverallAnalysisProps) {
   const { toast } = useToast();
-  const { saveOverallAnalysis } = useAssets();
+  const { saveOverallAnalysis, deployments } = useAssets();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const lastUpdated = analysisData?.lastUpdated ? format(new Date(analysisData.lastUpdated), "PPp") : null;
   
@@ -148,9 +149,20 @@ export default function OverallAnalysis({ asset, analysisData, loading, isEditin
 
   const handleSubmit = async (data: OverallAnalysisFormValues) => {
     setIsSubmitting(true);
+    
+    // Find the first deployment associated with the current asset.
+    const assetDeployments = deployments.filter(d => d.assetId === asset.id);
+    const firstDeployment = assetDeployments[0];
+
+    if (!firstDeployment) {
+        toast({ variant: "destructive", title: "Error", description: `No deployment found for asset ${asset.name}. Cannot save analysis.` });
+        setIsSubmitting(false);
+        return;
+    }
+
     const serverPayload = {
       ...data,
-      assetId: asset.id,
+      deploymentId: firstDeployment.id,
     };
     
     const result = await saveOverallAnalysis(serverPayload);
