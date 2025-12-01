@@ -168,8 +168,13 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
 
     try {
         const currentDeployments = deployments.filter(d => d.assetId === assetId);
+        if (currentDeployments.length === 0) {
+           setAssetData(prev => ({ ...prev, [assetId]: { ...initialData, loading: false } }));
+           return;
+        }
         
         const deploymentDataPromises = currentDeployments.map(async (deployment) => {
+          try {
             const [
                 processedDataResult, 
                 overallAnalysisResult,
@@ -191,6 +196,18 @@ export const AssetProvider = ({ children }: { children: ReactNode }) => {
                 operationalActions: operationalActionsResult,
                 diagnostics: diagnosticsResult,
             };
+          } catch(e) {
+            console.error(`Failed to fetch data for deployment ${deployment.id}:`, e);
+            // Return empty structure on error for a specific deployment
+            return {
+                deploymentId: deployment.id,
+                processedData: { data: [], weatherSummary: null },
+                overallAnalysis: null,
+                surveyPoints: [],
+                operationalActions: [],
+                diagnostics: null,
+            };
+          }
         });
         
         const allDeploymentData = await Promise.all(deploymentDataPromises);

@@ -251,12 +251,12 @@ export default function TapeDownManager({ asset, deployments, surveyPoints, data
                     <h4 className="font-medium">Add New Tape-Down</h4>
                     <Form {...form}>
                       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:flex lg:flex-wrap lg:items-start gap-4">
                             <FormField
                               control={form.control}
                               name="deploymentId"
                               render={({ field }) => (
-                                <FormItem>
+                                <FormItem className="grow">
                                   <FormLabel>Stillwell / Deployment</FormLabel>
                                   <Select onValueChange={field.onChange} value={field.value}>
                                     <FormControl>
@@ -280,7 +280,7 @@ export default function TapeDownManager({ asset, deployments, surveyPoints, data
                               control={form.control}
                               name="date"
                               render={({ field }) => (
-                                <FormItem>
+                                <FormItem className="flex flex-col">
                                   <FormLabel>Date</FormLabel>
                                   <Popover>
                                     <PopoverTrigger asChild>
@@ -288,7 +288,7 @@ export default function TapeDownManager({ asset, deployments, surveyPoints, data
                                         <Button
                                           variant={"outline"}
                                           className={cn(
-                                            "w-full pl-3 text-left font-normal",
+                                            "w-full lg:w-[200px] justify-start pl-3 text-left font-normal",
                                             !field.value && "text-muted-foreground"
                                           )}
                                           disabled={!isSelectedDeploymentEligible}
@@ -322,12 +322,12 @@ export default function TapeDownManager({ asset, deployments, surveyPoints, data
                               control={form.control}
                               name="time"
                               render={({ field }) => (
-                                <FormItem>
+                                <FormItem className="flex flex-col">
                                   <FormLabel>Time (24h)</FormLabel>
                                   <div className="relative">
                                     <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <FormControl>
-                                      <Input type="text" placeholder="HH:MM" className="pl-10" {...field} disabled={!isSelectedDeploymentEligible} />
+                                      <Input type="text" placeholder="HH:MM" className="pl-10 w-full lg:w-[120px]" {...field} disabled={!isSelectedDeploymentEligible} />
                                     </FormControl>
                                   </div>
                                   <FormMessage />
@@ -335,7 +335,7 @@ export default function TapeDownManager({ asset, deployments, surveyPoints, data
                               )}
                             />
                         </div>
-                        <div className="flex items-end gap-4">
+                        <div className="flex items-end flex-wrap gap-4">
                              <FormField
                                 control={form.control}
                                 name="measurement"
@@ -343,13 +343,13 @@ export default function TapeDownManager({ asset, deployments, surveyPoints, data
                                     <FormItem>
                                     <FormLabel>Tape-Down (m)</FormLabel>
                                     <FormControl>
-                                        <Input type="number" step="0.01" placeholder="e.g., 0.8" className="w-[180px]" {...field} disabled={!isSelectedDeploymentEligible} />
+                                        <Input type="number" step="0.01" placeholder="e.g., 0.8" className="w-full sm:w-[180px]" {...field} disabled={!isSelectedDeploymentEligible} />
                                     </FormControl>
                                     <FormMessage />
                                     </FormItem>
                                 )}
                                 />
-                            <Button type="submit" disabled={isSubmitting || !form.formState.isValid || !isSelectedDeploymentEligible}>
+                            <Button type="submit" disabled={isSubmitting || !form.formState.isValid || !isSelectedDeploymentEligible} className="w-full sm:w-auto">
                                 <PlusCircle className="mr-2 h-4 w-4" />
                                 {isSubmitting ? "Adding..." : "Add Checkpoint"}
                             </Button>

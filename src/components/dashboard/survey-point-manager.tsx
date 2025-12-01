@@ -160,12 +160,12 @@ export default function SurveyPointManager({ asset, deployments, surveyPoints, d
               <div className="space-y-4">
                 <h4 className="font-medium">Add New Point</h4>
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(handleSubmit)} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 items-end gap-4">
+                  <form onSubmit={form.handleSubmit(handleSubmit)} className="grid grid-cols-1 md:grid-cols-2 lg:flex lg:flex-wrap lg:items-end gap-4">
                     <FormField
                       control={form.control}
                       name="deploymentId"
                       render={({ field }) => (
-                        <FormItem>
+                        <FormItem className="grow">
                           <FormLabel>Deployment</FormLabel>
                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
@@ -189,7 +189,7 @@ export default function SurveyPointManager({ asset, deployments, surveyPoints, d
                       control={form.control}
                       name="date"
                       render={({ field }) => (
-                        <FormItem className="flex flex-col">
+                        <FormItem className="flex flex-col grow">
                           <FormLabel>Date</FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
@@ -197,7 +197,7 @@ export default function SurveyPointManager({ asset, deployments, surveyPoints, d
                                 <Button
                                   variant={"outline"}
                                   className={cn(
-                                    "w-full pl-3 text-left font-normal",
+                                    "w-full lg:w-[200px] justify-start pl-3 text-left font-normal",
                                     !field.value && "text-muted-foreground"
                                   )}
                                 >
@@ -235,7 +235,7 @@ export default function SurveyPointManager({ asset, deployments, surveyPoints, d
                             <div className="relative">
                               <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <FormControl>
-                              <Input type="text" placeholder="HH:MM" className="w-full pl-10" {...field} />
+                              <Input type="text" placeholder="HH:MM" className="w-full lg:w-[120px] pl-10" {...field} />
                             </FormControl>
                             </div>
                           <FormMessage />
@@ -249,7 +249,7 @@ export default function SurveyPointManager({ asset, deployments, surveyPoints, d
                         <FormItem>
                           <FormLabel>Elevation (m)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.01" placeholder="e.g., 125.42" className="w-full" {...field} />
+                            <Input type="number" step="0.01" placeholder="e.g., 125.42" className="w-full lg:w-[150px]" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
