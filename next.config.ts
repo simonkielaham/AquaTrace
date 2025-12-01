@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  webpack: (config) => {
+    config.watchOptions.ignored = [
+      ...(config.watchOptions.ignored as string[] | RegExp[]),
+      '**/data/**',
+      '**/staged/**',
+    ];
+    return config;
+  },
 };
 
 export default nextConfig;
