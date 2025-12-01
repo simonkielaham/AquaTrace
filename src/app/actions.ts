@@ -9,7 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { Asset, Deployment, ActivityLog, DataFile, StagedFile, SurveyPoint, ChartablePoint, AnalysisPeriod, WeatherSummary, SavedAnalysisData, OverallAnalysisData, AssetStatus } from '@/lib/placeholder-data';
 import Papa from 'papaparse';
 import { format, formatDistance, startOfDay } from 'date-fns';
-import { getWeatherData } from '../../sourceexamples/weather-service';
+import { getWeatherData } from '@/lib/services/weather-service';
 import { runDiagnostics } from '@/lib/diagnostics';
 
 
