@@ -601,7 +601,7 @@ export async function assignDatafile(formData: FormData) {
   // Clean up "none" values from optional selects before validation
   Object.keys(rawData).forEach(key => {
     if (rawData[key] === 'none') {
-        rawData[key] = '';
+        rawData[key] = undefined;
     }
   });
 
@@ -859,7 +859,7 @@ export async function reassignDatafile(formData: FormData) {
   // Clean up "none" values from optional selects before validation
   Object.keys(rawData).forEach(key => {
     if (rawData[key] === 'none') {
-        rawData[key] = '';
+        rawData[key] = undefined;
     }
   });
   
