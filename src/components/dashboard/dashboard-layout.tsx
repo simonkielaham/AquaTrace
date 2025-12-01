@@ -207,7 +207,7 @@ export default function DashboardLayout() {
                   isEditing={isOverallAnalysisEditing}
                   onEditChange={setIsOverallAnalysisEditing}
                 />
-              <AnalysisQaqc asset={selectedAsset} />
+              <AnalysisQaqc asset={selectedAsset} deployments={assetDeployments} />
               <DeploymentList deployments={assetDeployments} asset={selectedAsset} />
               <SurveyPointManager 
                 asset={selectedAsset} 

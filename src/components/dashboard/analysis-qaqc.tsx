@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Asset } from "@/lib/placeholder-data";
+import type { Asset, Deployment } from "@/lib/placeholder-data";
 import * as React from "react";
 import {
   Card,
@@ -22,17 +22,19 @@ import { ChevronDown, FileJson, Loader2 } from "lucide-react";
 
 interface AnalysisQaqcProps {
   asset: Asset;
+  deployments: Deployment[];
 }
 
-export default function AnalysisQaqc({ asset }: AnalysisQaqcProps) {
+export default function AnalysisQaqc({ asset, deployments }: AnalysisQaqcProps) {
   const { getRawOverallAnalysisJson } = useAssets();
   const [jsonContent, setJsonContent] = React.useState<string>("");
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
-    if (asset?.id) {
+    const firstDeployment = deployments.find(d => d.assetId === asset.id);
+    if (firstDeployment) {
       setIsLoading(true);
-      getRawOverallAnalysisJson(asset.id)
+      getRawOverallAnalysisJson(firstDeployment.id)
         .then((content) => {
           setJsonContent(content);
         })
@@ -43,8 +45,11 @@ export default function AnalysisQaqc({ asset }: AnalysisQaqcProps) {
         .finally(() => {
           setIsLoading(false);
         });
+    } else {
+        setJsonContent('{\n  "error": "No deployments found for this asset."\n}');
+        setIsLoading(false);
     }
-  }, [asset?.id, getRawOverallAnalysisJson]);
+  }, [asset?.id, deployments, getRawOverallAnalysisJson]);
 
   return (
     <Card className="col-span-1 lg:col-span-4 shadow-sm">
