@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { promises as fs } from 'fs';
@@ -596,6 +597,13 @@ export async function assignDatafile(formData: FormData) {
   const rawData = Object.fromEntries(formData);
   const logPayload = { ...rawData };
   delete logPayload.file;
+  
+  // Clean up "none" values from optional selects before validation
+  Object.keys(rawData).forEach(key => {
+    if (rawData[key] === 'none') {
+        rawData[key] = '';
+    }
+  });
 
   const validatedFields = assignDatafileSchema.safeParse(rawData);
   if (!validatedFields.success) {
@@ -847,6 +855,14 @@ export async function getSourceFileContent(filename: string): Promise<string | n
 
 export async function reassignDatafile(formData: FormData) {
   const rawData = Object.fromEntries(formData);
+  
+  // Clean up "none" values from optional selects before validation
+  Object.keys(rawData).forEach(key => {
+    if (rawData[key] === 'none') {
+        rawData[key] = '';
+    }
+  });
+  
   const validatedFields = reassignDatafileSchema.safeParse(rawData);
 
   if (!validatedFields.success) {

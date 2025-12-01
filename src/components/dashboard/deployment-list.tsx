@@ -106,9 +106,9 @@ const baseDatafileSchema = z.object({
 });
 
 const refinedDatafileSchema = baseDatafileSchema.refine(data => {
-    if (data.dataType === 'water-level') return !!data.waterLevelColumn;
-    if (data.dataType === 'precipitation') return !!data.precipitationColumn;
-    if (data.dataType === 'sensor-suite') return !!data.waterLevelColumn;
+    if (data.dataType === 'water-level') return !!data.waterLevelColumn && data.waterLevelColumn !== 'none';
+    if (data.dataType === 'precipitation') return !!data.precipitationColumn && data.precipitationColumn !== 'none';
+    if (data.dataType === 'sensor-suite') return !!data.waterLevelColumn && data.waterLevelColumn !== 'none';
     return true;
 }, {
     message: "A primary value column is required for the selected data type.",
@@ -118,9 +118,9 @@ const refinedDatafileSchema = baseDatafileSchema.refine(data => {
 const assignDatafileSchema = baseDatafileSchema.extend({
   filename: z.string({ required_error: "Please select a file to assign."}).min(1, "Please select a file to assign."),
 }).refine(data => {
-    if (data.dataType === 'water-level') return !!data.waterLevelColumn;
-    if (data.dataType === 'precipitation') return !!data.precipitationColumn;
-    if (data.dataType === 'sensor-suite') return !!data.waterLevelColumn;
+    if (data.dataType === 'water-level') return !!data.waterLevelColumn && data.waterLevelColumn !== 'none';
+    if (data.dataType === 'precipitation') return !!data.precipitationColumn && data.precipitationColumn !== 'none';
+    if (data.dataType === 'sensor-suite') return !!data.waterLevelColumn && data.waterLevelColumn !== 'none';
     return true;
 }, {
     message: "A primary value column is required for the selected data type.",
@@ -503,7 +503,7 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
                             <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                                <SelectItem value="">None</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
                                 {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
                             </SelectContent>
                         </Select>
@@ -524,7 +524,7 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
                             <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                             </FormControl>
                              <SelectContent>
-                                <SelectItem value="">None</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
                                 {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
                             </SelectContent>
                         </Select>
@@ -547,7 +547,7 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
                                 <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="">None</SelectItem>
+                                    <SelectItem value="none">None</SelectItem>
                                     {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
                                 </SelectContent>
                             </Select>
@@ -565,7 +565,7 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
                                 <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="">None</SelectItem>
+                                    <SelectItem value="none">None</SelectItem>
                                     {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
                                 </SelectContent>
                             </Select>
@@ -583,7 +583,7 @@ function DatafileFormContent({ form, csvHeaders, csvSample, isParsing, loadingSt
                                 <SelectTrigger><SelectValue placeholder="Select a column..." /></SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="">None</SelectItem>
+                                    <SelectItem value="none">None</SelectItem>
                                     {csvHeaders.map(header => <SelectItem key={header} value={header}>{header}</SelectItem>)}
                                 </SelectContent>
                             </Select>
